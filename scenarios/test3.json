@@ -1,0 +1,40 @@
+{
+    "duration": 20,
+    "outputs": [
+        {
+            "name": "r1",
+            "type": "usrpb200",
+            "serial": "8002514",
+            "subdevSpec": "A:A A:B",
+            "nChannels": 2,
+            "samplerate": 1000000,
+            "frequencies": [ 434500000.0, 435500000.0 ],
+            "gains": [ 50.0, 50.0 ]
+        }
+    ],
+    "signals": [
+        {
+            "name": "s1",
+            "type": "IQFile",
+            "file": "S:/temp/ssg/rec/debug/macskadob_fm300k.wav"
+        }
+    ],
+    "events": [
+        {
+            "signal": "s1",
+            "output": "r1.0",
+            "frequency": 434500000.0,
+            "amplitude": 0.7,
+            "start": 5,
+            "end": 10
+        },
+        {
+            "signal": "s1",
+            "output": "r1.1",
+            "frequency": 435500000.0,
+            "amplitude": 0.7,
+            "start": 8,
+            "end": 13
+        }
+    ]
+}

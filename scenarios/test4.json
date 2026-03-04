@@ -1,0 +1,89 @@
+{
+    "duration": 21,
+    "outputs": [
+        {
+            "name": "r1",
+            "type": "usrpb200",
+            "serial": "8002512",
+            "subdevSpec": "A:A",
+            "nChannels": 1,
+            "samplerate": 300000,
+            "frequencies": [ 1183500000.0 ],
+            "gains": [ 50.0 ]
+        },
+        {
+            "name": "r2",
+            "serial": "8002514",
+            "type": "usrpb200",
+            "subdevSpec": "A:A",
+            "nChannels": 1,
+            "samplerate": 300000,
+            "frequencies": [ 1236000000.0 ],
+            "gains": [ 60.0 ]
+        },
+        {
+            "name": "r3",
+            "type": "usrpb200",
+            "serial": "GUV6HJ7",
+            "subdevSpec": "A:A",
+            "nChannels": 1,
+            "samplerate": 300000,
+            "frequencies": [ 1279000000.0 ],
+            "gains": [ 75.0 ]
+        },
+        {
+            "name": "r4",
+            "type": "usrpb200",
+            "serial": "XHZDI27",
+            "subdevSpec": "A:A",
+            "nChannels": 1,
+            "samplerate": 300000,
+            "frequencies": [ 1582500000.0 ],
+            "gains": [ 70.0 ]
+        }
+    ],
+    "signals": [
+        {
+            "name": "s1",
+            "type": "Tone"
+        },
+        {
+            "name": "s2",
+            "type": "Chirp",
+            "span": 1000000,
+            "rate": 3.0
+        },
+        {
+            "name": "s3",
+            "type": "Noise",
+            "span": 1000000
+        },
+        {
+            "name": "s4",
+            "type": "Chirp",
+            "span": 1000000,
+            "rate": 10.0
+        },
+        {
+            "name": "s5",
+            "type": "IQFile",
+            "file": "S:/temp/ssg/rec/debug/amadeus_fm300k.sigmf-data"
+        },
+        {
+            "name": "s6",
+            "type": "AudioFile",
+            "file": "S:/temp/ssg/rec/debug/macskadob.wav",
+            "modulation": "FM"
+        }
+    ],
+    "events": [
+        {
+            "signal": "s2",
+            "output": "r2.0",
+            "frequency": 1236000000.0,
+            "amplitude": 0.7,
+            "start": 1,
+            "end": 15
+        }
+    ]
+}

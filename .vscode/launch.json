@@ -1,0 +1,35 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug SCG (MSVC)",
+            "cwd": "${workspaceFolder}/build-msvc/src/SCG",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build-msvc/src/SCG/SCG.exe",
+            "args": [
+                "../../../scenarios/test3.json", "-r"
+            ],
+            "envFile": "${workspaceFolder}/build-msvc/.env",
+            "stopAtEntry": false,
+            "environment": [],
+            "console": "integratedTerminal",
+        },
+        {
+            "name": "Attach (MSVC)",
+            "type": "cppvsdbg",
+            "request": "attach",
+            "processId": "${command:pickProcess}",
+        },
+        {
+            "name": "Attach (LLDB)",
+            "type": "lldb",
+            "request": "attach",
+            "pid": "${command:pickProcess}",
+        },
+
+    ]
+}

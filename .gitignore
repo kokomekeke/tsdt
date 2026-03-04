@@ -1,0 +1,5 @@
+build*/
+*.wav
+
+/subprojects/packagecache/
+/subprojects/SSG/

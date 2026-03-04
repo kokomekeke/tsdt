@@ -1,0 +1,53 @@
+{
+    "duration": 10,
+    "outputs": [
+        {
+            "name": "r1",
+            "type": "usrpb200",
+            "serial": "8002514",
+            "subdevSpec": "A:A",
+            "nChannels": 1,
+            "samplerate": 300000,
+            "frequencies": [ 434500000.0 ],
+            "gains": [ 70.0 ]
+        }
+    ],
+    "signals": [
+        {
+            "name": "s1",
+            "type": "Tone"
+        },
+        {
+            "name": "s2",
+            "type": "Chirp",
+            "span": 50000,
+            "rate": 3.0
+        },
+        {
+            "name": "s3",
+            "type": "Noise",
+            "span": 100000
+        },
+        {
+            "name": "s4",
+            "type": "IQFile",
+            "file": "S:/temp/ssg/rec/debug/amadeus_fm300k.sigmf-data"
+        },
+        {
+            "name": "s5",
+            "type": "AudioFile",
+            "file": "S:/temp/ssg/rec/debug/macskadob.wav",
+            "modulation": "FM"
+        }
+    ],
+    "events": [
+        {
+            "signal": "s2",
+            "output": "r1.0",
+            "frequency": 434500000.0,
+            "amplitude": 0.7,
+            "start": 1,
+            "end": 9
+        }
+    ]
+}

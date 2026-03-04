@@ -1,0 +1,32 @@
+{
+    "duration": 20,
+    "outputs": [
+        {
+            "name": "r1",
+            "type": "usrpb200",
+            "serial": "XHZDI27",
+            "subdevSpec": "A:A",
+            "nChannels": 1,
+            "samplerate": 300000,
+            "frequencies": [ 434500000.0 ],
+            "gains": [ 40.0 ]
+        }
+    ],
+    "signals": [
+        {
+            "name": "s1",
+            "type": "IQFile",
+            "file": "S:/temp/ssg/rec/debug/amadeus_fm300k.sigmf-data"
+        }
+    ],
+    "events": [
+        {
+            "signal": "s1",
+            "output": "r1.0",
+            "frequency": 434500000.0,
+            "amplitude": 0.4,
+            "start": 5,
+            "end": 10
+        }
+    ]
+}
