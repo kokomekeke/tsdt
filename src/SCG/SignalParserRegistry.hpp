@@ -256,8 +256,8 @@ namespace Sagax::SCG {
                         else if(modP.data == "AM") {
                             auto mod = std::make_unique<SSG::Modulators::AMModulator>();
                             mod->freq = 0.0;
-                            mod->ampl = 1.0;
-                            mod->deviation = 1.0;
+                            mod->ampl = 0.5;
+                            mod->deviation = 0.3;
                             mdl->mod = std::move(mod);
                         }
                         else if(modP.data == "PM") {
