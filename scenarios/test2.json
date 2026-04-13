@@ -3,13 +3,12 @@
     "outputs": [
         {
             "name": "r1",
-            "type": "usrpb200",
+            "type": "UsrpB200",
             "serial": "8002514",
             "subdevSpec": "A:A",
-            "nChannels": 1,
             "samplerate": 300000,
-            "frequencies": [ 434500000.0 ],
-            "gains": [ 70.0 ]
+            "frequency": 434500000.0,
+            "gain": 70.0
         }
     ],
     "signals": [

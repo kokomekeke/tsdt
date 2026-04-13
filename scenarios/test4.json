@@ -3,43 +3,39 @@
     "outputs": [
         {
             "name": "r1",
-            "type": "usrpb200",
+            "type": "UsrpB200",
             "serial": "8002512",
             "subdevSpec": "A:A",
-            "nChannels": 1,
             "samplerate": 300000,
-            "frequencies": [ 1183500000.0 ],
-            "gains": [ 50.0 ]
+            "frequency": 1183500000.0,
+            "gain": 50.0
         },
         {
             "name": "r2",
             "serial": "8002514",
-            "type": "usrpb200",
+            "type": "UsrpB200",
             "subdevSpec": "A:A",
-            "nChannels": 1,
             "samplerate": 300000,
-            "frequencies": [ 1236000000.0 ],
-            "gains": [ 60.0 ]
+            "frequency": 1236000000.0,
+            "gain": 60.0
         },
         {
             "name": "r3",
-            "type": "usrpb200",
+            "type": "UsrpB200",
             "serial": "GUV6HJ7",
             "subdevSpec": "A:A",
-            "nChannels": 1,
             "samplerate": 300000,
-            "frequencies": [ 1279000000.0 ],
-            "gains": [ 75.0 ]
+            "frequency": 1279000000.0,
+            "gain": 75.0
         },
         {
             "name": "r4",
-            "type": "usrpb200",
+            "type": "UsrpB200",
             "serial": "XHZDI27",
             "subdevSpec": "A:A",
-            "nChannels": 1,
             "samplerate": 300000,
-            "frequencies": [ 1582500000.0 ],
-            "gains": [ 70.0 ]
+            "frequency": 1582500000.0,
+            "gain": 70.0
         }
     ],
     "signals": [

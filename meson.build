@@ -41,17 +41,27 @@ endif
 ssgSub = subproject('SSG')
 coreLibDep = ssgSub.get_variable('coreLibDep')
 ssgLibDep = ssgSub.get_variable('ssgLibDep')
+ssg_defines = ssgSub.get_variable('ssg_defines')
 
 executable(
     'SCG',
     sources: [
-        'src/SCG/main.cpp',
-        'src/SCG/Scenario.cpp',
-        'src/SCG/Parsers.cpp'
+        'src/SCG/JsonParsing/OutputParserRegistry.cpp',
+        'src/SCG/JsonParsing/Parsers.cpp',
+        'src/SCG/JsonParsing/SignalParserRegistry.cpp',
+        'src/SCG/Modules/Merger.cpp',
+        'src/SCG/Modules/Source.cpp',
+        'src/SCG/Modules/Tuner.cpp',
+        'src/SCG/Output/OutputDevice.cpp',
+        'src/SCG/Scenario/OutputVariant.cpp',
+        'src/SCG/ScenarioTransform/BuildPipeline.cpp',
+        'src/SCG/ScenarioTransform/Transform.cpp',
+        'src/SCG/Signal/SignalGenerator.cpp',
+        'src/SCG/CLI/main.cpp'
     ],
     include_directories: [ 'src/' ],
     dependencies: [ coreLibDep, ssgLibDep ],
-    cpp_args: cpp_args,
+    cpp_args: cpp_args + ssg_defines,
     link_args: link_args,
 )
 

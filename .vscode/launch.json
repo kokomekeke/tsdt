@@ -6,17 +6,19 @@
     "configurations": [
         {
             "name": "Debug SCG (MSVC)",
-            "cwd": "${workspaceFolder}/build-msvc/src/SCG",
+            "cwd": "${workspaceFolder}/build-msvc/",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build-msvc/src/SCG/SCG.exe",
+            "program": "${workspaceFolder}/build-msvc/SCG.exe",
             "args": [
-                "../../../scenarios/test3.json", "-r"
+                "-r",
+                "../scenarios/test3.json"
             ],
-            "envFile": "${workspaceFolder}/build-msvc/.env",
+            // "envFile": "${workspaceFolder}/build-msvc/.env",
             "stopAtEntry": false,
             "environment": [],
-            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/build-msvc/subprojects/SSG/.env",
+            "console": "internalConsole",
         },
         {
             "name": "Attach (MSVC)",
