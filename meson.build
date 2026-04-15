@@ -65,6 +65,14 @@ executable(
     link_args: link_args,
 )
 
+mosquittoDep = dependency('libmosquitto')
+cjsonDep = dependency('cjson') # dep of mosquitto
+executable(
+    'scgclient',
+    sources: 'src/SCG/Client/main.cpp',
+    dependencies: [mosquittoDep, cjsonDep]
+)
+
 # Make exe available on path, for easier access from build dir
 devenv = environment()
 devenv.append('PATH', [meson.current_build_dir()])

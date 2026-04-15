@@ -1,0 +1,16 @@
+# docker compose up
+# mosquitto_pub -t test/topic -m "hello world"
+services:
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto
+    restart: unless-stopped
+
+    ports:
+      - "1883:1883"   # MQTT
+      # - "9001:9001"   # WebSockets (optional)
+
+    # volumes:
+      # - ./config:/mosquitto/config
+      # - ./data:/mosquitto/data
+      # - ./log:/mosquitto/log
