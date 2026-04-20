@@ -3,9 +3,9 @@
 #include <vector>
 #include "Pipeline/Pipeline.hpp"
 #include "SSG/IO/IQFileIn.hpp"
-#include "SSG/Packets/Packets.hpp"
 #include "SCG/Signal/SignalGenerator.hpp"
 #include "SCG/Scenario/Scenario.hpp"
+#include "Packets.hpp"
 
 namespace Sagax::SCG {
 
@@ -20,7 +20,7 @@ namespace Sagax::SCG {
     };
 
     struct StreamSource : public Sagax::Pipeline::Module {
-        Sagax::Pipeline::OutPort<SSG::Packets::IQPacket> outP = AddOutPort(&outP);
+        Sagax::Pipeline::OutPort<SCGIQPacket> outP = AddOutPort(&outP);
 
         std::size_t nSamples;
         SampleIndexedEventList events;
@@ -38,13 +38,13 @@ namespace Sagax::SCG {
     };
 
     struct PlaybackSource : public Sagax::Pipeline::Module {
-        Sagax::Pipeline::OutPort<SSG::Packets::IQPacket> outP = AddOutPort(&outP);
+        Sagax::Pipeline::OutPort<SCGIQPacket> outP = AddOutPort(&outP);
 
         std::string fileName;
         std::size_t nSamples;
         SampleIndexedEventList events;
 
-        SSG::IO::IQFileIn<double> file;
+        SSG::IO::IQFileIn<SCGSampleBase> file;
         std::size_t iSample = 0;
 
         void Reset() override;

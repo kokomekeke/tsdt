@@ -23,7 +23,6 @@ namespace Sagax::SCG {
     using Sagax::Pipeline::SimplePipelineBuilder;
     using Pipeline::InPort;
     using Pipeline::OutPort;
-    using SSG::Packets::IQPacket;
 
     namespace {
         constexpr std::size_t packetSize = (1<<12);
@@ -134,8 +133,8 @@ namespace Sagax::SCG {
             for(std::size_t ie : events) {
                 auto &e = scen.events[ie];
                 res.events.push_back({
-                    std::size_t(std::clamp(std::int64_t(0), std::int64_t(res.nSamples), std::int64_t(e.event.start * output.params.sampleRate))),
-                    std::size_t(std::clamp(std::int64_t(0), std::int64_t(res.nSamples), std::int64_t(e.event.end * output.params.sampleRate))),
+                    std::size_t(std::clamp(std::int64_t(e.event.start * output.params.sampleRate), std::int64_t(0), std::int64_t(res.nSamples))),
+                    std::size_t(std::clamp(std::int64_t(e.event.end * output.params.sampleRate), std::int64_t(0), std::int64_t(res.nSamples))),
                     e.event
                 });
             }
@@ -151,7 +150,7 @@ namespace Sagax::SCG {
 
         struct OutputPipeline {
             SimplePipelineBuilder b;
-            InPort<IQPacket>* port;
+            InPort<SCGIQPacket>* port;
         };
         OutputPipeline BuildOutputStream(ScenarioCtx &scen, std::size_t iOutput) {
             auto &output = scen.outputs[iOutput];
@@ -178,7 +177,7 @@ namespace Sagax::SCG {
 
         struct SignalPipeline {
             SimplePipelineBuilder b;
-            OutPort<IQPacket> *port;
+            OutPort<SCGIQPacket> *port;
         };
         SignalPipeline BuildSignalStream(ScenarioCtx &scen, std::size_t iLine) {
             auto &line = scen.lines[iLine];
@@ -333,7 +332,7 @@ namespace Sagax::SCG {
             merger.sampleRate = output.params.sampleRate;
 
             std::size_t iPort = 0;
-            std::vector<std::vector<InPort<IQPacket>*>> portsIn(output.lines.size());
+            std::vector<std::vector<InPort<SCGIQPacket>*>> portsIn(output.lines.size());
             for(std::size_t ic = 0; ic < output.lines.size(); ++ic) {
                 portsIn[ic].resize(output.lines[ic].size());
                 for(std::size_t il = 0; il < output.lines[ic].size(); ++il) {

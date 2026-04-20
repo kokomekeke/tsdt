@@ -18,7 +18,7 @@ namespace Sagax::SCG {
         dev->StopStream();
     }
 
-    void UsrpB200Device::Take(SSG::Packets::IQPacket &packet) {
+    void UsrpB200Device::Take(SCGIQPacket &packet) {
         Common::Assert(packet.nChannels == 1, "only 1 channel is allowed");
         // assert samplerate
 
@@ -34,16 +34,12 @@ namespace Sagax::SCG {
         }
 
         auto ci = packet.GetChannels();
-        conversionBuf.resize(packet.nSamples);
-        std::vector<std::span<std::complex<float>>> bufs = { std::span<std::complex<float>>(conversionBuf) };
-        SSG::Math::Convert<std::complex<double>, std::complex<float>>(ci[0], bufs[0]);
-
-        dev->Burst(packet.nSamples, bufs);
+        dev->Burst(packet.nSamples, ci);
     }
 #endif
 
     void FileOutputDevice::Start() {
-        SSG::Packets::IQPacket dummy;
+        SCGIQPacket dummy;
         dummy.Reshape(sampleRate, nChannels, 0, true);
         auto &m = dummy.meta.AddEntry<SSG::Packets::MFrequency>();
         m.frequency = center;
@@ -57,7 +53,7 @@ namespace Sagax::SCG {
         }
     }
 
-    void FileOutputDevice::Take(SSG::Packets::IQPacket &packet) {
+    void FileOutputDevice::Take(SCGIQPacket &packet) {
         Common::Assert(file.IsOpen(), "file not open");
         Common::Assert(packet.nChannels == nChannels, "wrong number of channels");
         // assert sample rate

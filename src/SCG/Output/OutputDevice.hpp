@@ -3,9 +3,9 @@
 #include <memory>
 #include <complex>
 #include <string>
-#include "SSG/Packets/Packets.hpp"
 #include "SSG/IO/IQFileOut.hpp"
 #include "SCG/Scenario/OutputVariant.hpp"
+#include "SCG/Modules/Packets.hpp"
 
 namespace Sagax::SCG {
 
@@ -13,11 +13,11 @@ namespace Sagax::SCG {
         virtual ~OutputDevice() = default;
         virtual void Start() = 0;
         virtual void Stop() = 0;
-        virtual void Take(SSG::Packets::IQPacket &packet) = 0;
+        virtual void Take(SCGIQPacket &packet) = 0;
     };
 
     struct FileOutputDevice : public OutputDevice {
-        SSG::IO::IQFileOut<double> file;
+        SSG::IO::IQFileOut<SCGSampleBase> file;
         std::string fileName;
         std::size_t nChannels;
         double sampleRate;
@@ -25,7 +25,7 @@ namespace Sagax::SCG {
 
         void Start() override;
         void Stop() override;
-        void Take(SSG::Packets::IQPacket &packet) override;
+        void Take(SCGIQPacket &packet) override;
     };
 }
 
@@ -35,11 +35,9 @@ namespace Sagax::SCG {
     struct UsrpB200Device : public OutputDevice {
         std::unique_ptr<SSG::UsrpB200::Device> dev;
 
-        std::vector<std::complex<float>> conversionBuf;
-
         void Start() override;
         void Stop() override;
-        void Take(SSG::Packets::IQPacket &packet) override;
+        void Take(SCGIQPacket &packet) override;
     };
 }
 #endif

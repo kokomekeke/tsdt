@@ -45,7 +45,7 @@ namespace Sagax::SCG {
 
         // TODO something much faster
         for (std::size_t i = 0; i < output.nSamples; ++i) {
-            std::complex<double> phasor = std::polar(amplTune, p);
+            SCGSample phasor = std::polar<SCGSampleBase>(SCGSampleBase(amplTune), SCGSampleBase(p));
             for (std::size_t ch = 0; ch < output.nChannels; ++ch) {
                 co[ch][i] = ci[ch][i] * phasor;
             }

@@ -87,21 +87,21 @@ namespace Sagax::SCG {
                     Common::Assert(false, "iq modulation unimplemented");
                 } break;
                 case SignalVariant::AudioFile::Modulation::FM: {
-                    auto mod = std::make_unique<SSG::Modulators::FMModulator>();
+                    auto mod = std::make_unique<SSG::Modulators::FMModulator<SCGSampleBase>>();
                     mod->freq = 0.0;
                     mod->ampl = 1.0;
                     mod->deviation = 50000.0;
                     p->mod = std::move(mod);
                 } break;
                 case SignalVariant::AudioFile::Modulation::AM: {
-                    auto mod = std::make_unique<SSG::Modulators::AMModulator>();
+                    auto mod = std::make_unique<SSG::Modulators::AMModulator<SCGSampleBase>>();
                     mod->freq = 0.0;
                     mod->ampl = 0.5;
                     mod->deviation = 0.3;
                     p->mod = std::move(mod);
                 } break;
                 case SignalVariant::AudioFile::Modulation::PM: {
-                    auto mod = std::make_unique<SSG::Modulators::PMModulator>();
+                    auto mod = std::make_unique<SSG::Modulators::PMModulator<SCGSampleBase>>();
                     mod->freq = 0.0;
                     mod->ampl = 1.0;
                     mod->deviation = std::numbers::pi;

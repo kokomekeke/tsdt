@@ -95,6 +95,7 @@ namespace Sagax::SCG {
             }
 
             Common::Assert(packet.nChannels == 1, "wrong number of channels");
+            Common::Assert(packet.sampleRate == sampleRate, "samplerate mismatch");
             Common::Assert(packet.nSamples <= nSendNow, "generated too many samples");
             if(packet.nSamples > 0) {
                 iSample += packet.nSamples;
