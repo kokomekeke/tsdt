@@ -127,6 +127,25 @@ namespace Sagax::SCG {
             return { scen, outputs, events, lines };
         }
 
+        SampleIndexedEventList GetSampleIndexed(ScenarioCtx &scen, std::size_t iOutput, std::vector<std::size_t> events) {
+            auto &output = scen.outputs[iOutput];
+            SampleIndexedEventList res;
+            res.nSamples = std::size_t(std::max(std::int64_t(0), std::int64_t(scen.scen.duration * output.params.sampleRate)));
+            for(std::size_t ie : events) {
+                auto &e = scen.events[ie];
+                res.events.push_back({
+                    std::size_t(std::clamp(std::int64_t(0), std::int64_t(res.nSamples), std::int64_t(e.event.start * output.params.sampleRate))),
+                    std::size_t(std::clamp(std::int64_t(0), std::int64_t(res.nSamples), std::int64_t(e.event.end * output.params.sampleRate))),
+                    e.event
+                });
+            }
+
+            std::sort(res.events.begin(), res.events.end(), [](const SampleIndexedEventList::EventCtx &e1, const SampleIndexedEventList::EventCtx &e2) {
+                return e1.iStart < e2.iStart;
+            });
+            return res;
+        }
+
 
 
 
@@ -163,25 +182,23 @@ namespace Sagax::SCG {
         };
         SignalPipeline BuildSignalStream(ScenarioCtx &scen, std::size_t iLine) {
             auto &line = scen.lines[iLine];
+            auto &output = scen.outputs[line.iOutput];
             SimplePipelineBuilder b;
             auto &src = b.AddVertex<StreamSource>();
-            auto &res = b.AddVertex<SSG::Modules::Resampler>();
             auto &tun = b.AddVertex<Tuner>();
-            b.AddEdge(src.outP, res.inP);
-            b.AddEdge(res.outP, tun.inP);
+            b.AddEdge(src.outP, tun.inP);
 
             src.nSamples = packetSize;
-            src.duration = scen.scen.duration;
-            src.events.clear();
+            src.sampleRate = output.params.sampleRate;
+            src.events = GetSampleIndexed(scen, line.iOutput, line.events);
             src.generators.clear();
             for(auto &ie : line.events) {
                 auto &e = scen.events[ie];
-                src.events.push_back(e.event);
-                src.generators.push_back(GetSignalGenerator(scen.scen.signals[e.iSignal].variant));
+                auto gen = GetSignalGenerator(scen.scen.signals[e.iSignal].variant);
+                gen->SetSampleRate(output.params.sampleRate);
+                src.generators.push_back(std::move(gen));
             }
 
-            auto &output = scen.outputs[line.iOutput];
-            res.sampleRate = output.params.sampleRate;
             tun.freqOut = output.params.centers[line.iChannel];
 
             return { std::move(b), &tun.outP };
@@ -194,19 +211,12 @@ namespace Sagax::SCG {
             src.fileName = GetOutputFileName(scen.scen, iOutput, iChannel);
             src.nSamples = packetSize;
 
-            auto getSampleIndex = [&](double t) {
-                return std::size_t(t * output.params.sampleRate);
-            };
-
+            std::vector<std::size_t> events;
             for(std::size_t il : output.lines[iChannel]) {
-                for(std::size_t ie : scen.lines[il].events) {
-                    auto &e = scen.events[ie];
-                    src.events.push_back({
-                        getSampleIndex(e.event.start),
-                        getSampleIndex(e.event.end)
-                    });
-                }
+                events.insert(events.end(), scen.lines[il].events.begin(), scen.lines[il].events.end());
             }
+
+            src.events = GetSampleIndexed(scen, iOutput, events);
 
             return { std::move(b), &src.outP };
         }

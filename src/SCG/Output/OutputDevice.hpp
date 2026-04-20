@@ -17,7 +17,7 @@ namespace Sagax::SCG {
     };
 
     struct FileOutputDevice : public OutputDevice {
-        SSG::IO::IQFileOut file;
+        SSG::IO::IQFileOut<double> file;
         std::string fileName;
         std::size_t nChannels;
         double sampleRate;

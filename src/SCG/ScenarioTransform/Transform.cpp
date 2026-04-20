@@ -62,24 +62,20 @@ namespace Sagax::SCG {
         if(auto *s = std::get_if<SignalVariant::Noise>(&v.variant)) {
             auto p = std::make_unique<NoiseGenerator>();
             p->Setup(s->span, 1e-5, 1<<15, 8);
-            p->sampleRate = s->span;
             basePtr = std::move(p);
         }
         if(auto *s = std::get_if<SignalVariant::Tone>(&v.variant)) {
             auto p = std::make_unique<ToneGenerator>();
-            p->sampleRate = 10000.0; // arbitrary
             basePtr = std::move(p);
         }
         if(auto *s = std::get_if<SignalVariant::Chirp>(&v.variant)) {
             auto p = std::make_unique<ChirpGenerator>();
-            p->sampleRate = s->span * 3.0;
             p->span = s->span;
             p->rate = s->rate;
             basePtr = std::move(p);
         }
         if(auto *s = std::get_if<SignalVariant::Pulse>(&v.variant)) {
             auto p = std::make_unique<PulseGenerator>();
-            p->sampleRate = s->duty * 1000.0;
             p->duty = s->duty;
             basePtr = std::move(p);
         }

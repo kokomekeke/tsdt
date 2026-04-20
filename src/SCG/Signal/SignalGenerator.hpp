@@ -6,6 +6,7 @@
 #include "SSG/IO/SampleFile.hpp"
 #include "SSG/IO/IQFileIn.hpp"
 #include "SSG/IO/RealFileIn.hpp"
+#include "SSG/Resampler/Resampler.hpp"
 #include "SSG/Modulators/Waveforms.hpp"
 #include "SSG/Modulators/Analog.hpp"
 #include "SSG/Packets/Packets.hpp"
@@ -18,7 +19,7 @@ namespace Sagax::SCG {
         virtual void Start() = 0;
         virtual void Stop() = 0;
         virtual void Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) = 0;
-        virtual double GetSampleRate() = 0;
+        virtual void SetSampleRate(double sampleRate_) = 0;
     };
 
 
@@ -34,8 +35,7 @@ namespace Sagax::SCG {
         void Start() override;
         void Stop() override;
         void Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) override;
-        double GetSampleRate() override;
-
+        void SetSampleRate(double sampleRate_) override;
     };
 
     struct ToneGenerator : public SignalGenerator {
@@ -44,7 +44,7 @@ namespace Sagax::SCG {
         void Start() override;
         void Stop() override;
         void Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) override;
-        double GetSampleRate() override;
+        void SetSampleRate(double sampleRate_) override;
     };
 
     struct ChirpGenerator : public SignalGenerator {
@@ -59,7 +59,7 @@ namespace Sagax::SCG {
         void Start() override;
         void Stop() override;
         void Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) override;
-        double GetSampleRate() override;
+        void SetSampleRate(double sampleRate_) override;
     };
 
     struct PulseGenerator : public SignalGenerator {
@@ -73,34 +73,37 @@ namespace Sagax::SCG {
         void Start() override;
         void Stop() override;
         void Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) override;
-        double GetSampleRate() override;
+        void SetSampleRate(double sampleRate_) override;
     };
 
     struct AudioFileGenerator : public SignalGenerator {
         std::string fileName;
         std::unique_ptr<SSG::Modulators::AnalogModulator> mod;
+        double sampleRate;
 
-        SSG::IO::RealFileIn file;
+        std::unique_ptr<Sagax::SSG::Resampler::Resampler<std::complex<float>>> resampler;
+        SSG::IO::RealFileIn<double> file;
         SSG::IO::SampleFileMeta meta;
         SSG::Packets::RealPacket packetBuf;
 
         void Start() override;
         void Stop() override;
         void Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) override;
-        double GetSampleRate() override;
+        void SetSampleRate(double sampleRate_) override;
     };
 
     struct IQFileGenerator : public SignalGenerator {
-
         std::string fileName;
-        SSG::IO::IQFileIn file;
+        double sampleRate;
 
+        std::unique_ptr<Sagax::SSG::Resampler::Resampler<std::complex<float>>> resampler;
+        SSG::IO::IQFileIn<double> file;
         SSG::IO::SampleFileMeta meta;
 
         void Start() override;
         void Stop() override;
         void Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) override;
-        double GetSampleRate() override;
+        void SetSampleRate(double sampleRate_) override;
     };
 
 }

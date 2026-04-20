@@ -43,7 +43,7 @@ namespace Sagax::SCG {
         double center;
         double sampleRate;
         std::size_t nChannels;
-        SSG::IO::IQFileOut file;
+        SSG::IO::IQFileOut<double> file;
 
         void Reset() override {
         }

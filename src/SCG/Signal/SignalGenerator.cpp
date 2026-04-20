@@ -37,8 +37,8 @@ namespace Sagax::SCG {
         }
     }
 
-    double NoiseGenerator::GetSampleRate() {
-        return sampleRate;
+    void NoiseGenerator::SetSampleRate(double sampleRate_) {
+        sampleRate = sampleRate_;
     }
 
 
@@ -55,8 +55,8 @@ namespace Sagax::SCG {
         }
     }
 
-    double ToneGenerator::GetSampleRate() {
-        return sampleRate;
+    void ToneGenerator::SetSampleRate(double sampleRate_) {
+        sampleRate = sampleRate_;
     }
 
 
@@ -84,8 +84,8 @@ namespace Sagax::SCG {
         mod.Process(sampleRate, waveBuf, packet.data);
     }
 
-    double ChirpGenerator::GetSampleRate() {
-        return sampleRate;
+    void ChirpGenerator::SetSampleRate(double sampleRate_) {
+        sampleRate = sampleRate_;
     }
 
 
@@ -112,8 +112,8 @@ namespace Sagax::SCG {
         }
     }
 
-    double PulseGenerator::GetSampleRate() {
-        return sampleRate;
+    void PulseGenerator::SetSampleRate(double sampleRate_) {
+        sampleRate = sampleRate_;
     }
 
 
@@ -124,12 +124,21 @@ namespace Sagax::SCG {
         meta = file.GetMeta();
         Common::Assert(meta.sampleRate.has_value(), "file has no samplerate info");
         Common::Assert(meta.nSamples.has_value() && meta.nSamples.value() > 0, "file has no samples or missing samplecount info");
-
+        resampler = std::make_unique<Sagax::SSG::Resampler::Resampler<std::complex<float>>>(
+            Common::Ratio(std::uint64_t(sampleRate), std::uint64_t(meta.sampleRate.value())),
+            0.9f,
+            100.f
+        );
         mod->Reset();
     }
 
     void AudioFileGenerator::Stop() {
-        file.Close();
+        if(file.IsOpen()) {
+            file.Close();
+        }
+        if(resampler) {
+            resampler.reset();
+        }
     }
 
     void AudioFileGenerator::Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) {
@@ -152,8 +161,8 @@ namespace Sagax::SCG {
         mod->Process(packetBuf.sampleRate, packetBuf.data, packet.data);
     }
 
-    double AudioFileGenerator::GetSampleRate() {
-        return meta.sampleRate.value();
+    void AudioFileGenerator::SetSampleRate(double sampleRate_) {
+        sampleRate = sampleRate_;
     }
 
 
@@ -164,11 +173,19 @@ namespace Sagax::SCG {
         meta = file.GetMeta();
         Common::Assert(meta.sampleRate.has_value(), "file has no samplerate info");
         Common::Assert(meta.nSamples.has_value() && meta.nSamples.value() > 0, "file has no samples or missing samplecount info");
+        resampler = std::make_unique<Sagax::SSG::Resampler::Resampler<std::complex<float>>>(
+            Common::Ratio(std::uint64_t(sampleRate), std::uint64_t(meta.sampleRate.value())),
+            0.9f,
+            100.f
+        );
     }
 
     void IQFileGenerator::Stop() {
         if(file.IsOpen()) {
             file.Close();
+        }
+        if(resampler) {
+            resampler.reset();
         }
     }
 
@@ -188,8 +205,8 @@ namespace Sagax::SCG {
         }
     }
 
-    double IQFileGenerator::GetSampleRate() {
-        return meta.sampleRate.value();
+    void IQFileGenerator::SetSampleRate(double sampleRate_) {
+        sampleRate = sampleRate_;
     }
 
 
