@@ -1,5 +1,5 @@
 {
-    "duration": 20,
+    "duration": 10,
     "outputs": [
         {
             "name": "r1",
@@ -8,17 +8,17 @@
             "subdevSpec": "A:A",
             "samplerate": 1000000,
             "frequency": 434500000.0,
-            "gain": 55.0
+            "gain": 70.0
         },
-        // {
-        //     "name": "r2",
-        //     "type": "UsrpB200",
-        //     "serial": "8002512",
-        //     "subdevSpec": "A:A",
-        //     "samplerate": 100000,
-        //     "frequency": 434600000.0,
-        //     "gain": 40.0
-        // }
+        {
+            "name": "r2",
+            "type": "UsrpB200",
+            "serial": "8002512",
+            "subdevSpec": "A:A",
+            "samplerate": 200000,
+            "frequency": 434600000.0,
+            "gain": 70.0
+        }
     ],
     "signals": [
         {
@@ -49,36 +49,44 @@
         }
     ],
     "events": [
+        // {
+        //     "signal": "s1",
+        //     "output": "r1.0",
+        //     "frequency": 434500000.0,
+        //     "amplitude": 0.4,
+        //     "start": 1,
+        //     "end": 10
+        // },
+        // {
+        //     "signal": "s1",
+        //     "output": "r1.0",
+        //     "frequency": 434550000.0,
+        //     "amplitude": 0.5,
+        //     "start": 3,
+        //     "end": 10
+        // },
+        // {
+        //     "signal": "s3",
+        //     "output": "r1.0",
+        //     "frequency": 434500000.0,
+        //     "amplitude": 0.4,
+        //     "start": 4,
+        //     "end": 10
+        // },
+        // {
+        //     "signal": "s4",
+        //     "output": "r1.0",
+        //     "frequency": 434550000.0,
+        //     "amplitude": 0.3,
+        //     "start": 0,
+        //     "end": 7
+        // },
         {
-            "signal": "s1",
-            "output": "r1.0",
-            "frequency": 434500000.0,
-            "amplitude": 0.4,
-            "start": 1,
-            "end": 10
-        },
-        {
-            "signal": "s2",
+            "signal": "s5",
             "output": "r1.0",
             "frequency": 434550000.0,
-            "amplitude": 0.4,
-            "start": 7,
-            "end": 13
-        },
-        {
-            "signal": "s3",
-            "output": "r1.0",
-            "frequency": 434500000.0,
-            "amplitude": 0.4,
-            "start": 13,
-            "end": 20
-        },
-        {
-            "signal": "s4",
-            "output": "r1.0",
-            "frequency": 434550000.0,
-            "amplitude": 0.3,
-            "start": 5,
+            "amplitude": 0.7,
+            "start": 0,
             "end": 10
         }
     ]

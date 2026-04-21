@@ -1,51 +1,25 @@
 #include <algorithm>
+#include <random>
 #include <numbers>
+#include <cmath>
 #include "Common/Assert.hpp"
 #include "Common/Logger.hpp"
+#include "SSG/Math/Math.hpp"
 #include "SSG/IO/SampleFile.hpp"
 #include "SSG/IO/IQFileIn.hpp"
 #include "SSG/IO/RealFileIn.hpp"
 #include "SSG/Resampler/Resampler.hpp"
+#include "SCG/Utility/BlockAggregator.hpp"
 #include "SignalGenerator.hpp"
 
 namespace Sagax::SCG {
 
     namespace {
-        template<class Item>
-        struct BlockAggregator2 {
-        private:
-            std::vector<Item> buffer;
-            std::int32_t i = 0;
-            std::int32_t cnt = 0;
-
-        public:
-            std::span<Item> Push(std::int32_t n) {
-                if(i != 0) {
-                    std::copy_n(
-                        buffer.begin() + i,
-                        cnt,
-                        buffer.begin()
-                    );
-                    i = 0;
-                }
-                buffer.resize(cnt + n);
-                cnt = cnt + n;
-                return std::span(buffer.begin() + cnt - n, buffer.begin() + cnt);
-            }
-
-            std::span<Item> PullMax(std::int32_t n) {
-                std::int32_t r = std::min(cnt, n);
-                cnt = cnt - r;
-                i = i + r;
-                return std::span(buffer.begin() + i - r, buffer.begin() + i);
-            }
-        };
-
         struct ResamplerWrapper {
             double sampleRateIn;
             double sampleRateOut;
             SCGIQPacket packetIn;
-            BlockAggregator2<SCGSample> aggregator;
+            BlockAggregator<SCGSample> aggregator;
             std::unique_ptr<Sagax::SSG::Resampler::Resampler<SCGSample>> resampler;
 
             void Setup(double sampleRateIn_, double sampleRateOut_) {
@@ -54,8 +28,20 @@ namespace Sagax::SCG {
                 resampler = std::make_unique<Sagax::SSG::Resampler::Resampler<SCGSample>>(
                     Common::Ratio(std::uint64_t(sampleRateOut), std::uint64_t(sampleRateIn)),
                     0.9f,
-                    100.f
+                    150.f
                 );
+            }
+
+            std::size_t SamplesToRead(std::size_t nSamplesOutMax) {
+                if(nSamplesOutMax <= aggregator.Cnt()) {
+                    return 0;
+                }
+                else {
+                    std::size_t nSamplesOut = nSamplesOutMax - aggregator.Cnt();
+                    std::size_t nSamplesIn = std::size_t(std::ceil((sampleRateIn / sampleRateOut) * nSamplesOut));
+                    // just read some more samples because the BlockAggregator mechanics work funny
+                    return nSamplesIn + 64;
+                }
             }
 
             void Reset() {
@@ -65,6 +51,7 @@ namespace Sagax::SCG {
 
             void Push() {
                 Common::Assert(packetIn.nChannels == 1, "only 1 channel is allowed");
+                Common::Assert(packetIn.sampleRate == sampleRateIn, "samplerate mismatch");
                 auto s1 = resampler->Process(packetIn.data);
                 auto s2 = aggregator.Push(std::int32_t(s1.size()));
                 std::copy_n(s1.begin(), s1.size(), s2.begin());
@@ -81,42 +68,60 @@ namespace Sagax::SCG {
 
 
 
+    struct NoiseGenerator::Impl {
+        std::mt19937 gen;
+        std::vector<SCGSampleBase> buf; // pre generated random number buffer
+        ResamplerWrapper resampler;
+    };
 
+    NoiseGenerator::NoiseGenerator() : impl(std::make_unique<Impl>()) {
+    }
 
-    void NoiseGenerator::Setup(double sampleRate_, double psd_, std::size_t bufSize, unsigned int seed) {
-        sampleRate = sampleRate_;
+    NoiseGenerator::~NoiseGenerator() = default;
+
+    void NoiseGenerator::Setup(double span_, double psd_, std::size_t bufSize, unsigned int seed) {
+        span = span_;
         psd = psd_;
-        gen.seed(seed);
-        buf.resize(bufSize);
+        impl->gen.seed(seed);
+        impl->buf.resize(bufSize);
 
         // fill the buffer with random numbers from a normal distribution
         // faster than generating them on the fly
         std::normal_distribution<SCGSampleBase> dist(SCGSampleBase(0.0), SCGSampleBase(1.0));
         for(std::size_t i = 0; i < bufSize; ++i) {
-            buf[i] = dist(gen);
+            impl->buf[i] = dist(impl->gen);
         }
     }
 
     void NoiseGenerator::Start() {
+        impl->resampler.Setup(span, sampleRate);
     }
 
     void NoiseGenerator::Stop() {
+        impl->resampler.Reset();
     }
 
     void NoiseGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
-        packet.Reshape(sampleRate, 1, nSamplesMax, false);
+        std::size_t nSamplesRead = impl->resampler.SamplesToRead(nSamplesMax);
+        impl->resampler.packetIn.Reshape(span, 1, nSamplesRead, false);
 
-        double sigma = std::sqrt(psd * packet.sampleRate / 2.0);
-        for(std::size_t i = 0; i < packet.data.size(); ++i) {
-            auto z0 = SCGSampleBase(buf[gen() % buf.size()] * sigma);
-            auto z1 = SCGSampleBase(buf[gen() % buf.size()] * sigma);
-            packet.data[i] = SCGSample{ z0, z1 };
+        double sigma = std::sqrt(psd * sampleRate / 2.0);
+        for(std::size_t i = 0; i < nSamplesRead; ++i) {
+            auto z0 = SCGSampleBase(impl->buf[impl->gen() % impl->buf.size()] * sigma);
+            auto z1 = SCGSampleBase(impl->buf[impl->gen() % impl->buf.size()] * sigma);
+            impl->resampler.packetIn.data[i] = SCGSample{ z0, z1 };
         }
+
+        impl->resampler.Push();
+        impl->resampler.PullMax(packet, nSamplesMax);
     }
 
     void NoiseGenerator::SetSampleRate(double sampleRate_) {
         sampleRate = sampleRate_;
     }
+
+
+
 
 
     void ToneGenerator::Start() {
@@ -127,6 +132,7 @@ namespace Sagax::SCG {
 
     void ToneGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
         packet.Reshape(sampleRate, 1, nSamplesMax, false);
+        packet.meta.Clear();
         for(auto &s : packet.data) {
             s = { SCGSampleBase(1.0), SCGSampleBase(0.0) };
         }
@@ -135,6 +141,8 @@ namespace Sagax::SCG {
     void ToneGenerator::SetSampleRate(double sampleRate_) {
         sampleRate = sampleRate_;
     }
+
+
 
 
 
@@ -154,6 +162,7 @@ namespace Sagax::SCG {
 
     void ChirpGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
         packet.Reshape(sampleRate, 1, nSamplesMax, false);
+        packet.meta.Clear();
         packet.Fill({ SCGSampleBase(0.0), SCGSampleBase(0.0) });
         waveBuf.assign(nSamplesMax, SCGSampleBase(0.0));
 
@@ -164,6 +173,8 @@ namespace Sagax::SCG {
     void ChirpGenerator::SetSampleRate(double sampleRate_) {
         sampleRate = sampleRate_;
     }
+
+
 
 
 
@@ -180,6 +191,7 @@ namespace Sagax::SCG {
 
     void PulseGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
         packet.Reshape(sampleRate, 1, nSamplesMax, false);
+        packet.meta.Clear();
 
         waveBuf.resize(nSamplesMax);
         gen.Process(sampleRate, waveBuf);
@@ -195,6 +207,9 @@ namespace Sagax::SCG {
     void PulseGenerator::SetSampleRate(double sampleRate_) {
         sampleRate = sampleRate_;
     }
+
+
+
 
 
     struct AudioFileGenerator::Impl {
@@ -232,7 +247,7 @@ namespace Sagax::SCG {
             impl->file.WrapAround();
         }
 
-        std::size_t nSamplesRead = std::size_t((impl->meta.sampleRate.value() / sampleRate) * nSamplesMax) + 100; // just read some more samples its buffered anyway
+        std::size_t nSamplesRead = impl->resampler.SamplesToRead(nSamplesMax);
 
         impl->realPacketBuf.data.clear();
         impl->file.ReadPacket(impl->realPacketBuf, nSamplesRead);
@@ -242,12 +257,14 @@ namespace Sagax::SCG {
         mod->Process(impl->realPacketBuf.sampleRate, impl->realPacketBuf.data, impl->resampler.packetIn.data);
         impl->resampler.Push();
         impl->resampler.PullMax(packet, nSamplesMax);
-        packet.meta.Clear();
     }
 
     void AudioFileGenerator::SetSampleRate(double sampleRate_) {
         sampleRate = sampleRate_;
     }
+
+
+
 
 
     struct IQFileGenerator::Impl {
@@ -283,13 +300,12 @@ namespace Sagax::SCG {
             impl->file.WrapAround();
         }
 
-        std::size_t nSamplesRead = std::size_t((impl->meta.sampleRate.value() / sampleRate) * nSamplesMax) + 100; // just read some more samples its buffered anyway
+        std::size_t nSamplesRead = impl->resampler.SamplesToRead(nSamplesMax);
         impl->resampler.packetIn.data.clear();
         impl->file.ReadPacket(impl->resampler.packetIn, nSamplesRead);
         impl->resampler.packetIn.Reshape(impl->resampler.packetIn.sampleRate, 1, impl->resampler.packetIn.nSamples, false); // keep only first channel
         impl->resampler.Push();
         impl->resampler.PullMax(packet, nSamplesMax);
-        packet.meta.Clear();
     }
 
     void IQFileGenerator::SetSampleRate(double sampleRate_) {

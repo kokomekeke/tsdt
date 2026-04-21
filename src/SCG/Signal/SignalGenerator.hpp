@@ -2,7 +2,6 @@
 #include <complex>
 #include <vector>
 #include <string>
-#include <random>
 #include "SSG/Modulators/Waveforms.hpp"
 #include "SSG/Modulators/Analog.hpp"
 #include "SCG/Modules/Packets.hpp"
@@ -20,12 +19,17 @@ namespace Sagax::SCG {
 
 
     struct NoiseGenerator : public SignalGenerator {
-        double sampleRate;
-        double psd;
-        std::mt19937 gen;
-        std::vector<SCGSampleBase> buf;
+        struct Impl;
+        std::unique_ptr<Impl> impl;
 
-        void Setup(double sampleRate_, double psd_, std::size_t bufSize, unsigned int seed);
+        double sampleRate;
+        double span;
+        double psd;
+
+        NoiseGenerator();
+        ~NoiseGenerator();
+
+        void Setup(double span_, double psd_, std::size_t bufSize, unsigned int seed);
 
         void Start() override;
         void Stop() override;
