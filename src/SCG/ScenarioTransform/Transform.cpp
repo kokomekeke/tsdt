@@ -12,10 +12,10 @@ namespace Sagax::SCG {
 
     std::unique_ptr<OutputDevice> GetOutputDevice(OutputVariant &v) {
         std::unique_ptr<OutputDevice> basePtr;
-        if(auto *s = std::get_if<OutputVariant::Null>(&v.variant)) {
+        if([[maybe_unused]] auto *s = std::get_if<OutputVariant::Null>(&v.variant)) {
             Common::Assert(false, "null output");
         }
-        if(auto *s = std::get_if<OutputVariant::RadioUsrpB200>(&v.variant)) {
+        if([[maybe_unused]] auto *s = std::get_if<OutputVariant::RadioUsrpB200>(&v.variant)) {
 #ifdef HAVE_USRP
             auto p = std::make_unique<UsrpB200Device>();
             auto dev = std::make_unique<SSG::UsrpB200::Device>(std::format("serial={}", s->serial), s->subdevSpec, 1);
@@ -56,7 +56,7 @@ namespace Sagax::SCG {
 
     std::unique_ptr<SignalGenerator> GetSignalGenerator(SignalVariant &v) {
         std::unique_ptr<SignalGenerator> basePtr;
-        if(auto *s = std::get_if<SignalVariant::Null>(&v.variant)) {
+        if([[maybe_unused]] auto *s = std::get_if<SignalVariant::Null>(&v.variant)) {
             Common::Assert(false, "null signal");
         }
         if(auto *s = std::get_if<SignalVariant::Noise>(&v.variant)) {
@@ -64,7 +64,7 @@ namespace Sagax::SCG {
             p->Setup(s->span, 1e-5, 1<<15, 8);
             basePtr = std::move(p);
         }
-        if(auto *s = std::get_if<SignalVariant::Tone>(&v.variant)) {
+        if([[maybe_unused]] auto *s = std::get_if<SignalVariant::Tone>(&v.variant)) {
             auto p = std::make_unique<ToneGenerator>();
             basePtr = std::move(p);
         }
