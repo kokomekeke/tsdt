@@ -69,6 +69,7 @@ namespace Sagax::SCG {
 
 
     struct NoiseGenerator::Impl {
+        unsigned int seed;
         std::mt19937 gen;
         std::vector<SCGSampleBase> buf; // pre generated random number buffer
         ResamplerWrapper resampler;
@@ -79,10 +80,11 @@ namespace Sagax::SCG {
 
     NoiseGenerator::~NoiseGenerator() = default;
 
-    void NoiseGenerator::Setup(double span_, double psd_, std::size_t bufSize, unsigned int seed) {
+    void NoiseGenerator::Setup(double span_, double psd_, std::size_t bufSize, unsigned int seed_) {
         span = span_;
         psd = psd_;
-        impl->gen.seed(seed);
+        impl->seed = seed_;
+        impl->gen.seed(seed_);
         impl->buf.resize(bufSize);
 
         // fill the buffer with random numbers from a normal distribution
@@ -95,6 +97,7 @@ namespace Sagax::SCG {
 
     void NoiseGenerator::Start() {
         impl->resampler.Setup(span, sampleRate);
+        impl->gen.seed(impl->seed); // do this for every run so that we always generate the same output
     }
 
     void NoiseGenerator::Stop() {
@@ -158,6 +161,8 @@ namespace Sagax::SCG {
     }
 
     void ChirpGenerator::Stop() {
+        waveBuf.clear();
+        waveBuf.shrink_to_fit();
     }
 
     void ChirpGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
@@ -179,21 +184,23 @@ namespace Sagax::SCG {
 
 
     void PulseGenerator::Start() {
-        gen.ampl = 1.0;
-        gen.freq = 0.0;
-        gen.offset = 0.0;
+        gen.ampl = 0.5;
+        gen.freq = rate;
+        gen.offset = 0.5;
         gen.duty = duty;
         gen.Reset();
     }
 
     void PulseGenerator::Stop() {
+        waveBuf.clear();
+        waveBuf.shrink_to_fit();
     }
 
     void PulseGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
         packet.Reshape(sampleRate, 1, nSamplesMax, false);
         packet.meta.Clear();
 
-        waveBuf.resize(nSamplesMax);
+        waveBuf.assign(nSamplesMax, SCGSampleBase(0.0));
         gen.Process(sampleRate, waveBuf);
 
         for(std::size_t i = 0; i < nSamplesMax; ++i) {
@@ -239,6 +246,8 @@ namespace Sagax::SCG {
             impl->file.Close();
         }
         impl->resampler.Reset();
+        impl->realPacketBuf.SetNull(true);
+        mod->Reset();
     }
 
     void AudioFileGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {

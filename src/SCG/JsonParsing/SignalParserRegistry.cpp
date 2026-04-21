@@ -35,6 +35,25 @@ namespace Sagax::SCG {
             };
         };
 
+        struct PulseParser : SignalParser {
+            Parser::Json::BasicParameter<double> dutyP = AddParameter(&dutyP, "double", "duty");
+            Parser::Json::BasicParameter<double> rateP = AddParameter(&rateP, "double", "rate");
+
+            std::string GetDescription() const override {
+                return "OOK pulse signal";
+            }
+
+            SignalVariant GetVariant() override {
+                Common::Assert(!dutyP.defaulted, "duty must be specified");
+                Common::Assert(!rateP.defaulted, "rate must be specified");
+
+                SignalVariant::Pulse v;
+                v.duty = dutyP.data;
+                v.rate = rateP.data;
+                return { v };
+            };
+        };
+
 
         struct NoiseParser : SignalParser {
             Parser::Json::BasicParameter<double> spanP = AddParameter(&spanP, "sampleRate", "span");
@@ -108,6 +127,7 @@ namespace Sagax::SCG {
         Sagax::Parser::Registry<SignalParser> registry;
         registry.Register<ToneParser>("Tone");
         registry.Register<ChirpParser>("Chirp");
+        registry.Register<PulseParser>("Pulse");
         registry.Register<NoiseParser>("Noise");
         registry.Register<FileIQParser>("IQFile");
         registry.Register<AudioFileParser>("AudioFile");

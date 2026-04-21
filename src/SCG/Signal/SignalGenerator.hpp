@@ -65,6 +65,7 @@ namespace Sagax::SCG {
         SSG::Modulators::SquareGenerator<SCGSampleBase> gen;
 
         double sampleRate;
+        double rate;
         double duty;
 
         std::vector<SCGSampleBase> waveBuf;

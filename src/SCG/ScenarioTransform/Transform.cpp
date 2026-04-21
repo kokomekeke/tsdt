@@ -77,6 +77,7 @@ namespace Sagax::SCG {
         if(auto *s = std::get_if<SignalVariant::Pulse>(&v.variant)) {
             auto p = std::make_unique<PulseGenerator>();
             p->duty = s->duty;
+            p->rate = s->rate;
             basePtr = std::move(p);
         }
         if(auto *s = std::get_if<SignalVariant::AudioFile>(&v.variant)) {

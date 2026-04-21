@@ -1,4 +1,4 @@
 [wrap-git]
 url = git@bitbucket.org:sgx/ssg.git
-revision = badc71f27abeb12e03e860539f086217d974ed77
+revision = 667d402d0701ec0a661a861f42d62ed494abff47
 depth = 1
