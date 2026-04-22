@@ -4,28 +4,29 @@
         {
             "name": "r1",
             "type": "UsrpB200",
-            "serial": "XHZDI27",
+            "serial": "8002514",
             "subdevSpec": "A:A",
-            "samplerate": 300000,
-            "frequency": 434500000.0,
-            "gain": 40.0
+            "samplerate": 1000000,
+            "frequency": 30000000.0,
+            "gain": 70.0
         }
     ],
     "signals": [
         {
             "name": "s1",
-            "type": "IQFile",
-            "file": "S:/temp/ssg/rec/debug/amadeus_fm300k.sigmf-data"
+            "type": "AudioFile",
+            "file": "S:/temp/ssg/rec/debug/macskadob.wav",
+            "modulation": "FM"
         }
     ],
     "events": [
-        // {
-        //     "signal": "s1",
-        //     "output": "r1.0",
-        //     "frequency": 434500000.0,
-        //     "amplitude": 0.4,
-        //     "start": 5,
-        //     "end": 10
-        // }
+        {
+            "signal": "s1",
+            "output": "r1.0",
+            "frequency": 30000000.0,
+            "amplitude": 0.7,
+            "start": 0,
+            "end": 20
+        },
     ]
 }

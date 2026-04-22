@@ -20,6 +20,7 @@
 #include "SCG/JsonParsing/Parsers.hpp"
 #include "SCG/JsonParsing/OutputParserRegistry.hpp"
 #include "SCG/JsonParsing/SignalParserRegistry.hpp"
+#include "SCG/ScenarioTransform/ScenarioContext.hpp"
 #include "SCG/ScenarioTransform/Transform.hpp"
 #include "SCG/ScenarioTransform/BuildPipeline.hpp"
 
@@ -135,17 +136,25 @@ struct Program {
             }
         }
 
-        Pipeline::Pipeline pipeline;
+        ScenarioContext ctx = {
+            .scenario = scenario
+        };
         try {
             switch(mode) {
                 case Parameters::Mode::playback: {
-                    pipeline = BuildPlaybackPipeline(scenario).Build();
+                    auto b = BuildPlaybackPipeline(scenario);
+                    ctx.pipeline = b.builder.Build();
+                    ctx.resources = b.resources;
                 } break;
                 case Parameters::Mode::record: {
-                    pipeline = BuildRecordingPipeline(scenario).Build();
+                    auto b = BuildRecordingPipeline(scenario);
+                    ctx.pipeline = b.builder.Build();
+                    ctx.resources = b.resources;
                 } break;
                 case Parameters::Mode::stream: {
-                    pipeline = BuildStreamingPipeline(scenario).Build();
+                    auto b = BuildStreamingPipeline(scenario);
+                    ctx.pipeline = b.builder.Build();
+                    ctx.resources = b.resources;
                 } break;
                 default: {
                     Common::Assert(false, "wrong mode");
@@ -157,27 +166,35 @@ struct Program {
             return;
         }
 
-        Pipeline::PpController controller;
-        controller.Setup(pipeline, 8);
-        // RtcController controller;
-        // controller.Setup(p, 3);
+        auto controller = std::make_unique<Pipeline::PpController>();
+        controller->Setup(ctx.pipeline, 8);
+        controller->Reset();
+        ctx.controller = std::move(controller);
 
-        controller.Reset();
+        try {
+            ctx.Init();
+        }
+        catch(const std::exception &e) {
+            Common::Logger::Error("could not initialize resources:\n{}", e.what());
+            return;
+        }
+
 
         Common::Timer timer;
         timer.Set();
-        controller.Start();
-        controller.Join();
+        ctx.controller->Start();
+        ctx.controller->Join();
         auto time_ms = timer.Get_ms();
 
         try {
-            controller.Throw();
+            ctx.controller->Throw();
         }
         catch(const std::exception &e) {
             Common::Logger::Error("error running pipeline:\n{}", e.what());
         }
 
         Common::Logger::Info("time: {} ms", time_ms);
+        ctx.Dispose();
     }
 
     void Main(int argc, char **argv) {

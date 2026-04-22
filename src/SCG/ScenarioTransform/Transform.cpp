@@ -10,31 +10,21 @@
 
 namespace Sagax::SCG {
 
-    std::unique_ptr<OutputDevice> GetOutputDevice(OutputVariant &v) {
+    std::tuple<std::unique_ptr<OutputDevice>, std::vector<Resource*>> GetOutputDevice(OutputVariant &v) {
         std::unique_ptr<OutputDevice> basePtr;
+        std::vector<Resource*> resources;
         if([[maybe_unused]] auto *s = std::get_if<OutputVariant::Null>(&v.variant)) {
             Common::Assert(false, "null output");
         }
         if([[maybe_unused]] auto *s = std::get_if<OutputVariant::RadioUsrpB200>(&v.variant)) {
 #ifdef HAVE_USRP
             auto p = std::make_unique<UsrpB200Device>();
-            auto dev = std::make_unique<SSG::UsrpB200::Device>(std::format("serial={}", s->serial), s->subdevSpec, 1);
-            SSG::UsrpB200::DeviceParams params;
-            params.sampleRate = s->sampleRate;
-            params.bandwidth = s->sampleRate + 1.0;
-            params.centers = { s->center };
-            params.gains = { s->gain };
-            dev->Configure(params);
-            Common::Assert(abs(dev->params.sampleRate - s->sampleRate) < 1.0, "could not set samplerate");
-            if(abs(dev->params.bandwidth - (s->sampleRate + 1.0)) >= 1.0) {
-                Common::Logger::Warn("could not set bandwidth");
-            }
-            Common::Assert(abs(dev->params.centers[0] - s->center) < 1.0, "could not set frequency");
-            if(abs(dev->params.gains[0] - s->gain) >= 1.0) {
-                Common::Logger::Warn("could not set gain");
-            }
-            std::this_thread::sleep_for(std::chrono::seconds(1)); // required magic wait
-            p->dev = std::move(dev);
+            p->serial = s->serial;
+            p->subdevSpec = s->subdevSpec;
+            p->sampleRate = s->sampleRate;
+            p->center = s->center;
+            p->gain = s->gain;
+            resources.push_back((Resource*)(p.get()));
             basePtr = std::move(p);
 #else
             Common::Assert(false, "usrp output device not available");
@@ -50,12 +40,13 @@ namespace Sagax::SCG {
         }
 
         Common::Assert(bool(basePtr), "failed to create output device");
-        return basePtr;
+        return { std::move(basePtr), resources };
     }
 
 
-    std::unique_ptr<SignalGenerator> GetSignalGenerator(SignalVariant &v) {
+    std::tuple<std::unique_ptr<SignalGenerator>, std::vector<Resource*>> GetSignalGenerator(SignalVariant &v) {
         std::unique_ptr<SignalGenerator> basePtr;
+        std::vector<Resource*> resources;
         if([[maybe_unused]] auto *s = std::get_if<SignalVariant::Null>(&v.variant)) {
             Common::Assert(false, "null signal");
         }
@@ -118,7 +109,7 @@ namespace Sagax::SCG {
         }
 
         Common::Assert(bool(basePtr), "failed to create generator");
-        return basePtr;
+        return { std::move(basePtr), resources };
     }
 
 

@@ -6,6 +6,8 @@
 #include <algorithm>
 
 namespace Sagax::SCG {
+
+    // there is an almost identical class in SSG/Resampler, which is kept because it is taken from spire and no one wants to touch that code
     template<class Item>
     struct BlockAggregator {
     private:
