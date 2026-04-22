@@ -39,7 +39,7 @@ namespace Sagax::SCG {
                 );
                 i = 0;
             }
-            buffer.resize(cnt + n);
+            buffer.resize(i + cnt + n);
             cnt = cnt + n;
             return GetSpan(i + cnt - n, i + cnt);
         }

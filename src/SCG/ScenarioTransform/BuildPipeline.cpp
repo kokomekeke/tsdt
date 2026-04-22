@@ -25,8 +25,6 @@ namespace Sagax::SCG {
     using Pipeline::OutPort;
 
     namespace {
-        constexpr std::size_t packetSize = (1<<12);
-
         std::string AbsoluteFileName(std::string filename) {
             return std::filesystem::absolute(std::filesystem::path(filename)).string();
         }
@@ -187,7 +185,7 @@ namespace Sagax::SCG {
             auto &tun = b.AddVertex<Tuner>();
             b.AddEdge(src.outP, tun.inP);
 
-            src.nSamples = packetSize;
+            src.nSamples = scgPacketSize;
             src.sampleRate = output.params.sampleRate;
             src.events = GetSampleIndexed(scen, line.iOutput, line.events);
             src.generators.clear();
@@ -198,6 +196,7 @@ namespace Sagax::SCG {
                 src.generators.push_back(std::move(gen));
             }
 
+            tun.sampleRate = output.params.sampleRate;
             tun.freqOut = output.params.centers[line.iChannel];
 
             return { std::move(b), &tun.outP };
@@ -208,7 +207,7 @@ namespace Sagax::SCG {
             auto &src = b.AddVertex<PlaybackSource>();
 
             src.fileName = GetOutputFileName(scen.scen, iOutput, iChannel);
-            src.nSamples = packetSize;
+            src.nSamples = scgPacketSize;
 
             std::vector<std::size_t> events;
             for(std::size_t il : output.lines[iChannel]) {

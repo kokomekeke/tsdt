@@ -19,6 +19,22 @@
             "frequency": 434600000.0,
             "gain": 70.0
         }
+        // {
+        //     "name": "r1",
+        //     "type": "File",
+        //     "file": "test3-r1.wav",
+        //     "nChannels": 1,
+        //     "samplerate": 1000000,
+        //     "frequency": 434500000.0
+        // },
+        // {
+        //     "name": "r2",
+        //     "type": "File",
+        //     "file": "test3-r2.wav",
+        //     "nChannels": 1,
+        //     "samplerate": 200000,
+        //     "frequency": 434600000.0
+        // }
     ],
     "signals": [
         {
@@ -59,16 +75,16 @@
             "signal": "s1",
             "output": "r1.0",
             "frequency": 434500000.0,
-            "amplitude": 0.4,
+            "amplitude": 0.7,
             "start": 1,
-            "end": 10
+            "end": 5
         },
         {
-            "signal": "s1",
+            "signal": "s2",
             "output": "r1.0",
             "frequency": 434550000.0,
             "amplitude": 0.5,
-            "start": 3,
+            "start": 5,
             "end": 10
         },
         {
@@ -76,7 +92,7 @@
             "output": "r1.0",
             "frequency": 434500000.0,
             "amplitude": 0.4,
-            "start": 4,
+            "start": 8,
             "end": 10
         },
         {
@@ -89,7 +105,7 @@
         },
         {
             "signal": "s5",
-            "output": "r1.0",
+            "output": "r2.0",
             "frequency": 434550000.0,
             "amplitude": 0.7,
             "start": 0,
