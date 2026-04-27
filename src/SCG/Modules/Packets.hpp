@@ -8,6 +8,6 @@ namespace Sagax::SCG {
     using SCGRealPacket = Sagax::SSG::Packets::SamplePacket<float>;
     using SCGIQPacket = Sagax::SSG::Packets::SamplePacket<std::complex<float>>;
 
-    inline constexpr std::size_t scgPacketSize = (1 << 8);
+    inline constexpr std::size_t scgPacketSize = (1 << 12);
 }
 
