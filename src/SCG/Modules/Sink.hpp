@@ -3,13 +3,13 @@
 #include "Common/Assert.hpp"
 #include "Pipeline/Pipeline.hpp"
 #include "SSG/IO/IQFileOut.hpp"
-#include "SSG/Packets/Packets.hpp"
 #include "SCG/Output/OutputDevice.hpp"
+#include "Packets.hpp"
 
 namespace Sagax::SCG {
 
     struct StreamSink : public Sagax::Pipeline::Module {
-        Pipeline::InPort<SSG::Packets::IQPacket> inP = AddInPort(&inP);
+        Pipeline::InPort<SCGIQPacket> inP = AddInPort(&inP);
 
         std::unique_ptr<OutputDevice> dev;
 
@@ -37,19 +37,19 @@ namespace Sagax::SCG {
     };
 
     struct RecordSink : public Sagax::Pipeline::Module {
-        Pipeline::InPort<SSG::Packets::IQPacket> inP = AddInPort(&inP);
+        Pipeline::InPort<SCGIQPacket> inP = AddInPort(&inP);
 
         std::string fileName;
         double center;
         double sampleRate;
         std::size_t nChannels;
-        SSG::IO::IQFileOut file;
+        SSG::IO::IQFileOut<SCGSampleBase> file;
 
         void Reset() override {
         }
 
         void Start() override {
-            SSG::Packets::IQPacket dummy;
+            SCGIQPacket dummy;
             dummy.Reshape(sampleRate, nChannels, 0, true);
             auto &m = dummy.meta.AddEntry<SSG::Packets::MFrequency>();
             m.frequency = center;

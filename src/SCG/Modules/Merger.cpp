@@ -3,10 +3,8 @@
 
 namespace Sagax::SCG {
 
-    using SSG::Packets::IQPacket;
-
     struct Merger::Impl {
-        std::vector<IQPacket> inputs;
+        std::vector<SCGIQPacket> inputs;
         std::vector<bool> inputValid;
         std::vector<std::size_t> nSamplesRead;
     };
@@ -81,7 +79,7 @@ namespace Sagax::SCG {
             }
         }
 
-        IQPacket &output = outP.Push();
+        auto &output = outP.Push();
         output.meta.Clear();
         output.Reshape(sampleRate, nChannelsOut, nSamplesNow, false);
         output.Fill(0.0);

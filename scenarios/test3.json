@@ -8,16 +8,32 @@
             "subdevSpec": "A:A",
             "samplerate": 1000000,
             "frequency": 434500000.0,
-            "gain": 55.0
+            "gain": 70.0
         },
+        {
+            "name": "r2",
+            "type": "UsrpB200",
+            "serial": "8002512",
+            "subdevSpec": "A:A",
+            "samplerate": 200000,
+            "frequency": 434600000.0,
+            "gain": 70.0
+        }
+        // {
+        //     "name": "r1",
+        //     "type": "File",
+        //     "file": "test3-r1.wav",
+        //     "nChannels": 1,
+        //     "samplerate": 1000000,
+        //     "frequency": 434500000.0
+        // },
         // {
         //     "name": "r2",
-        //     "type": "UsrpB200",
-        //     "serial": "8002512",
-        //     "subdevSpec": "A:A",
-        //     "samplerate": 100000,
-        //     "frequency": 434600000.0,
-        //     "gain": 40.0
+        //     "type": "File",
+        //     "file": "test3-r2.wav",
+        //     "nChannels": 1,
+        //     "samplerate": 200000,
+        //     "frequency": 434600000.0
         // }
     ],
     "signals": [
@@ -40,45 +56,67 @@
             "name": "s4",
             "type": "Chirp",
             "span": 130000.0,
-            "rate": 3
+            "rate": 3.0
         },
         {
             "name": "s5",
+            "type": "Pulse",
+            "duty": 0.2,
+            "rate": 0.5
+        },
+        {
+            "name": "s6",
             "type": "Noise",
             "span": 130000.0
         }
     ],
     "events": [
-        // {
-        //     "signal": "s1",
-        //     "output": "r1.0",
-        //     "frequency": 434500000.0,
-        //     "amplitude": 0.4,
-        //     "start": 1,
-        //     "end": 10
-        // },
-        // {
-        //     "signal": "s1",
-        //     "output": "r1.0",
-        //     "frequency": 434550000.0,
-        //     "amplitude": 0.4,
-        //     "start": 7,
-        //     "end": 13
-        // },
-        // {
-        //     "signal": "s1",
-        //     "output": "r1.0",
-        //     "frequency": 434500000.0,
-        //     "amplitude": 0.4,
-        //     "start": 13,
-        //     "end": 20
-        // }
+        {
+            "signal": "s1",
+            "output": "r1.0",
+            "frequency": 434500000.0,
+            "amplitude": 0.7,
+            "start": 1,
+            "end": 5
+        },
+        {
+            "signal": "s2",
+            "output": "r1.0",
+            "frequency": 434550000.0,
+            "amplitude": 0.5,
+            "start": 5,
+            "end": 10
+        },
+        {
+            "signal": "s3",
+            "output": "r1.0",
+            "frequency": 434500000.0,
+            "amplitude": 0.4,
+            "start": 8,
+            "end": 10
+        },
         {
             "signal": "s4",
             "output": "r1.0",
             "frequency": 434550000.0,
             "amplitude": 0.3,
-            "start": 5,
+            "start": 0,
+            "end": 7
+        },
+        {
+            "signal": "s5",
+            "output": "r2.0",
+            "frequency": 434550000.0,
+            "amplitude": 0.7,
+            "start": 0,
+            "end": 10
+        },
+        {
+            "signal": "s6",
+            "output": "r2.0",
+            "frequency": 434600000.0,
+            "amplitude": 0.7,
+            "start": 7,
             "end": 10
         }
     ]

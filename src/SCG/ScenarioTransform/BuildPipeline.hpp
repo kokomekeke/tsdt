@@ -1,11 +1,19 @@
 #pragma once
+#include <vector>
 #include "Pipeline/PipelineBuilder.hpp"
+#include "SCG/Utility/Resource.hpp"
 #include "SCG/Scenario/Scenario.hpp"
 
 namespace Sagax::SCG {
-    Sagax::Pipeline::SimplePipelineBuilder BuildPlaybackPipeline(Scenario &scen);  // File --> Radio
-    Sagax::Pipeline::SimplePipelineBuilder BuildRecordingPipeline(Scenario &scen); // Signal --> [...] --> File
-    Sagax::Pipeline::SimplePipelineBuilder BuildStreamingPipeline(Scenario &scen); // Signal --> [...] --> Radio
+
+    struct PipelineBuildResult {
+        Sagax::Pipeline::SimplePipelineBuilder builder;
+        std::vector<Resource*> resources;
+    };
+
+    PipelineBuildResult BuildPlaybackPipeline(Scenario &scen);  // File --> Radio
+    PipelineBuildResult BuildRecordingPipeline(Scenario &scen); // Signal --> [...] --> File
+    PipelineBuildResult BuildStreamingPipeline(Scenario &scen); // Signal --> [...] --> Radio
 }
 
 

@@ -24,6 +24,7 @@ namespace Sagax::SCG {
 
         struct Pulse {
             double duty;
+            double rate;
         };
 
         struct AudioFile {

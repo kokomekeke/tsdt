@@ -1,45 +1,131 @@
 #include <algorithm>
+#include <random>
 #include <numbers>
+#include <cmath>
 #include "Common/Assert.hpp"
 #include "Common/Logger.hpp"
+#include "SSG/Math/Math.hpp"
+#include "SSG/IO/SampleFile.hpp"
+#include "SSG/IO/IQFileIn.hpp"
+#include "SSG/IO/RealFileIn.hpp"
+#include "SSG/Resampler/Resampler.hpp"
+#include "SCG/Utility/BlockAggregator.hpp"
+#include "SCG/Utility/FileWorker.hpp"
 #include "SignalGenerator.hpp"
 
 namespace Sagax::SCG {
 
-    void NoiseGenerator::Setup(double sampleRate_, double psd_, std::size_t bufSize, unsigned int seed) {
-        sampleRate = sampleRate_;
+    namespace {
+        struct ResamplerWrapper {
+            double sampleRateIn;
+            double sampleRateOut;
+            SCGIQPacket packetIn;
+            BlockAggregator<SCGSample> aggregator;
+            std::unique_ptr<Sagax::SSG::Resampler::Resampler<SCGSample>> resampler;
+
+            void Setup(double sampleRateIn_, double sampleRateOut_) {
+                sampleRateIn = sampleRateIn_;
+                sampleRateOut = sampleRateOut_;
+                resampler = std::make_unique<Sagax::SSG::Resampler::Resampler<SCGSample>>(
+                    Common::Ratio(std::uint64_t(sampleRateOut), std::uint64_t(sampleRateIn)),
+                    0.9f,
+                    150.f
+                );
+            }
+
+            std::size_t SamplesToRead(std::size_t nSamplesOutMax) {
+                if(nSamplesOutMax <= aggregator.Cnt()) {
+                    return 0;
+                }
+                else {
+                    std::size_t nSamplesOut = nSamplesOutMax - aggregator.Cnt();
+                    std::size_t nSamplesIn = std::size_t(std::ceil((sampleRateIn / sampleRateOut) * nSamplesOut));
+                    // just read some more samples because the BlockAggregator mechanics work funny
+                    return nSamplesIn + 64;
+                }
+            }
+
+            void Reset() {
+                resampler.reset();
+                packetIn.SetNull(true);
+            }
+
+            void Push() {
+                Common::Assert(packetIn.nChannels == 1, "only 1 channel is allowed");
+                Common::Assert(packetIn.sampleRate == sampleRateIn, "samplerate mismatch");
+                auto s1 = resampler->Process(packetIn.data);
+                auto s2 = aggregator.Push(std::int32_t(s1.size()));
+                std::copy_n(s1.begin(), s1.size(), s2.begin());
+            }
+
+            void PullMax(SCGIQPacket &packetOut, std::size_t n) {
+                auto s = aggregator.PullMax(std::int32_t(n));
+                packetOut.Reshape(sampleRateOut, 1, s.size(), false);
+                packetOut.meta.Clear();
+                std::copy_n(s.begin(), s.size(), packetOut.data.begin());
+            }
+        };
+    }
+
+
+
+    struct NoiseGenerator::Impl {
+        unsigned int seed;
+        std::mt19937 gen;
+        std::vector<SCGSampleBase> buf; // pre generated random number buffer
+        ResamplerWrapper resampler;
+    };
+
+    NoiseGenerator::NoiseGenerator() : impl(std::make_unique<Impl>()) {
+    }
+
+    NoiseGenerator::~NoiseGenerator() = default;
+
+    void NoiseGenerator::Setup(double span_, double psd_, std::size_t bufSize, unsigned int seed_) {
+        span = span_;
         psd = psd_;
-        gen.seed(seed);
-        buf.resize(bufSize);
+        impl->seed = seed_;
+        impl->gen.seed(seed_);
+        impl->buf.resize(bufSize);
 
         // fill the buffer with random numbers from a normal distribution
         // faster than generating them on the fly
-        std::normal_distribution<double> dist(0.0, 1.0);
+        std::normal_distribution<SCGSampleBase> dist(SCGSampleBase(0.0), SCGSampleBase(1.0));
         for(std::size_t i = 0; i < bufSize; ++i) {
-            buf[i] = dist(gen);
+            impl->buf[i] = dist(impl->gen);
         }
     }
 
     void NoiseGenerator::Start() {
+        impl->resampler.Setup(span, sampleRate);
+        impl->gen.seed(impl->seed); // do this for every run so that we always generate the same output
     }
 
     void NoiseGenerator::Stop() {
+        impl->resampler.Reset();
     }
 
-    void NoiseGenerator::Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) {
-        packet.Reshape(sampleRate, 1, nSamplesMax, false);
+    void NoiseGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
+        std::size_t nSamplesRead = impl->resampler.SamplesToRead(nSamplesMax);
+        impl->resampler.packetIn.Reshape(span, 1, nSamplesRead, false);
 
-        double sigma = std::sqrt(psd * packet.sampleRate / 2.0);
-        for(std::size_t i = 0; i < packet.data.size(); ++i) {
-            double z0 = buf[gen() % buf.size()] * sigma;
-            double z1 = buf[gen() % buf.size()] * sigma;
-            packet.data[i] = std::complex<double>{z0, z1};
+        double sigma = std::sqrt(psd * sampleRate / 2.0);
+        for(std::size_t i = 0; i < nSamplesRead; ++i) {
+            auto z0 = SCGSampleBase(impl->buf[impl->gen() % impl->buf.size()] * sigma);
+            auto z1 = SCGSampleBase(impl->buf[impl->gen() % impl->buf.size()] * sigma);
+            impl->resampler.packetIn.data[i] = SCGSample{ z0, z1 };
         }
+
+        impl->resampler.Push();
+        impl->resampler.PullMax(packet, nSamplesMax);
     }
 
-    double NoiseGenerator::GetSampleRate() {
-        return sampleRate;
+    void NoiseGenerator::SetSampleRate(double sampleRate_) {
+        sampleRate = sampleRate_;
     }
+
+
+
 
 
     void ToneGenerator::Start() {
@@ -48,16 +134,19 @@ namespace Sagax::SCG {
     void ToneGenerator::Stop() {
     }
 
-    void ToneGenerator::Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) {
+    void ToneGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
         packet.Reshape(sampleRate, 1, nSamplesMax, false);
+        packet.meta.Clear();
         for(auto &s : packet.data) {
-            s = { 1.0, 0.0 };
+            s = { SCGSampleBase(1.0), SCGSampleBase(0.0) };
         }
     }
 
-    double ToneGenerator::GetSampleRate() {
-        return sampleRate;
+    void ToneGenerator::SetSampleRate(double sampleRate_) {
+        sampleRate = sampleRate_;
     }
+
+
 
 
 
@@ -73,123 +162,181 @@ namespace Sagax::SCG {
     }
 
     void ChirpGenerator::Stop() {
+        waveBuf.clear();
+        waveBuf.shrink_to_fit();
     }
 
-    void ChirpGenerator::Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) {
+    void ChirpGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
         packet.Reshape(sampleRate, 1, nSamplesMax, false);
-        packet.Fill({ 0.0, 0.0 });
-        waveBuf.assign(nSamplesMax, 0.0);
+        packet.meta.Clear();
+        packet.Fill({ SCGSampleBase(0.0), SCGSampleBase(0.0) });
+        waveBuf.assign(nSamplesMax, SCGSampleBase(0.0));
 
         gen.Process(sampleRate, waveBuf);
         mod.Process(sampleRate, waveBuf, packet.data);
     }
 
-    double ChirpGenerator::GetSampleRate() {
-        return sampleRate;
+    void ChirpGenerator::SetSampleRate(double sampleRate_) {
+        sampleRate = sampleRate_;
     }
 
 
 
+
+
     void PulseGenerator::Start() {
-        gen.ampl = 1.0;
-        gen.freq = 0.0;
-        gen.offset = 0.0;
+        gen.ampl = 0.5;
+        gen.freq = rate;
+        gen.offset = 0.5;
         gen.duty = duty;
         gen.Reset();
     }
 
     void PulseGenerator::Stop() {
+        waveBuf.clear();
+        waveBuf.shrink_to_fit();
     }
 
-    void PulseGenerator::Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) {
+    void PulseGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
         packet.Reshape(sampleRate, 1, nSamplesMax, false);
+        packet.meta.Clear();
 
-        waveBuf.resize(nSamplesMax);
+        waveBuf.assign(nSamplesMax, SCGSampleBase(0.0));
         gen.Process(sampleRate, waveBuf);
 
         for(std::size_t i = 0; i < nSamplesMax; ++i) {
-            packet.data[i] = std::complex<double>{ waveBuf[i], 0.0 };
+            packet.data[i] = SCGSample{
+                SCGSampleBase(waveBuf[i]),
+                SCGSampleBase(0.0)
+            };
         }
     }
 
-    double PulseGenerator::GetSampleRate() {
-        return sampleRate;
+    void PulseGenerator::SetSampleRate(double sampleRate_) {
+        sampleRate = sampleRate_;
     }
 
 
 
-    void AudioFileGenerator::Start() {
-        file.Open(fileName);
-        Common::Assert(file.IsOpen(), "failed to open file");
-        meta = file.GetMeta();
-        Common::Assert(meta.sampleRate.has_value(), "file has no samplerate info");
-        Common::Assert(meta.nSamples.has_value() && meta.nSamples.value() > 0, "file has no samples or missing samplecount info");
 
+
+    struct AudioFileGenerator::Impl {
+        FileReaderWorker<SCGSampleBase> worker;
+        ResamplerWrapper resampler;
+        SSG::IO::RealFileIn<SCGSampleBase> file;
+        SSG::IO::SampleFileMeta meta;
+        SSG::Packets::SamplePacket<SCGSampleBase> packetBuf;
+    };
+
+    AudioFileGenerator::AudioFileGenerator() : impl(std::make_unique<Impl>()) {
+    }
+
+    AudioFileGenerator::~AudioFileGenerator() = default;
+
+    void AudioFileGenerator::Start() {
+        impl->file.Open(fileName);
+        Common::Assert(impl->file.IsOpen(), "failed to open file");
+        impl->meta = impl->file.GetMeta();
+        Common::Assert(impl->meta.sampleRate.has_value(), "file has no samplerate info");
+        Common::Assert(impl->meta.nSamples.has_value() && impl->meta.nSamples.value() > 0, "file has no samples or missing samplecount info");
+        impl->resampler.Setup(impl->meta.sampleRate.value(), sampleRate);
         mod->Reset();
+
+        impl->worker.Setup((SSG::IO::SampleFileIn<SCGSampleBase>*)(&impl->file), SSG::IO::FilePlaybackMode::Infinite{}, 5, scgPacketSize);
+        impl->worker.Start();
     }
 
     void AudioFileGenerator::Stop() {
-        file.Close();
-    }
-
-    void AudioFileGenerator::Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) {
-        if(file.Eof()) {
-            Common::Logger::Debug("file wraparound");
-            file.WrapAround();
+        impl->worker.Stop();
+        if(impl->file.IsOpen()) {
+            impl->file.Close();
         }
-
-        packetBuf.meta.Clear();
-        packetBuf.data.clear();
-        file.ReadPacket(packetBuf, nSamplesMax);
-        packetBuf.SetNull(false);
-        Common::Assert(packetBuf.nChannels == 1, "file must have 1 channel");
-        Common::Assert(packetBuf.nSamples <= nSamplesMax, "read too many samples");
-
-        packet.meta.Clear();
-        packet.data.clear();
-        packet.Reshape(packetBuf.sampleRate, packetBuf.nChannels, packetBuf.nSamples, false);
-        packet.Fill({ 0.0, 0.0 });
-        mod->Process(packetBuf.sampleRate, packetBuf.data, packet.data);
+        impl->resampler.Reset();
+        impl->packetBuf.SetNull(true);
+        mod->Reset();
     }
 
-    double AudioFileGenerator::GetSampleRate() {
-        return meta.sampleRate.value();
+    void AudioFileGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
+
+        while(true) {
+            std::size_t nSamplesToRead = impl->resampler.SamplesToRead(nSamplesMax);
+            if(nSamplesToRead == 0) {
+                break;
+            }
+            bool success = impl->worker.SwapPacket(impl->packetBuf);
+            if(!success) {
+                break;
+            }
+
+            auto ch = impl->packetBuf.GetChannels();
+            auto s = ch[0];
+
+            impl->resampler.packetIn.Reshape(impl->meta.sampleRate.value(), 1, s.size(), false);
+            impl->resampler.packetIn.Fill({ SCGSampleBase(0.0), SCGSampleBase(0.0) });
+            mod->Process(impl->meta.sampleRate.value(), s, impl->resampler.packetIn.data);
+            impl->resampler.Push();
+        }
+        impl->resampler.PullMax(packet, nSamplesMax);
+    }
+
+    void AudioFileGenerator::SetSampleRate(double sampleRate_) {
+        sampleRate = sampleRate_;
     }
 
 
+
+
+
+    struct IQFileGenerator::Impl {
+        FileReaderWorker<SCGSample> worker;
+        ResamplerWrapper resampler;
+        SSG::IO::IQFileIn<SCGSampleBase> file;
+        SSG::IO::SampleFileMeta meta;
+    };
+
+    IQFileGenerator::IQFileGenerator() : impl(std::make_unique<Impl>()) {
+    }
+
+    IQFileGenerator::~IQFileGenerator() = default;
 
     void IQFileGenerator::Start() {
-        file.Open(fileName);
-        Common::Assert(file.IsOpen(), "failed to open file");
-        meta = file.GetMeta();
-        Common::Assert(meta.sampleRate.has_value(), "file has no samplerate info");
-        Common::Assert(meta.nSamples.has_value() && meta.nSamples.value() > 0, "file has no samples or missing samplecount info");
+        impl->file.Open(fileName);
+        Common::Assert(impl->file.IsOpen(), "failed to open file");
+        impl->meta = impl->file.GetMeta();
+        Common::Assert(impl->meta.sampleRate.has_value(), "file has no samplerate info");
+        Common::Assert(impl->meta.nSamples.has_value() && impl->meta.nSamples.value() > 0, "file has no samples or missing samplecount info");
+        impl->resampler.Setup(impl->meta.sampleRate.value(), sampleRate);
+
+        impl->worker.Setup((SSG::IO::SampleFileIn<SCGSample>*)(&impl->file), SSG::IO::FilePlaybackMode::Infinite{}, 5, scgPacketSize);
+        impl->worker.Start();
     }
 
     void IQFileGenerator::Stop() {
-        if(file.IsOpen()) {
-            file.Close();
+        impl->worker.Stop();
+        if(impl->file.IsOpen()) {
+            impl->file.Close();
         }
+        impl->resampler.Reset();
     }
 
-    void IQFileGenerator::Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) {
-        if(file.Eof()) {
-            Common::Logger::Debug("file wraparound");
-            file.WrapAround();
+    void IQFileGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
+        while(true) {
+            std::size_t nSamplesToRead = impl->resampler.SamplesToRead(nSamplesMax);
+            if(nSamplesToRead == 0) {
+                break;
+            }
+            bool success = impl->worker.SwapPacket(impl->resampler.packetIn);
+            if(!success) {
+                break;
+            }
+            impl->resampler.packetIn.Reshape(impl->resampler.packetIn.sampleRate, 1, impl->resampler.packetIn.nSamples, false); // keep first channel only
+            impl->resampler.Push();
         }
-
-        packet.meta.Clear();
-        packet.data.clear();
-
-        file.ReadPacket(packet, nSamplesMax);
-        Common::Assert(packet.nSamples <= nSamplesMax, "read too many samples");
-        if(packet.nSamples == 0) {
-            packet.SetNull(true);
-        }
+        impl->resampler.PullMax(packet, nSamplesMax);
     }
 
-    double IQFileGenerator::GetSampleRate() {
-        return meta.sampleRate.value();
+    void IQFileGenerator::SetSampleRate(double sampleRate_) {
+        sampleRate = sampleRate_;
     }
 
 

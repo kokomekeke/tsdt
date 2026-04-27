@@ -2,8 +2,8 @@
 #include <vector>
 #include <memory>
 #include "Pipeline/Pipeline.hpp"
-#include "SSG/Packets/Packets.hpp"
 #include "SSG/Math/Math.hpp"
+#include "Packets.hpp"
 
 namespace Sagax::SCG {
 
@@ -11,8 +11,8 @@ namespace Sagax::SCG {
         struct Impl;
         std::unique_ptr<Impl> impl;
 
-        std::vector<Pipeline::InPort<SSG::Packets::IQPacket>> inP;
-        Pipeline::OutPort<SSG::Packets::IQPacket> outP = AddOutPort(&outP);
+        std::vector<Pipeline::InPort<SCGIQPacket>> inP;
+        Pipeline::OutPort<SCGIQPacket> outP = AddOutPort(&outP);
 
         double sampleRate;
         std::size_t nChannelsOut;

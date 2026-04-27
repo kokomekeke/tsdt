@@ -10,19 +10,19 @@ namespace Sagax::SCG {
         struct Null {
         };
 
+        struct FileIQ {
+            std::string fileName;
+            std::size_t nChannels;
+            double sampleRate;
+            double center;
+        };
+
         struct RadioUsrpB200 {
             std::string serial;
             std::string subdevSpec;
             double sampleRate;
             double center;
             double gain;
-        };
-
-        struct FileIQ {
-            std::string fileName;
-            std::size_t nChannels;
-            double sampleRate;
-            double center;
         };
 
         using T = std::variant<

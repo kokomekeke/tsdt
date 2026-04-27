@@ -2,13 +2,9 @@
 #include <complex>
 #include <vector>
 #include <string>
-#include <random>
-#include "SSG/IO/SampleFile.hpp"
-#include "SSG/IO/IQFileIn.hpp"
-#include "SSG/IO/RealFileIn.hpp"
 #include "SSG/Modulators/Waveforms.hpp"
 #include "SSG/Modulators/Analog.hpp"
-#include "SSG/Packets/Packets.hpp"
+#include "SCG/Modules/Packets.hpp"
 #include "SCG/Scenario/SignalVariant.hpp"
 
 namespace Sagax::SCG {
@@ -17,25 +13,28 @@ namespace Sagax::SCG {
         virtual ~SignalGenerator() = default;
         virtual void Start() = 0;
         virtual void Stop() = 0;
-        virtual void Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) = 0;
-        virtual double GetSampleRate() = 0;
+        virtual void Generate(SCGIQPacket &packet, std::size_t nSamplesMax) = 0;
+        virtual void SetSampleRate(double sampleRate_) = 0;
     };
 
 
     struct NoiseGenerator : public SignalGenerator {
+        struct Impl;
+        std::unique_ptr<Impl> impl;
 
         double sampleRate;
+        double span;
         double psd;
-        std::mt19937 gen;
-        std::vector<double> buf;
 
-        void Setup(double sampleRate_, double psd_, std::size_t bufSize, unsigned int seed);
+        NoiseGenerator();
+        ~NoiseGenerator();
+
+        void Setup(double span_, double psd_, std::size_t bufSize, unsigned int seed);
 
         void Start() override;
         void Stop() override;
-        void Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) override;
-        double GetSampleRate() override;
-
+        void Generate(SCGIQPacket &packet, std::size_t nSamplesMax) override;
+        void SetSampleRate(double sampleRate_) override;
     };
 
     struct ToneGenerator : public SignalGenerator {
@@ -43,64 +42,71 @@ namespace Sagax::SCG {
 
         void Start() override;
         void Stop() override;
-        void Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) override;
-        double GetSampleRate() override;
+        void Generate(SCGIQPacket &packet, std::size_t nSamplesMax) override;
+        void SetSampleRate(double sampleRate_) override;
     };
 
     struct ChirpGenerator : public SignalGenerator {
-        SSG::Modulators::SawGenerator gen;
-        SSG::Modulators::FMModulator mod;
+        SSG::Modulators::SawGenerator<SCGSampleBase> gen;
+        SSG::Modulators::FMModulator<SCGSampleBase> mod;
 
         double sampleRate;
         double span;
         double rate;
-        std::vector<double> waveBuf;
+        std::vector<SCGSampleBase> waveBuf;
 
         void Start() override;
         void Stop() override;
-        void Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) override;
-        double GetSampleRate() override;
+        void Generate(SCGIQPacket &packet, std::size_t nSamplesMax) override;
+        void SetSampleRate(double sampleRate_) override;
     };
 
     struct PulseGenerator : public SignalGenerator {
-        SSG::Modulators::SquareGenerator gen;
+        SSG::Modulators::SquareGenerator<SCGSampleBase> gen;
 
         double sampleRate;
+        double rate;
         double duty;
 
-        std::vector<double> waveBuf;
+        std::vector<SCGSampleBase> waveBuf;
 
         void Start() override;
         void Stop() override;
-        void Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) override;
-        double GetSampleRate() override;
+        void Generate(SCGIQPacket &packet, std::size_t nSamplesMax) override;
+        void SetSampleRate(double sampleRate_) override;
     };
 
     struct AudioFileGenerator : public SignalGenerator {
-        std::string fileName;
-        std::unique_ptr<SSG::Modulators::AnalogModulator> mod;
+        struct Impl;
+        std::unique_ptr<Impl> impl;
 
-        SSG::IO::RealFileIn file;
-        SSG::IO::SampleFileMeta meta;
-        SSG::Packets::RealPacket packetBuf;
+        std::string fileName;
+        std::unique_ptr<SSG::Modulators::AnalogModulator<SCGSampleBase>> mod;
+        double sampleRate;
+
+        AudioFileGenerator();
+        ~AudioFileGenerator();
 
         void Start() override;
         void Stop() override;
-        void Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) override;
-        double GetSampleRate() override;
+        void Generate(SCGIQPacket &packet, std::size_t nSamplesMax) override;
+        void SetSampleRate(double sampleRate_) override;
     };
 
     struct IQFileGenerator : public SignalGenerator {
+        struct Impl;
+        std::unique_ptr<Impl> impl;
 
         std::string fileName;
-        SSG::IO::IQFileIn file;
+        double sampleRate;
 
-        SSG::IO::SampleFileMeta meta;
+        IQFileGenerator();
+        ~IQFileGenerator();
 
         void Start() override;
         void Stop() override;
-        void Generate(SSG::Packets::IQPacket &packet, std::size_t nSamplesMax) override;
-        double GetSampleRate() override;
+        void Generate(SCGIQPacket &packet, std::size_t nSamplesMax) override;
+        void SetSampleRate(double sampleRate_) override;
     };
 
 }

@@ -23,11 +23,8 @@ namespace Sagax::SCG {
     using Sagax::Pipeline::SimplePipelineBuilder;
     using Pipeline::InPort;
     using Pipeline::OutPort;
-    using SSG::Packets::IQPacket;
 
     namespace {
-        constexpr std::size_t packetSize = (1<<12);
-
         std::string AbsoluteFileName(std::string filename) {
             return std::filesystem::absolute(std::filesystem::path(filename)).string();
         }
@@ -127,21 +124,42 @@ namespace Sagax::SCG {
             return { scen, outputs, events, lines };
         }
 
+        SampleIndexedEventList GetSampleIndexed(ScenarioCtx &scen, std::size_t iOutput, std::vector<std::size_t> events) {
+            auto &output = scen.outputs[iOutput];
+            SampleIndexedEventList res;
+            res.nSamples = std::size_t(std::max(std::int64_t(0), std::int64_t(scen.scen.duration * output.params.sampleRate)));
+            for(std::size_t ie : events) {
+                auto &e = scen.events[ie];
+                res.events.push_back({
+                    std::size_t(std::clamp(std::int64_t(e.event.start * output.params.sampleRate), std::int64_t(0), std::int64_t(res.nSamples))),
+                    std::size_t(std::clamp(std::int64_t(e.event.end * output.params.sampleRate), std::int64_t(0), std::int64_t(res.nSamples))),
+                    e.event
+                });
+            }
+
+            std::sort(res.events.begin(), res.events.end(), [](const SampleIndexedEventList::EventCtx &e1, const SampleIndexedEventList::EventCtx &e2) {
+                return e1.iStart < e2.iStart;
+            });
+            return res;
+        }
+
 
 
 
         struct OutputPipeline {
             SimplePipelineBuilder b;
-            InPort<IQPacket>* port;
+            InPort<SCGIQPacket>* port;
+            std::vector<Resource*> resources;
         };
         OutputPipeline BuildOutputStream(ScenarioCtx &scen, std::size_t iOutput) {
             auto &output = scen.outputs[iOutput];
             SimplePipelineBuilder b;
             auto &sink = b.AddVertex<StreamSink>();
 
-            sink.dev = GetOutputDevice(output.output.variant);
+            auto [dev, rsc] = GetOutputDevice(output.output.variant);
+            sink.dev = std::move(dev);
 
-            return { std::move(b), &sink.inP };
+            return { std::move(b), &sink.inP, rsc };
         }
         OutputPipeline BuildOutputRecord(ScenarioCtx &scen, std::size_t iOutput, std::size_t iChannel) {
             auto &output = scen.outputs[iOutput];
@@ -153,38 +171,40 @@ namespace Sagax::SCG {
             sink.nChannels = 1;
             sink.center = output.params.centers[0];
 
-            return { std::move(b), &sink.inP };
+            return { std::move(b), &sink.inP, { } };
         }
 
 
         struct SignalPipeline {
             SimplePipelineBuilder b;
-            OutPort<IQPacket> *port;
+            OutPort<SCGIQPacket> *port;
+            std::vector<Resource*> resources;
         };
         SignalPipeline BuildSignalStream(ScenarioCtx &scen, std::size_t iLine) {
             auto &line = scen.lines[iLine];
+            auto &output = scen.outputs[line.iOutput];
+            std::vector<Resource*> resources;
             SimplePipelineBuilder b;
             auto &src = b.AddVertex<StreamSource>();
-            auto &res = b.AddVertex<SSG::Modules::Resampler>();
             auto &tun = b.AddVertex<Tuner>();
-            b.AddEdge(src.outP, res.inP);
-            b.AddEdge(res.outP, tun.inP);
+            b.AddEdge(src.outP, tun.inP);
 
-            src.nSamples = packetSize;
-            src.duration = scen.scen.duration;
-            src.events.clear();
+            src.nSamples = scgPacketSize;
+            src.sampleRate = output.params.sampleRate;
+            src.events = GetSampleIndexed(scen, line.iOutput, line.events);
             src.generators.clear();
             for(auto &ie : line.events) {
                 auto &e = scen.events[ie];
-                src.events.push_back(e.event);
-                src.generators.push_back(GetSignalGenerator(scen.scen.signals[e.iSignal].variant));
+                auto [gen, rsc] = GetSignalGenerator(scen.scen.signals[e.iSignal].variant);
+                gen->SetSampleRate(output.params.sampleRate);
+                src.generators.push_back(std::move(gen));
+                resources.insert(resources.end(), rsc.begin(), rsc.end());
             }
 
-            auto &output = scen.outputs[line.iOutput];
-            res.sampleRate = output.params.sampleRate;
+            tun.sampleRate = output.params.sampleRate;
             tun.freqOut = output.params.centers[line.iChannel];
 
-            return { std::move(b), &tun.outP };
+            return { std::move(b), &tun.outP, resources };
         }
         SignalPipeline BuildSignalPlayback(ScenarioCtx &scen, std::size_t iOutput, std::size_t iChannel) {
             auto &output = scen.outputs[iOutput];
@@ -192,23 +212,16 @@ namespace Sagax::SCG {
             auto &src = b.AddVertex<PlaybackSource>();
 
             src.fileName = GetOutputFileName(scen.scen, iOutput, iChannel);
-            src.nSamples = packetSize;
+            src.nSamples = scgPacketSize;
 
-            auto getSampleIndex = [&](double t) {
-                return std::size_t(t * output.params.sampleRate);
-            };
-
+            std::vector<std::size_t> events;
             for(std::size_t il : output.lines[iChannel]) {
-                for(std::size_t ie : scen.lines[il].events) {
-                    auto &e = scen.events[ie];
-                    src.events.push_back({
-                        getSampleIndex(e.event.start),
-                        getSampleIndex(e.event.end)
-                    });
-                }
+                events.insert(events.end(), scen.lines[il].events.begin(), scen.lines[il].events.end());
             }
 
-            return { std::move(b), &src.outP };
+            src.events = GetSampleIndexed(scen, iOutput, events);
+
+            return { std::move(b), &src.outP, { } };
         }
 
     }
@@ -216,8 +229,9 @@ namespace Sagax::SCG {
 
 
 
-    SimplePipelineBuilder BuildPlaybackPipeline(Scenario &scen) {
+    PipelineBuildResult BuildPlaybackPipeline(Scenario &scen) {
         ScenarioCtx ctx = SortScenario(scen);
+        std::vector<Resource*> resources;
         SimplePipelineBuilder b;
         std::vector<OutputPipeline> outputPipelines;
         std::vector<std::vector<SignalPipeline>> signalPipelines;
@@ -225,6 +239,7 @@ namespace Sagax::SCG {
             auto p = BuildOutputStream(ctx, io);
             b = SimplePipelineBuilder::Merge(std::move(b), std::move(p.b));
             outputPipelines.push_back(std::move(p));
+            resources.insert(resources.end(), p.resources.begin(), p.resources.end());
         }
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
             auto &output = ctx.outputs[io];
@@ -233,6 +248,7 @@ namespace Sagax::SCG {
                 auto p = BuildSignalPlayback(ctx, io, ic);
                 b = SimplePipelineBuilder::Merge(std::move(b), std::move(p.b));
                 signalPipelines.back().push_back(std::move(p));
+                resources.insert(resources.end(), p.resources.begin(), p.resources.end());
             }
         }
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
@@ -250,11 +266,12 @@ namespace Sagax::SCG {
             }
             b.AddEdge(merger.outP, *outputPipelines[io].port);
         }
-        return b;
+        return { std::move(b), resources };
     }
 
-    SimplePipelineBuilder BuildRecordingPipeline(Scenario &scen) {
+    PipelineBuildResult BuildRecordingPipeline(Scenario &scen) {
         ScenarioCtx ctx = SortScenario(scen);
+        std::vector<Resource*> resources;
         SimplePipelineBuilder b;
         std::vector<std::vector<OutputPipeline>> outputPipelines;
         std::vector<SignalPipeline> signalPipelines;
@@ -264,12 +281,14 @@ namespace Sagax::SCG {
             for(std::size_t ic = 0; ic < output.params.nChannels; ++ic) {
                 auto p = BuildOutputRecord(ctx, io, ic);
                 b = SimplePipelineBuilder::Merge(std::move(b), std::move(p.b));
+                resources.insert(resources.end(), p.resources.begin(), p.resources.end());
                 outputPipelines.back().push_back(std::move(p));
             }
         }
         for(std::size_t il = 0; il < ctx.lines.size(); ++il) {
             auto p = BuildSignalStream(ctx, il);
             b = SimplePipelineBuilder::Merge(std::move(b), std::move(p.b));
+            resources.insert(resources.end(), p.resources.begin(), p.resources.end());
             signalPipelines.push_back(std::move(p));
         }
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
@@ -292,22 +311,25 @@ namespace Sagax::SCG {
             }
         }
 
-        return b;
+        return { std::move(b), resources };
     }
 
-    SimplePipelineBuilder BuildStreamingPipeline(Scenario &scen) {
+    PipelineBuildResult BuildStreamingPipeline(Scenario &scen) {
         ScenarioCtx ctx = SortScenario(scen);
+        std::vector<Resource*> resources;
         SimplePipelineBuilder b;
         std::vector<OutputPipeline> outputPipelines;
         std::vector<SignalPipeline> signalPipelines;
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
             auto p = BuildOutputStream(ctx, io);
             b = SimplePipelineBuilder::Merge(std::move(b), std::move(p.b));
+            resources.insert(resources.end(), p.resources.begin(), p.resources.end());
             outputPipelines.push_back(std::move(p));
         }
         for(std::size_t il = 0; il < ctx.lines.size(); ++il) {
             auto p = BuildSignalStream(ctx, il);
             b = SimplePipelineBuilder::Merge(std::move(b), std::move(p.b));
+            resources.insert(resources.end(), p.resources.begin(), p.resources.end());
             signalPipelines.push_back(std::move(p));
         }
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
@@ -323,7 +345,7 @@ namespace Sagax::SCG {
             merger.sampleRate = output.params.sampleRate;
 
             std::size_t iPort = 0;
-            std::vector<std::vector<InPort<IQPacket>*>> portsIn(output.lines.size());
+            std::vector<std::vector<InPort<SCGIQPacket>*>> portsIn(output.lines.size());
             for(std::size_t ic = 0; ic < output.lines.size(); ++ic) {
                 portsIn[ic].resize(output.lines[ic].size());
                 for(std::size_t il = 0; il < output.lines[ic].size(); ++il) {
@@ -339,7 +361,7 @@ namespace Sagax::SCG {
             }
             b.AddEdge(merger.outP, *outputPipelines[io].port);
         }
-        return b;
+        return { std::move(b), resources };
     }
 
 
