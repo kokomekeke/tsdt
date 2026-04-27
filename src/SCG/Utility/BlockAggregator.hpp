@@ -62,6 +62,10 @@ namespace Sagax::SCG {
         std::span<Item> PullMultiple(std::int32_t n) {
             return Pull((cnt / n) * n);
         }
+
+        std::span<Item> PullAll() {
+            return Pull(i, i + cnt);
+        }
     };
 }
 

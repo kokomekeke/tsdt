@@ -35,6 +35,9 @@ namespace Sagax::SCG {
 
         void ApplyTone(std::span<SCGSample> out, double ampl) {
             std::size_t n = out.size();
+            if(n == 0) {
+                return;
+            }
             Common::Assert(n <= tone.size(), "tone not set");
 
             SCGSample p = SCGSample(std::polar(ampl, phase));

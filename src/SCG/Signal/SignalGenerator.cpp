@@ -10,6 +10,7 @@
 #include "SSG/IO/RealFileIn.hpp"
 #include "SSG/Resampler/Resampler.hpp"
 #include "SCG/Utility/BlockAggregator.hpp"
+#include "SCG/Utility/FileWorker.hpp"
 #include "SignalGenerator.hpp"
 
 namespace Sagax::SCG {
@@ -220,10 +221,11 @@ namespace Sagax::SCG {
 
 
     struct AudioFileGenerator::Impl {
+        FileReaderWorker<SCGSampleBase> worker;
         ResamplerWrapper resampler;
-        SCGRealPacket realPacketBuf;
         SSG::IO::RealFileIn<SCGSampleBase> file;
         SSG::IO::SampleFileMeta meta;
+        SSG::Packets::SamplePacket<SCGSampleBase> packetBuf;
     };
 
     AudioFileGenerator::AudioFileGenerator() : impl(std::make_unique<Impl>()) {
@@ -239,32 +241,41 @@ namespace Sagax::SCG {
         Common::Assert(impl->meta.nSamples.has_value() && impl->meta.nSamples.value() > 0, "file has no samples or missing samplecount info");
         impl->resampler.Setup(impl->meta.sampleRate.value(), sampleRate);
         mod->Reset();
+
+        impl->worker.Setup((SSG::IO::SampleFileIn<SCGSampleBase>*)(&impl->file), SSG::IO::FilePlaybackMode::Infinite{}, 5, scgPacketSize);
+        impl->worker.Start();
     }
 
     void AudioFileGenerator::Stop() {
+        impl->worker.Stop();
         if(impl->file.IsOpen()) {
             impl->file.Close();
         }
         impl->resampler.Reset();
-        impl->realPacketBuf.SetNull(true);
+        impl->packetBuf.SetNull(true);
         mod->Reset();
     }
 
     void AudioFileGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
-        if(impl->file.Eof()) {
-            Common::Logger::Debug("file wraparound");
-            impl->file.WrapAround();
+
+        while(true) {
+            std::size_t nSamplesToRead = impl->resampler.SamplesToRead(nSamplesMax);
+            if(nSamplesToRead == 0) {
+                break;
+            }
+            bool success = impl->worker.SwapPacket(impl->packetBuf);
+            if(!success) {
+                break;
+            }
+
+            auto ch = impl->packetBuf.GetChannels();
+            auto s = ch[0];
+
+            impl->resampler.packetIn.Reshape(impl->meta.sampleRate.value(), 1, s.size(), false);
+            impl->resampler.packetIn.Fill({ SCGSampleBase(0.0), SCGSampleBase(0.0) });
+            mod->Process(impl->meta.sampleRate.value(), s, impl->resampler.packetIn.data);
+            impl->resampler.Push();
         }
-
-        std::size_t nSamplesRead = impl->resampler.SamplesToRead(nSamplesMax);
-
-        impl->realPacketBuf.data.clear();
-        impl->file.ReadPacket(impl->realPacketBuf, nSamplesRead);
-        impl->realPacketBuf.Reshape(impl->realPacketBuf.sampleRate, 1, impl->realPacketBuf.nSamples, false); // keep only first channel
-        impl->resampler.packetIn.Reshape(impl->realPacketBuf.sampleRate, 1, impl->realPacketBuf.nSamples, false);
-        impl->resampler.packetIn.Fill({ SCGSampleBase(0.0), SCGSampleBase(0.0) });
-        mod->Process(impl->realPacketBuf.sampleRate, impl->realPacketBuf.data, impl->resampler.packetIn.data);
-        impl->resampler.Push();
         impl->resampler.PullMax(packet, nSamplesMax);
     }
 
@@ -277,6 +288,7 @@ namespace Sagax::SCG {
 
 
     struct IQFileGenerator::Impl {
+        FileReaderWorker<SCGSample> worker;
         ResamplerWrapper resampler;
         SSG::IO::IQFileIn<SCGSampleBase> file;
         SSG::IO::SampleFileMeta meta;
@@ -294,9 +306,13 @@ namespace Sagax::SCG {
         Common::Assert(impl->meta.sampleRate.has_value(), "file has no samplerate info");
         Common::Assert(impl->meta.nSamples.has_value() && impl->meta.nSamples.value() > 0, "file has no samples or missing samplecount info");
         impl->resampler.Setup(impl->meta.sampleRate.value(), sampleRate);
+
+        impl->worker.Setup((SSG::IO::SampleFileIn<SCGSample>*)(&impl->file), SSG::IO::FilePlaybackMode::Infinite{}, 5, scgPacketSize);
+        impl->worker.Start();
     }
 
     void IQFileGenerator::Stop() {
+        impl->worker.Stop();
         if(impl->file.IsOpen()) {
             impl->file.Close();
         }
@@ -304,16 +320,18 @@ namespace Sagax::SCG {
     }
 
     void IQFileGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
-        if(impl->file.Eof()) {
-            Common::Logger::Debug("file wraparound");
-            impl->file.WrapAround();
+        while(true) {
+            std::size_t nSamplesToRead = impl->resampler.SamplesToRead(nSamplesMax);
+            if(nSamplesToRead == 0) {
+                break;
+            }
+            bool success = impl->worker.SwapPacket(impl->resampler.packetIn);
+            if(!success) {
+                break;
+            }
+            impl->resampler.packetIn.Reshape(impl->resampler.packetIn.sampleRate, 1, impl->resampler.packetIn.nSamples, false); // keep first channel only
+            impl->resampler.Push();
         }
-
-        std::size_t nSamplesRead = impl->resampler.SamplesToRead(nSamplesMax);
-        impl->resampler.packetIn.data.clear();
-        impl->file.ReadPacket(impl->resampler.packetIn, nSamplesRead);
-        impl->resampler.packetIn.Reshape(impl->resampler.packetIn.sampleRate, 1, impl->resampler.packetIn.nSamples, false); // keep only first channel
-        impl->resampler.Push();
         impl->resampler.PullMax(packet, nSamplesMax);
     }
 
