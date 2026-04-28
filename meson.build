@@ -65,12 +65,12 @@ executable(
     link_args: link_args,
 )
 
-mosquittoDep = dependency('libmosquitto')
-cjsonDep = dependency('cjson') # dep of mosquitto
+mosquittoSub = subproject('mosquitto')
+mosquittoDep = mosquittoSub.get_variable('mosquittoDep')
 executable(
     'scgclient',
     sources: 'src/SCG/Client/main.cpp',
-    dependencies: [mosquittoDep, cjsonDep]
+    dependencies: [mosquittoDep]
 )
 
 # Make exe available on path, for easier access from build dir
