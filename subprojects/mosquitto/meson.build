@@ -47,7 +47,7 @@ if host_machine.system() in [ 'windows' ]
         devenv.append('PATH', [mosquittoBinDir])
         meson.add_devenv(devenv, method: 'append')
     else
-        mosquittoDlls = []
+        # mosquittoDlls = []
     endif
 
     mosquittoLib = cCompiler.find_library('mosquitto', dirs: [mosquittoLibDir], required: true)
@@ -60,8 +60,12 @@ if host_machine.system() in [ 'windows' ]
     )
 else
     # mosquittoDlls = []
-    # cjsonDep = dependency('cjson')
-    mosquittoDep = dependency('libmosquitto')
+    mosquittoDep = declare_dependency(
+        dependencies: [
+            dependency('libmosquitto'),
+            cjsonDep
+        ]
+    )
 endif
 
 
