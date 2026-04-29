@@ -1,0 +1,11 @@
+{
+    "name": "scg",
+    "builtin-baseline": "73248d88e09d43dfd7836902462a64fd2a43387b",
+    "version": "1.0.0",
+    "dependencies": [
+        {
+            "name": "mosquitto",
+            "version>=": "2.0.22"
+        }
+    ]
+}

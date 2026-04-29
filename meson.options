@@ -1,0 +1,6 @@
+option(
+    'devenv_paths',
+    type: 'array',
+    value: [],
+    description: 'Extra paths to add to PATH in devenv'
+)

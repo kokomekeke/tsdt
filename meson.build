@@ -65,8 +65,7 @@ executable(
     link_args: link_args,
 )
 
-mosquittoSub = subproject('mosquitto')
-mosquittoDep = mosquittoSub.get_variable('mosquittoDep')
+mosquittoDep = dependency('mosquitto')
 executable(
     'scgclient',
     sources: 'src/SCG/Client/main.cpp',
@@ -76,5 +75,11 @@ executable(
 # Make exe available on path, for easier access from build dir
 devenv = environment()
 devenv.append('PATH', [meson.current_build_dir()])
+
+extra_paths = get_option('devenv_paths')
+foreach path : extra_paths
+    devenv.prepend('PATH', path)
+endforeach
+
 meson.add_devenv(devenv, method: 'append')
 

@@ -1,5 +1,0 @@
-option('mosquitto_dir',
-  type        : 'string',
-  value       : 'S:/temp/3rdparty/mosquitto',
-  description : 'Path to mosquitto build (Windows only)',
-)
