@@ -38,39 +38,67 @@ elif compiler.get_id() == 'msvc'
     link_args = []
 endif
 
+
+buildScg = get_option('build_scg')
+buildScgClient = get_option('build_scgclient')
+buildMqttExamples = get_option('build_mqtt_examples')
+
+
 ssgSub = subproject('SSG')
 coreLibDep = ssgSub.get_variable('coreLibDep')
 ssgLibDep = ssgSub.get_variable('ssgLibDep')
 ssg_defines = ssgSub.get_variable('ssg_defines')
 
-executable(
-    'SCG',
-    sources: [
-        'src/SCG/JsonParsing/OutputParserRegistry.cpp',
-        'src/SCG/JsonParsing/Parsers.cpp',
-        'src/SCG/JsonParsing/SignalParserRegistry.cpp',
-        'src/SCG/Modules/Merger.cpp',
-        'src/SCG/Modules/Source.cpp',
-        'src/SCG/Modules/Tuner.cpp',
-        'src/SCG/Output/OutputDevice.cpp',
-        'src/SCG/Scenario/OutputVariant.cpp',
-        'src/SCG/ScenarioTransform/BuildPipeline.cpp',
-        'src/SCG/ScenarioTransform/Transform.cpp',
-        'src/SCG/Signal/SignalGenerator.cpp',
-        'src/SCG/CLI/main.cpp'
-    ],
-    include_directories: [ 'src/' ],
-    dependencies: [ coreLibDep, ssgLibDep ],
-    cpp_args: cpp_args + ssg_defines,
-    link_args: link_args,
-)
+if buildScg
+    executable(
+        'SCG',
+        sources: [
+            'src/SCG/JsonParsing/OutputParserRegistry.cpp',
+            'src/SCG/JsonParsing/Parsers.cpp',
+            'src/SCG/JsonParsing/SignalParserRegistry.cpp',
+            'src/SCG/Modules/Merger.cpp',
+            'src/SCG/Modules/Source.cpp',
+            'src/SCG/Modules/Tuner.cpp',
+            'src/SCG/Output/OutputDevice.cpp',
+            'src/SCG/Scenario/OutputVariant.cpp',
+            'src/SCG/ScenarioTransform/BuildPipeline.cpp',
+            'src/SCG/ScenarioTransform/Transform.cpp',
+            'src/SCG/Signal/SignalGenerator.cpp',
+            'src/SCG/CLI/main.cpp'
+        ],
+        include_directories: [ 'src/' ],
+        dependencies: [ coreLibDep, ssgLibDep ],
+        cpp_args: cpp_args + ssg_defines,
+        link_args: link_args,
+    )
+endif
 
-mosquittoDep = dependency('mosquitto')
-executable(
-    'scgclient',
-    sources: 'src/SCG/Client/main.cpp',
-    dependencies: [mosquittoDep]
-)
+
+if buildScgClient or buildMqttExamples
+    mosquittoDep = dependency('mosquitto')
+    executable(
+        'scgclient',
+        sources: 'src/SCG/Client/main.cpp',
+        dependencies: [mosquittoDep]
+    )
+endif
+
+if buildMqttExamples
+    executable(
+        'mqtt_publisher',
+        sources: [
+            'src/SCG/MqttExamples/publisher.cpp'
+        ],
+        dependencies: [mosquittoDep]
+    )
+    executable(
+        'mqtt_subscriber',
+        sources: [
+            'src/SCG/MqttExamples/subscriber.cpp'
+        ],
+        dependencies: [mosquittoDep]
+    )
+endif
 
 # Make exe available on path, for easier access from build dir
 devenv = environment()

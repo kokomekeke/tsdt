@@ -4,3 +4,24 @@ option(
     value: [],
     description: 'Extra paths to add to PATH in devenv'
 )
+
+option(
+    'build_scg',
+    type: 'boolean',
+    value: true,
+    description: 'Build scg.exe'
+)
+
+option(
+    'build_scgclient',
+    type: 'boolean',
+    value: true,
+    description: 'Build scgclient.exe'
+)
+
+option(
+    'build_mqtt_examples',
+    type: 'boolean',
+    value: true,
+    description: 'Build mqtt examples from'
+)
