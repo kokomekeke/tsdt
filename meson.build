@@ -106,8 +106,26 @@ if buildScgClient or buildMqttExamples
     executable(
         'scgclient',
         sources: [
+            'src/SCG/Client/MessageParser.cpp',
             'src/SCG/Client/MqttClient.cpp',
             'src/SCG/Client/main.cpp',
+        ],
+        dependencies: [
+            commonLibDep,
+            coreLibDep,
+            ssgLibDep,
+            scgLibDep,
+            mosquittoDep
+        ],
+        cpp_args: cpp_args + ssg_defines,
+        link_args: link_args,
+    )
+    executable(
+        'scgcommander',
+        sources: [
+            'src/SCG/Client/MessageParser.cpp',
+            'src/SCG/Client/MqttClient.cpp',
+            'src/SCG/Client/Commander.cpp',
         ],
         dependencies: [
             commonLibDep,
