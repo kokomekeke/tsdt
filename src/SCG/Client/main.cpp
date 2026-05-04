@@ -1,29 +1,50 @@
-#include <mosquitto.h>
-#include <stdio.h>
-#include <string.h>
+#include <iostream>
+#include <thread>
+#include <chrono>
+#include <string>
 
-void on_message(struct mosquitto *mosq, void *userdata,
-                const struct mosquitto_message *msg)
-{
-    printf("Received: %s\n", (char*)msg->payload);
-}
+#include "MqttClient.hpp"
 
-int main()
-{
-    mosquitto_lib_init();
+using namespace Sagax::SCG;
 
-    struct mosquitto *mosq = mosquitto_new("client1", true, NULL);
+int main() {
+    // initialize library once for the process
+    MqttClient::LibraryInit();
 
-    mosquitto_message_callback_set(mosq, on_message);
+    MqttClient client;
 
-    mosquitto_connect(mosq, "localhost", 1883, 60);
+    MqttClient::Configuration cfg;
+    cfg.host = "localhost";
+    cfg.port = 1883;
+    cfg.keepAlive_s = 60;
+    cfg.subscribeTopics = { "test/topic" };
+    cfg.clientId = "RSG";
+    cfg.reconnectDelays_ms = { 1000, 2000, 5000, 10000, 30000 };
+    cfg.maxQueueSize = 200;
 
-    mosquitto_subscribe(mosq, NULL, "test/topic", 0);
+    cfg.onUpdate = [&client]() {
+        MqttClient::Message msg;
+        while(client.Pop(msg)) {
+            std::string payload(msg.bytes.begin(), msg.bytes.end());
+            std::cout << "received [" << msg.topic << "]: " << payload << std::endl;
+        }
+    };
 
-    while (1) {
-        mosquitto_loop(mosq, -1, 1); // blocking
-    }
+    client.Configure(std::move(cfg));
+    client.Start();
 
-    mosquitto_destroy(mosq);
-    mosquitto_lib_cleanup();
+    MqttClient::Message out;
+    out.topic = "test/topic";
+    const std::string text = "hello from MqttClient example";
+    out.bytes.assign(text.begin(), text.end());
+    out.qos = 0;
+    out.retain = false;
+    client.Push(std::move(out));
+
+    // run for a short while to allow messages to be exchanged
+    std::this_thread::sleep_for(std::chrono::seconds(10));
+
+    client.Stop();
+    MqttClient::LibraryCleanup();
+    return 0;
 }

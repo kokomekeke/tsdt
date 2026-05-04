@@ -45,29 +45,56 @@ buildMqttExamples = get_option('build_mqtt_examples')
 
 
 ssgSub = subproject('SSG')
+commonLibDep = ssgSub.get_variable('commonLibDep')
 coreLibDep = ssgSub.get_variable('coreLibDep')
 ssgLibDep = ssgSub.get_variable('ssgLibDep')
 ssg_defines = ssgSub.get_variable('ssg_defines')
 
+
+scgLib = static_library(
+    'scg_core',
+    sources: [
+        'src/SCG/JsonParsing/OutputParserRegistry.cpp',
+        'src/SCG/JsonParsing/Parsers.cpp',
+        'src/SCG/JsonParsing/SignalParserRegistry.cpp',
+        'src/SCG/Modules/Merger.cpp',
+        'src/SCG/Modules/Source.cpp',
+        'src/SCG/Modules/Tuner.cpp',
+        'src/SCG/Output/OutputDevice.cpp',
+        'src/SCG/Scenario/OutputVariant.cpp',
+        'src/SCG/ScenarioTransform/BuildPipeline.cpp',
+        'src/SCG/ScenarioTransform/Transform.cpp',
+        'src/SCG/Signal/SignalGenerator.cpp'
+    ],
+    include_directories: [ 'src/' ],
+    dependencies: [
+        commonLibDep,
+        coreLibDep,
+        ssgLibDep
+    ],
+    cpp_args: cpp_args + ssg_defines,
+    link_args: link_args,
+)
+scgLibDep = declare_dependency(
+    link_with: scgLib,
+    include_directories: [],
+    dependencies: []
+)
+
+
 if buildScg
     executable(
-        'SCG',
+        'scg',
         sources: [
-            'src/SCG/JsonParsing/OutputParserRegistry.cpp',
-            'src/SCG/JsonParsing/Parsers.cpp',
-            'src/SCG/JsonParsing/SignalParserRegistry.cpp',
-            'src/SCG/Modules/Merger.cpp',
-            'src/SCG/Modules/Source.cpp',
-            'src/SCG/Modules/Tuner.cpp',
-            'src/SCG/Output/OutputDevice.cpp',
-            'src/SCG/Scenario/OutputVariant.cpp',
-            'src/SCG/ScenarioTransform/BuildPipeline.cpp',
-            'src/SCG/ScenarioTransform/Transform.cpp',
-            'src/SCG/Signal/SignalGenerator.cpp',
             'src/SCG/CLI/main.cpp'
         ],
         include_directories: [ 'src/' ],
-        dependencies: [ coreLibDep, ssgLibDep ],
+        dependencies: [
+            commonLibDep,
+            coreLibDep,
+            ssgLibDep,
+            scgLibDep
+        ],
         cpp_args: cpp_args + ssg_defines,
         link_args: link_args,
     )
@@ -78,8 +105,19 @@ if buildScgClient or buildMqttExamples
     mosquittoDep = dependency('mosquitto')
     executable(
         'scgclient',
-        sources: 'src/SCG/Client/main.cpp',
-        dependencies: [mosquittoDep]
+        sources: [
+            'src/SCG/Client/MqttClient.cpp',
+            'src/SCG/Client/main.cpp',
+        ],
+        dependencies: [
+            commonLibDep,
+            coreLibDep,
+            ssgLibDep,
+            scgLibDep,
+            mosquittoDep
+        ],
+        cpp_args: cpp_args + ssg_defines,
+        link_args: link_args,
     )
 endif
 
