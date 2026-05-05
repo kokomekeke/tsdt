@@ -110,6 +110,7 @@ if buildScgClient or buildMqttExamples
             'src/SCG/Client/MqttClient.cpp',
             'src/SCG/Client/main.cpp',
         ],
+        include_directories: [ 'src/' ],
         dependencies: [
             commonLibDep,
             coreLibDep,
@@ -127,6 +128,7 @@ if buildScgClient or buildMqttExamples
             'src/SCG/Client/MqttClient.cpp',
             'src/SCG/Client/Commander.cpp',
         ],
+        include_directories: [ 'src/' ],
         dependencies: [
             commonLibDep,
             coreLibDep,
