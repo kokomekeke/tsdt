@@ -237,6 +237,7 @@ namespace Sagax::SCG {
         impl->file.Open(fileName);
         Common::Assert(impl->file.IsOpen(), "failed to open file");
         impl->meta = impl->file.GetMeta();
+        impl->file.Close();
         Common::Assert(impl->meta.sampleRate.has_value(), "file has no samplerate info");
         Common::Assert(impl->meta.nSamples.has_value() && impl->meta.nSamples.value() > 0, "file has no samples or missing samplecount info");
         impl->resampler.Setup(impl->meta.sampleRate.value(), sampleRate);
@@ -304,6 +305,7 @@ namespace Sagax::SCG {
         impl->file.Open(fileName);
         Common::Assert(impl->file.IsOpen(), "failed to open file");
         impl->meta = impl->file.GetMeta();
+        impl->file.Close();
         Common::Assert(impl->meta.sampleRate.has_value(), "file has no samplerate info");
         Common::Assert(impl->meta.nSamples.has_value() && impl->meta.nSamples.value() > 0, "file has no samples or missing samplecount info");
         impl->resampler.Setup(impl->meta.sampleRate.value(), sampleRate);

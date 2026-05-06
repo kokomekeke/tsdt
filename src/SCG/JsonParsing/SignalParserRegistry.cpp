@@ -56,7 +56,7 @@ namespace Sagax::SCG {
 
 
         struct NoiseParser : SignalParser {
-            Parser::Json::BasicParameter<double> spanP = AddParameter(&spanP, "sampleRate", "span");
+            Parser::Json::BasicParameter<double> spanP = AddParameter(&spanP, "double", "span");
 
             std::string GetDescription() const override {
                 return "Generates noise with constant psd";

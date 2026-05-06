@@ -15,6 +15,7 @@ struct Parameters {
     std::string error;
     Mode mode;
     std::string jsonPath;
+    std::string recordingDirectory;
     HelpCategory helpCategory;
     std::optional<std::string> helpSubject;
 };
@@ -30,25 +31,18 @@ struct ProgramParser {
             .nargs(0, 2)
             .default_value(std::vector<std::string>{ });
 
-        program.add_argument("path")
-            .nargs(argparse::nargs_pattern::optional)
-            .help("path to the scenario JSON file");
-
         auto &mode = program.add_mutually_exclusive_group(false);
         mode.add_argument("-r", "--record")
-            .help("record mode")
-            .default_value(false)
-            .implicit_value(true);
+            .help("record mode: -r <jsonPath> <recordingDirectory>")
+            .nargs(2);
 
         mode.add_argument("-p", "--playback")
-            .help("playback mode")
-            .default_value(false)
-            .implicit_value(true);
+            .help("playback mode: -p <jsonPath> <recordingDirectory>")
+            .nargs(2);
 
         mode.add_argument("-s", "--stream")
-            .help("stream mode")
-            .default_value(false)
-            .implicit_value(true);
+            .help("stream mode: -s <jsonPath>")
+            .nargs(1);
     }
 
     std::string Help() {
@@ -86,27 +80,26 @@ struct ProgramParser {
             return;
         }
 
-        auto jsonPath = program.present<std::string>("path");
-        if(jsonPath.has_value()) {
-            params.jsonPath = jsonPath.value();
-        }
-        else {
-            params.success = false;
-            params.error = "path to json is missing";
-            return;
-        }
-
-        if(program.get<bool>("-r")) {
+        if(program.is_used("-r")) {
+            auto values = program.get<std::vector<std::string>>("-r");
+            params.jsonPath = values[0];
+            params.recordingDirectory = values[1];
             params.success = true;
             params.mode = Parameters::Mode::record;
             return;
         }
-        else if(program.get<bool>("-p")) {
+        else if(program.is_used("-p")) {
+            auto values = program.get<std::vector<std::string>>("-p");
+            params.jsonPath = values[0];
+            params.recordingDirectory = values[1];
             params.success = true;
             params.mode = Parameters::Mode::playback;
             return;
         }
-        else if(program.get<bool>("-s")) {
+        else if(program.is_used("-s")) {
+            auto values = program.get<std::vector<std::string>>("-s");
+            params.jsonPath = values[0];
+            params.recordingDirectory.clear();
             params.success = true;
             params.mode = Parameters::Mode::stream;
             return;

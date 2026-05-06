@@ -15,6 +15,7 @@
 #include "SCG/Modules/Merger.hpp"
 #include "SCG/Modules/Tuner.hpp"
 #include "SCG/Modules/Sink.hpp"
+#include "RecordingDirectoryResource.hpp"
 #include "Transform.hpp"
 #include "BuildPipeline.hpp"
 
@@ -25,15 +26,6 @@ namespace Sagax::SCG {
     using Pipeline::OutPort;
 
     namespace {
-        std::string AbsoluteFileName(std::string filename) {
-            return std::filesystem::absolute(std::filesystem::path(filename)).string();
-        }
-
-        std::string GetOutputFileName(Scenario &scen, std::size_t iOutput, std::size_t iChannel) {
-            return AbsoluteFileName(std::format("{}_{:02}_{:02}.wav", scen.name, iOutput, iChannel));
-        }
-
-
         struct EventCtx {
             Scenario::Event event;
             std::size_t iOutput;
@@ -161,12 +153,12 @@ namespace Sagax::SCG {
 
             return { std::move(b), &sink.inP, rsc };
         }
-        OutputPipeline BuildOutputRecord(ScenarioCtx &scen, std::size_t iOutput, std::size_t iChannel) {
+        OutputPipeline BuildOutputRecord(ScenarioCtx &scen, const RecordingDirectoryResource &recordingDirectory, std::size_t iOutput, std::size_t iChannel) {
             auto &output = scen.outputs[iOutput];
             SimplePipelineBuilder b;
             auto &sink = b.AddVertex<RecordSink>();
 
-            sink.fileName = GetOutputFileName(scen.scen, iOutput, iChannel);
+            sink.fileName = recordingDirectory.GetOutputFileName(iOutput, iChannel);
             sink.sampleRate = output.params.sampleRate;
             sink.nChannels = 1;
             sink.center = output.params.centers[0];
@@ -206,12 +198,12 @@ namespace Sagax::SCG {
 
             return { std::move(b), &tun.outP, resources };
         }
-        SignalPipeline BuildSignalPlayback(ScenarioCtx &scen, std::size_t iOutput, std::size_t iChannel) {
+        SignalPipeline BuildSignalPlayback(ScenarioCtx &scen, const RecordingDirectoryResource &recordingDirectory, std::size_t iOutput, std::size_t iChannel) {
             auto &output = scen.outputs[iOutput];
             SimplePipelineBuilder b;
             auto &src = b.AddVertex<PlaybackSource>();
 
-            src.fileName = GetOutputFileName(scen.scen, iOutput, iChannel);
+            src.fileName = recordingDirectory.GetOutputFileName(iOutput, iChannel);
             src.nSamples = scgPacketSize;
 
             std::vector<std::size_t> events;
@@ -229,26 +221,33 @@ namespace Sagax::SCG {
 
 
 
-    PipelineBuildResult BuildPlaybackPipeline(Scenario &scen) {
+    PipelineBuildResult BuildPlaybackPipeline(Scenario &scen, const std::string &recordingDirectory) {
         ScenarioCtx ctx = SortScenario(scen);
         std::vector<Resource*> resources;
+        std::vector<std::unique_ptr<Resource>> ownedResources;
         SimplePipelineBuilder b;
         std::vector<OutputPipeline> outputPipelines;
         std::vector<std::vector<SignalPipeline>> signalPipelines;
+
+        auto directoryResource = std::make_unique<RecordingDirectoryResource>();
+        directoryResource->Setup(ctx.scen, ".", recordingDirectory, false);
+        const auto *recordingDirectoryResource = directoryResource.get();
+        ownedResources.push_back(std::move(directoryResource));
+
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
             auto p = BuildOutputStream(ctx, io);
             b = SimplePipelineBuilder::Merge(std::move(b), std::move(p.b));
-            outputPipelines.push_back(std::move(p));
             resources.insert(resources.end(), p.resources.begin(), p.resources.end());
+            outputPipelines.push_back(std::move(p));
         }
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
             auto &output = ctx.outputs[io];
             signalPipelines.push_back({ });
             for(std::size_t ic = 0; ic < output.params.nChannels; ++ic) {
-                auto p = BuildSignalPlayback(ctx, io, ic);
+                auto p = BuildSignalPlayback(ctx, *recordingDirectoryResource, io, ic);
                 b = SimplePipelineBuilder::Merge(std::move(b), std::move(p.b));
-                signalPipelines.back().push_back(std::move(p));
                 resources.insert(resources.end(), p.resources.begin(), p.resources.end());
+                signalPipelines.back().push_back(std::move(p));
             }
         }
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
@@ -266,20 +265,27 @@ namespace Sagax::SCG {
             }
             b.AddEdge(merger.outP, *outputPipelines[io].port);
         }
-        return { std::move(b), resources };
+        return { std::move(b), resources, std::move(ownedResources) };
     }
 
-    PipelineBuildResult BuildRecordingPipeline(Scenario &scen) {
+    PipelineBuildResult BuildRecordingPipeline(Scenario &scen, const std::string &recordingDirectory) {
         ScenarioCtx ctx = SortScenario(scen);
         std::vector<Resource*> resources;
+        std::vector<std::unique_ptr<Resource>> ownedResources;
         SimplePipelineBuilder b;
         std::vector<std::vector<OutputPipeline>> outputPipelines;
         std::vector<SignalPipeline> signalPipelines;
+
+        auto directoryResource = std::make_unique<RecordingDirectoryResource>();
+        directoryResource->Setup(ctx.scen, ".", recordingDirectory, true);
+        const auto *recordingDirectoryResource = directoryResource.get();
+        ownedResources.push_back(std::move(directoryResource));
+
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
             auto &output = ctx.outputs[io];
             outputPipelines.push_back({ });
             for(std::size_t ic = 0; ic < output.params.nChannels; ++ic) {
-                auto p = BuildOutputRecord(ctx, io, ic);
+            auto p = BuildOutputRecord(ctx, *recordingDirectoryResource, io, ic);
                 b = SimplePipelineBuilder::Merge(std::move(b), std::move(p.b));
                 resources.insert(resources.end(), p.resources.begin(), p.resources.end());
                 outputPipelines.back().push_back(std::move(p));
@@ -311,7 +317,7 @@ namespace Sagax::SCG {
             }
         }
 
-        return { std::move(b), resources };
+        return { std::move(b), resources, std::move(ownedResources) };
     }
 
     PipelineBuildResult BuildStreamingPipeline(Scenario &scen) {

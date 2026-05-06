@@ -13,8 +13,12 @@ namespace Sagax::SCG {
         Pipeline::Pipeline pipeline;
         std::unique_ptr<Pipeline::Controller> controller;
         std::vector<Resource*> resources;
+        std::vector<std::unique_ptr<Resource>> ownedResources;
 
         void Init() {
+            for(auto &p : ownedResources) {
+                p->Init();
+            }
             for(auto p : resources) {
                 p->Init();
             }
@@ -22,6 +26,9 @@ namespace Sagax::SCG {
 
         void Dispose() {
             for(auto p : resources) {
+                p->Dispose();
+            }
+            for(auto &p : ownedResources) {
                 p->Dispose();
             }
         }

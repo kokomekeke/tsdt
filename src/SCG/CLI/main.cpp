@@ -96,13 +96,13 @@ struct Program {
         }
     }
 
-    void Run(Parameters::Mode mode, std::string jsonPath) {
+    void Run(Parameters params) {
         Common::Logger::Info("SCG");
 
         Scenario scenario;
         try {
-            std::filesystem::path path = std::filesystem::absolute(jsonPath);
-            Common::Assert(path.has_filename(), std::format("wrong filename: {}", jsonPath));
+            std::filesystem::path path = std::filesystem::absolute(params.jsonPath);
+            Common::Assert(path.has_filename(), std::format("wrong filename: {}", params.jsonPath));
             std::string scenName = path.filename().stem().string();
             Common::Assert(std::filesystem::exists(path), std::format("file missing: {}", path.string()));
             std::ifstream file(path);
@@ -140,21 +140,24 @@ struct Program {
             .scenario = scenario
         };
         try {
-            switch(mode) {
+            switch(params.mode) {
                 case Parameters::Mode::playback: {
-                    auto b = BuildPlaybackPipeline(scenario);
+                    auto b = BuildPlaybackPipeline(scenario, params.recordingDirectory);
                     ctx.pipeline = b.builder.Build();
                     ctx.resources = b.resources;
+                    ctx.ownedResources = std::move(b.ownedResources);
                 } break;
                 case Parameters::Mode::record: {
-                    auto b = BuildRecordingPipeline(scenario);
+                    auto b = BuildRecordingPipeline(scenario, params.recordingDirectory);
                     ctx.pipeline = b.builder.Build();
                     ctx.resources = b.resources;
+                    ctx.ownedResources = std::move(b.ownedResources);
                 } break;
                 case Parameters::Mode::stream: {
                     auto b = BuildStreamingPipeline(scenario);
                     ctx.pipeline = b.builder.Build();
                     ctx.resources = b.resources;
+                    ctx.ownedResources = std::move(b.ownedResources);
                 } break;
                 default: {
                     Common::Assert(false, "wrong mode");
@@ -220,7 +223,7 @@ struct Program {
             PrintHelp(parser.params.helpCategory, parser.params.helpSubject);
         }
         else {
-            Run(params.mode, params.jsonPath);
+            Run(params);
         }
     }
 
