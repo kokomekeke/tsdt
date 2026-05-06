@@ -3,6 +3,7 @@
 #include <vector>
 #include "Pipeline/Pipeline.hpp"
 #include "SSG/IO/IQFileIn.hpp"
+#include "SSG/IO/PlaybackAdapter.hpp"
 #include "SCG/Signal/SignalGenerator.hpp"
 #include "SCG/Scenario/Scenario.hpp"
 #include "Packets.hpp"
@@ -45,7 +46,7 @@ namespace Sagax::SCG {
         SampleIndexedEventList events;
 
         SSG::IO::IQFileIn<SCGSampleBase> file;
-        std::size_t iSample = 0;
+        SSG::IO::PlaybackAdapter<SCGSample> fileAdapter;
 
         void Reset() override;
         void Start() override;

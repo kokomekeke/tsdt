@@ -101,7 +101,7 @@ namespace Sagax::SCG {
                 iSample += packet.nSamples;
             }
             else {
-                Common::Logger::Warn(lh, "packet with 0 samples");
+                // Common::Logger::Warn(lh, "packet with 0 samples");
             }
         }
 
@@ -109,7 +109,7 @@ namespace Sagax::SCG {
 
 
     void PlaybackSource::Reset() {
-        iSample = 0;
+        fileAdapter.Reset();
     }
 
     void PlaybackSource::Start() {
@@ -120,22 +120,21 @@ namespace Sagax::SCG {
         for(std::size_t i = 0; i + 1 < events.events.size(); ++i) {
             Common::Assert(e[i].iStart <= e[i+1].iStart, "wrong timing"); // allows overlaps
         }
-        file.Open(fileName);
-        Common::Assert(file.IsOpen(), "failed to open file");
+        fileAdapter.file = &file;
+        fileAdapter.nSamples = scgPacketSize;
+        fileAdapter.doLog = false;
+        fileAdapter.filename = fileName;
+        fileAdapter.mode = SSG::IO::FilePlaybackMode::File{};
+        fileAdapter.Start();
     }
 
     void PlaybackSource::Stop() {
-        if(file.IsOpen()) {
-            file.Close();
-        }
+        fileAdapter.Close();
     }
 
     void PlaybackSource::Process() {
-        if(file.Eof() || outP.nSpaces() == 0) {
-            return;
-        }
-
         std::size_t nSamplesNow = nSamples;
+        std::size_t iSample = fileAdapter.nSamplesTotal;
         MEventTag m;
 
         for(std::size_t i = 0; i < events.events.size(); ++i) {
@@ -148,14 +147,21 @@ namespace Sagax::SCG {
 
         Common::Assert(nSamplesNow > 0, "cannot read 0 samples");
 
+        fileAdapter.nSamples = nSamplesNow; // this should work but its weird
+        auto plan = fileAdapter.GetReadPlan();
+        if(!plan.doRead) {
+            return;
+        }
+        if(outP.nSpaces() == 0) {
+            return;
+        }
+
         auto &packet = outP.Push();
         packet.meta.Clear();
         packet.data.clear();
+        fileAdapter.CommitReadPlan(plan, packet);
 
-        file.ReadPacket(packet, nSamplesNow);
         Common::Assert(packet.nSamples <= nSamplesNow, "read too many samples");
-        iSample += packet.nSamples;
-
     }
 }
 

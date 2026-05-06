@@ -5,6 +5,7 @@
 #include "Common/TS.hpp"
 #include "Common/RingBuffer.hpp"
 #include "SSG/IO/SampleFile.hpp"
+#include "SSG/IO/PlaybackAdapter.hpp"
 
 namespace Sagax::SCG {
 
@@ -16,28 +17,21 @@ namespace Sagax::SCG {
         Common::RingBuffer<SSG::Packets::SamplePacket<T>> buf;
         Common::TSWorker worker;
 
-        SSG::IO::SampleFileIn<T> *file;
-        SSG::IO::FilePlaybackMode::variant mode;
-        std::size_t nSamples; // per packet;
+        SSG::IO::PlaybackAdapter<T> fileAdapter;
         std::size_t nPackets; // in buffer
-
-        std::size_t nSamplesRead = 0;
-        std::size_t nPacketsRead = 0;
 
         bool headValid = false;
         SSG::Packets::SamplePacket<T> head;
 
         void Update() {
             if(!headValid) {
-                std::size_t nRead = SSG::IO::FilePlaybackMode::GetNSamples(mode, file->Eof(), nSamples, nPacketsRead, nSamplesRead);
-                head.data.clear();
-                file->ReadPacket(head, nRead);
-                nSamplesRead += head.nSamples;
-                nPacketsRead += 1;
-
-                if(file->Eof()) {
-                    file->WrapAround();
+                auto plan = fileAdapter.GetReadPlan();
+                if(!plan.doRead) {
+                    return;
                 }
+                head.data.clear();
+                head.meta.Clear();
+                fileAdapter.CommitReadPlan(plan, head);
             }
 
             {
@@ -54,14 +48,21 @@ namespace Sagax::SCG {
         }
 
     public:
-        void Setup(SSG::IO::SampleFileIn<T> *file_, SSG::IO::FilePlaybackMode::variant mode_, std::size_t nPackets_, std::size_t nSamples_) {
-            file = file_;
-            mode = mode_;
-            nSamples = nSamples_;
+        void Setup(SSG::IO::SampleFileIn<T> *file_, SSG::IO::FilePlaybackMode::Variant mode_, std::size_t nPackets_, std::size_t nSamples_, bool doLog_) {
+            fileAdapter.file = file_;
+            fileAdapter.filename = file_->GetMeta().fileName;
+            fileAdapter.mode = mode_;
+            fileAdapter.nSamples = nSamples_;
+            fileAdapter.doLog = doLog_;
             nPackets = nPackets_;
-            worker.start = [](){};
-            worker.stop = [](){};
-            worker.update = [this](){ this->Update(); };
+            worker.start = [this](){
+                this->fileAdapter.Reset();
+                this->fileAdapter.Start();
+            };
+            worker.stop = [](){}; // dont close here, the file is managed from the outside
+            worker.update = [this](){
+                this->Update();
+            };
         }
 
         void Start() {
@@ -81,8 +82,7 @@ namespace Sagax::SCG {
         }
 
         void Reset() {
-            nSamplesRead = 0;
-            nPacketsRead = 0;
+            fileAdapter.Reset();
         }
 
         bool SwapPacket(SSG::Packets::SamplePacket<T> &packet) {

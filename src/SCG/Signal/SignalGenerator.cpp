@@ -242,12 +242,13 @@ namespace Sagax::SCG {
         impl->resampler.Setup(impl->meta.sampleRate.value(), sampleRate);
         mod->Reset();
 
-        impl->worker.Setup((SSG::IO::SampleFileIn<SCGSampleBase>*)(&impl->file), SSG::IO::FilePlaybackMode::Infinite{}, 5, scgPacketSize);
+        impl->worker.Setup((SSG::IO::SampleFileIn<SCGSampleBase>*)(&impl->file), SSG::IO::FilePlaybackMode::Infinite{}, 5, scgPacketSize, true);
         impl->worker.Start();
     }
 
     void AudioFileGenerator::Stop() {
         impl->worker.Stop();
+        impl->worker.Reset();
         if(impl->file.IsOpen()) {
             impl->file.Close();
         }
@@ -307,12 +308,13 @@ namespace Sagax::SCG {
         Common::Assert(impl->meta.nSamples.has_value() && impl->meta.nSamples.value() > 0, "file has no samples or missing samplecount info");
         impl->resampler.Setup(impl->meta.sampleRate.value(), sampleRate);
 
-        impl->worker.Setup((SSG::IO::SampleFileIn<SCGSample>*)(&impl->file), SSG::IO::FilePlaybackMode::Infinite{}, 5, scgPacketSize);
+        impl->worker.Setup((SSG::IO::SampleFileIn<SCGSample>*)(&impl->file), SSG::IO::FilePlaybackMode::Infinite{}, 5, scgPacketSize, true);
         impl->worker.Start();
     }
 
     void IQFileGenerator::Stop() {
         impl->worker.Stop();
+        impl->worker.Reset();
         if(impl->file.IsOpen()) {
             impl->file.Close();
         }
