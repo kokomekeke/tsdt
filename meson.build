@@ -57,6 +57,7 @@ scgLib = static_library(
         'src/SCG/JsonParsing/OutputParserRegistry.cpp',
         'src/SCG/JsonParsing/Parsers.cpp',
         'src/SCG/JsonParsing/SignalParserRegistry.cpp',
+        'src/SCG/Parser2/JsonParser.cpp',
         'src/SCG/Modules/Merger.cpp',
         'src/SCG/Modules/Source.cpp',
         'src/SCG/Modules/Tuner.cpp',

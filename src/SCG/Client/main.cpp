@@ -149,11 +149,10 @@ private:
 
     void OnUpdate() {
         MqttClient::Message msg;
-        Sagax::SCG::CommandMessageParser parser;
         while(client.Pop(msg)) {
             std::string payload(msg.bytes.begin(), msg.bytes.end());
             try {
-                auto cm = parser.Parse(payload);
+                auto cm = Sagax::SCG::ParseCommandMessage(payload);
                 if (std::holds_alternative<CommandMessage::TestStart>(cm.variant)) {
                     auto &v = std::get<CommandMessage::TestStart>(cm.variant);
                     Common::Logger::Info("received [{}]: TestStart - scenario={} vehicle={} customer={}", msg.topic, v.scenario, v.vehicle, v.customer);

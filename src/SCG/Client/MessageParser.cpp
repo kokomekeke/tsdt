@@ -1,111 +1,105 @@
-#include <algorithm>
-#include <cctype>
-#include <nlohmann/json.hpp>
 #include "MessageParser.hpp"
+#include "SCG/Parser2/JsonParser.hpp"
 
 namespace Sagax::SCG {
 
     namespace {
-        std::string ToLower(std::string s) {
-            std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return char(std::tolower(c)); });
-            return s;
-        }
+
+        struct CommandMessageJsonParser : Json::JsonObjectParser<CommandMessage> {
+            struct TestStartParser : Json::JsonObjectParser<CommandMessage::TestStart> {
+                TestStartParser() {
+                    AddParam(&CommandMessage::TestStart::scenario, Json::JsonPrimitiveParser<std::string>{}, "scenario");
+                    AddParam(&CommandMessage::TestStart::vehicle, Json::JsonPrimitiveParser<std::string>{}, "vehicle");
+                    AddParam(&CommandMessage::TestStart::customer, Json::JsonPrimitiveParser<std::string>{}, "customer");
+                }
+            };
+
+            struct TestEndParser : Json::JsonObjectParser<CommandMessage::TestEnd> {
+                TestEndParser() {}
+            };
+
+            struct TestUpdateParser : Json::JsonObjectParser<CommandMessage::TestUpdate> {
+                TestUpdateParser() {}
+            };
+
+            struct IntStartParser : Json::JsonObjectParser<CommandMessage::IntStart> {
+                IntStartParser() {
+                    AddParam(&CommandMessage::IntStart::profile, Json::JsonPrimitiveParser<std::string>{}, "profile");
+                }
+            };
+
+            struct IntStopParser : Json::JsonObjectParser<CommandMessage::IntStop> {
+                IntStopParser() {}
+            };
+
+            struct CommandMessageVariantParser : Json::JsonVariantParser<CommandMessage::Variant> {
+                CommandMessageVariantParser() {
+                    typeTagKey = "type";
+                    AddVariant<CommandMessage::TestStart>("TestStart", TestStartParser{});
+                    AddVariant<CommandMessage::TestEnd>("TestEnd", TestEndParser{});
+                    AddVariant<CommandMessage::TestUpdate>("TestUpdate", TestUpdateParser{});
+                    AddVariant<CommandMessage::IntStart>("IntStart", IntStartParser{});
+                    AddVariant<CommandMessage::IntStop>("IntStop", IntStopParser{});
+                }
+            };
+
+            CommandMessageJsonParser() {
+                AddParam(&CommandMessage::variant, CommandMessageVariantParser{}, "variant");
+            }
+        };
+
+        struct LogMessageJsonParser : Json::JsonObjectParser<LogMessage> {
+            struct LogTypeParser : Json::JsonEnumParser<LogMessage::Type> {
+                LogTypeParser() {
+                    AddEnumerator(LogMessage::Type::spoofing, "spoofing");
+                    AddEnumerator(LogMessage::Type::jamming, "jamming");
+                    AddEnumerator(LogMessage::Type::none, "none");
+                }
+            };
+
+            struct LogStatusParser : Json::JsonEnumParser<LogMessage::Status> {
+                LogStatusParser() {
+                    AddEnumerator(LogMessage::Status::active, "active");
+                    AddEnumerator(LogMessage::Status::inactive, "inactive");
+                }
+            };
+
+            LogMessageJsonParser() {
+                AddParam(&LogMessage::type, LogTypeParser{}, "type");
+                AddParam(&LogMessage::status, LogStatusParser{}, "status");
+            }
+        };
+
     }
 
-
-    CommandMessage CommandMessageParser::Parse(const std::string &s) {
-        nlohmann::json j = nlohmann::json::parse(s);
+    CommandMessage ParseCommandMessage(const std::string &s) {
+        Json::JsonHandle j = Json::ParseJson(s);
         CommandMessage msg;
-        std::string type = ToLower(j.value("type", ""));
-
-        if (type == "teststart" || type == "test_start") {
-            msg.variant = CommandMessage::TestStart{
-                j.value("scenario", ""),
-                j.value("vehicle", ""),
-                j.value("customer", "")
-            };
-            return msg;
-        }
-
-        if (type == "testend" || type == "test_end") {
-            msg.variant = CommandMessage::TestEnd{};
-            return msg;
-        }
-
-        if (type == "testupdate" || type == "test_update") {
-            msg.variant = CommandMessage::TestUpdate{};
-            return msg;
-        }
-
-        if (type == "intstart" || type == "int_start") {
-            msg.variant = CommandMessage::IntStart{
-                j.value("profile", "")
-            };
-            return msg;
-        }
-
-        if (type == "intstop" || type == "int_stop") {
-            msg.variant = CommandMessage::IntStop{};
-            return msg;
-        }
-
-        // fallback to TestUpdate for unknown/empty types
-        msg.variant = CommandMessage::TestUpdate{};
+        CommandMessageJsonParser parser;
+        parser.Parse(j, msg);
         return msg;
     }
 
-    std::string CommandMessageParser::Serialize(const CommandMessage &t) {
-        nlohmann::json j;
-        std::visit([&](auto &&v){
-            using V = std::decay_t<decltype(v)>;
-            if constexpr (std::is_same_v<V, CommandMessage::TestStart>) {
-                j["type"] = "TestStart";
-                j["scenario"] = v.scenario;
-                j["vehicle"] = v.vehicle;
-                j["customer"] = v.customer;
-            }
-            else if constexpr (std::is_same_v<V, CommandMessage::TestEnd>) {
-                j["type"] = "TestEnd";
-            }
-            else if constexpr (std::is_same_v<V, CommandMessage::TestUpdate>) {
-                j["type"] = "TestUpdate";
-            }
-            else if constexpr (std::is_same_v<V, CommandMessage::IntStart>) {
-                j["type"] = "IntStart";
-                j["profile"] = v.profile;
-            }
-            else if constexpr (std::is_same_v<V, CommandMessage::IntStop>) {
-                j["type"] = "IntStop";
-            }
-        }, t.variant);
-        return j.dump();
+    std::string SerializeCommandMessage(const CommandMessage &t) {
+        Json::JsonHandle j;
+        CommandMessageJsonParser parser;
+        parser.Serialize(t, j);
+        return Json::DumpJson(j);
     }
 
-    LogMessage LogMessageParser::Parse(const std::string &s) {
-        nlohmann::json j = nlohmann::json::parse(s);
+    LogMessage ParseLogMessage(const std::string &s) {
+        Json::JsonHandle j = Json::ParseJson(s);
         LogMessage m;
-        std::string type = ToLower(j.value("type", "none"));
-        std::string status = ToLower(j.value("status", "inactive"));
-
-        if (type == "spoofing") m.type = LogMessage::Type::spoofing;
-        else if (type == "jamming") m.type = LogMessage::Type::jamming;
-        else m.type = LogMessage::Type::none;
-
-        if (status == "active") m.status = LogMessage::Status::active;
-        else m.status = LogMessage::Status::inactive;
-
+        LogMessageJsonParser parser;
+        parser.Parse(j, m);
         return m;
     }
 
-    std::string LogMessageParser::Serialize(const LogMessage &t) {
-        nlohmann::json j;
-        switch (t.type) {
-            case LogMessage::Type::spoofing: j["type"] = "spoofing"; break;
-            case LogMessage::Type::jamming: j["type"] = "jamming"; break;
-            default: j["type"] = "none"; break;
-        }
-        j["status"] = (t.status == LogMessage::Status::active) ? "active" : "inactive";
-        return j.dump();
+    std::string SerializeLogMessage(const LogMessage &t) {
+        Json::JsonHandle j;
+        LogMessageJsonParser parser;
+        parser.Serialize(t, j);
+        return Json::DumpJson(j);
     }
 
-} // namespace Sagax::SCG
+}

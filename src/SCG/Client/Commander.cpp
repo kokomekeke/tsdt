@@ -61,8 +61,6 @@ int main(int argc, char **argv) {
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    CommandMessageParser ser;
-
     std::string line;
     while (true) {
         std::cout << "> ";
@@ -98,7 +96,7 @@ int main(int argc, char **argv) {
 
         if (!make) continue;
 
-        std::string payload = ser.Serialize(cm);
+        std::string payload = Sagax::SCG::SerializeCommandMessage(cm);
         MqttClient::Message out;
         out.topic = topic;
         out.bytes.assign(payload.begin(), payload.end());
