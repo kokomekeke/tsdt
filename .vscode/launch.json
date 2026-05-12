@@ -12,7 +12,7 @@
             "program": "${workspaceFolder}/build-msvc/SCG.exe",
             "args": [
                 "-r",
-                "../scenarios/test3.json",
+                "../scenarios/test1.json",
                 "recording_test1"
             ],
             // "envFile": "${workspaceFolder}/build-msvc/.env",

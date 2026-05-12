@@ -13,11 +13,5 @@ namespace Sagax::SCG {
     std::tuple<std::unique_ptr<OutputDevice>, std::vector<Resource*>> GetOutputDevice(OutputVariant &v);
     std::tuple<std::unique_ptr<SignalGenerator>, std::vector<Resource*>> GetSignalGenerator(SignalVariant &v);
 
-    struct ValidateScenarioResult {
-        std::vector<std::string> errors;
-        std::vector<std::string> warnings;
-    };
-    ValidateScenarioResult ValidateScenario(Scenario &scen);
-
 }
 

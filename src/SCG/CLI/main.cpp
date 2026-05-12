@@ -17,9 +17,11 @@
 #include "SSG/argparse/argparse.hpp"
 #include "SSG/Packets/Packets.hpp"
 
-#include "SCG/JsonParsing/Parsers.hpp"
-#include "SCG/JsonParsing/OutputParserRegistry.hpp"
-#include "SCG/JsonParsing/SignalParserRegistry.hpp"
+#include "SCG/Scenario/Scenario.hpp"
+#include "SCG/Scenario/Validate.hpp"
+#include "SCG/Json/Scenario.hpp"
+// #include "SCG/JsonParsing/OutputParserRegistry.hpp"
+// #include "SCG/JsonParsing/SignalParserRegistry.hpp"
 #include "SCG/ScenarioTransform/ScenarioContext.hpp"
 #include "SCG/ScenarioTransform/Transform.hpp"
 #include "SCG/ScenarioTransform/BuildPipeline.hpp"
@@ -34,8 +36,8 @@ struct Program {
 
     ProgramParser parser;
 
-    Sagax::Parser::Registry<Sagax::SCG::OutputParser> outputRegistry;
-    Sagax::Parser::Registry<Sagax::SCG::SignalParser> signalRegistry;
+    // Sagax::Parser::Registry<Sagax::SCG::OutputParser> outputRegistry;
+    // Sagax::Parser::Registry<Sagax::SCG::SignalParser> signalRegistry;
 
     void PrintHelp(
         Parameters::HelpCategory category,
@@ -46,52 +48,52 @@ struct Program {
                 Common::Logger::Info("\n{}", parser.Help().c_str());
             } break;
             case Parameters::HelpCategory::output: {
-                if(!subject.has_value()) {
-                    std::stringstream ss;
-                    ss << "available Outputs (use -h output <name> for details):\n";
-                    std::vector<std::string> names;
-                    for (const auto& pair : outputRegistry.entries) {
-                        names.push_back(pair.first);
-                    }
-                    std::sort(names.begin(), names.end());
-                    for (const auto& name_ : names) {
-                        ss << "    " << name_ << std::endl;
-                    }
-                    Common::Logger::Info("\n{}", ss.str());
-                }
-                else {
-                    std::string name = subject.value();
-                    if (outputRegistry.entries.contains(name)) {
-                        auto parser_ = outputRegistry.entries.at(name).ctor();
-                        Common::Logger::Info("\n{}", parser_->Help());
-                    } else {
-                        Common::Logger::Error("missing Output: {}", name);
-                    }
-                }
+                // if(!subject.has_value()) {
+                //     std::stringstream ss;
+                //     ss << "available Outputs (use -h output <name> for details):\n";
+                //     std::vector<std::string> names;
+                //     for (const auto& pair : outputRegistry.entries) {
+                //         names.push_back(pair.first);
+                //     }
+                //     std::sort(names.begin(), names.end());
+                //     for (const auto& name_ : names) {
+                //         ss << "    " << name_ << std::endl;
+                //     }
+                //     Common::Logger::Info("\n{}", ss.str());
+                // }
+                // else {
+                //     std::string name = subject.value();
+                //     if (outputRegistry.entries.contains(name)) {
+                //         auto parser_ = outputRegistry.entries.at(name).ctor();
+                //         Common::Logger::Info("\n{}", parser_->Help());
+                //     } else {
+                //         Common::Logger::Error("missing Output: {}", name);
+                //     }
+                // }
             } break;
             case Parameters::HelpCategory::signal: {
-                if(!subject.has_value()) {
-                    std::stringstream ss;
-                    ss << "available Signals (use -h signal <name> for details):\n";
-                    std::vector<std::string> names;
-                    for (const auto& pair : signalRegistry.entries) {
-                        names.push_back(pair.first);
-                    }
-                    std::sort(names.begin(), names.end());
-                    for (const auto& name_ : names) {
-                        ss << "    " << name_ << std::endl;
-                    }
-                    Common::Logger::Info("\n{}", ss.str());
-                }
-                else {
-                    std::string name = subject.value();
-                    if (signalRegistry.entries.contains(name)) {
-                        auto parser_ = signalRegistry.entries.at(name).ctor();
-                        Common::Logger::Info("\n{}", parser_->Help());
-                    } else {
-                        Common::Logger::Error("missing Signal: {}", name);
-                    }
-                }
+                // if(!subject.has_value()) {
+                //     std::stringstream ss;
+                //     ss << "available Signals (use -h signal <name> for details):\n";
+                //     std::vector<std::string> names;
+                //     for (const auto& pair : signalRegistry.entries) {
+                //         names.push_back(pair.first);
+                //     }
+                //     std::sort(names.begin(), names.end());
+                //     for (const auto& name_ : names) {
+                //         ss << "    " << name_ << std::endl;
+                //     }
+                //     Common::Logger::Info("\n{}", ss.str());
+                // }
+                // else {
+                //     std::string name = subject.value();
+                //     if (signalRegistry.entries.contains(name)) {
+                //         auto parser_ = signalRegistry.entries.at(name).ctor();
+                //         Common::Logger::Info("\n{}", parser_->Help());
+                //     } else {
+                //         Common::Logger::Error("missing Signal: {}", name);
+                //     }
+                // }
             } break;
         }
     }
@@ -112,7 +114,8 @@ struct Program {
             buffer << file.rdbuf();
             std::string jsonStr = buffer.str();
 
-            scenario = ParseScenario(jsonStr, scenName, signalRegistry, outputRegistry);
+            // scenario = ParseScenario(jsonStr, scenName, signalRegistry, outputRegistry);
+            scenario = ParseScenario(jsonStr, scenName);
         }
         catch(const std::exception &e) {
             Common::Logger::Error("could not parse scenario:\n{}", e.what());
@@ -208,8 +211,8 @@ struct Program {
             Common::Logger::RemoveStream(&logStream);
         });
 
-        outputRegistry = GetOutputParserRegistry();
-        signalRegistry = GetSignalParserRegistry();
+        // outputRegistry = GetOutputParserRegistry();
+        // signalRegistry = GetSignalParserRegistry();
 
         parser.Parse(argc, argv);
         Parameters params = parser.params;

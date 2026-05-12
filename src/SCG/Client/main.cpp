@@ -12,14 +12,14 @@
 #include "Common/Logger.hpp"
 #include "Common/Defer.hpp"
 #include "Pipeline/PpController.hpp"
-#include "SCG/JsonParsing/Parsers.hpp"
-#include "SCG/JsonParsing/OutputParserRegistry.hpp"
-#include "SCG/JsonParsing/SignalParserRegistry.hpp"
+#include "SCG/Scenario/Scenario.hpp"
+#include "SCG/Scenario/Validate.hpp"
+#include "SCG/Json/Scenario.hpp"
 #include "SCG/ScenarioTransform/BuildPipeline.hpp"
 #include "SCG/ScenarioTransform/ScenarioContext.hpp"
 #include "SCG/ScenarioTransform/Transform.hpp"
 #include "MqttClient.hpp"
-#include "MessageParser.hpp"
+#include "SCG/Json/Messages.hpp"
 
 namespace {
     std::atomic<bool> g_running{true};
@@ -68,9 +68,6 @@ public:
     }
 
 private:
-    // scenario controller members (moved out of nested struct)
-    Parser::Registry<SCG::OutputParser> outputRegistry = SCG::GetOutputParserRegistry();
-    Parser::Registry<SCG::SignalParser> signalRegistry = SCG::GetSignalParserRegistry();
     SCG::ScenarioContext ctx;
     bool running = false;
 
@@ -93,7 +90,7 @@ private:
         std::string jsonStr = buf.str();
 
         try {
-            ctx.scenario = SCG::ParseScenario(jsonStr, p.stem().string(), signalRegistry, outputRegistry);
+            ctx.scenario = SCG::ParseScenario(jsonStr, p.stem().string());
         } catch (const std::exception &e) {
             Common::Logger::Error("could not parse scenario: {}", e.what());
             return false;

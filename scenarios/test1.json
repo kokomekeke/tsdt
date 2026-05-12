@@ -22,7 +22,8 @@
     "events": [
         {
             "signal": "s1",
-            "output": "r1.0",
+            "output": "r1",
+            "channel": 0,
             "frequency": 434500000.0,
             "amplitude": 0.7,
             "start": 0,

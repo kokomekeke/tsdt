@@ -1,5 +1,5 @@
-#include "MessageParser.hpp"
-#include "SCG/Parser2/JsonParser.hpp"
+#include "JsonParser.hpp"
+#include "Messages.hpp"
 
 namespace Sagax::SCG {
 
@@ -35,11 +35,11 @@ namespace Sagax::SCG {
             struct CommandMessageVariantParser : Json::JsonVariantParser<CommandMessage::Variant> {
                 CommandMessageVariantParser() {
                     typeTagKey = "type";
-                    AddVariant<CommandMessage::TestStart>("TestStart", TestStartParser{});
-                    AddVariant<CommandMessage::TestEnd>("TestEnd", TestEndParser{});
-                    AddVariant<CommandMessage::TestUpdate>("TestUpdate", TestUpdateParser{});
-                    AddVariant<CommandMessage::IntStart>("IntStart", IntStartParser{});
-                    AddVariant<CommandMessage::IntStop>("IntStop", IntStopParser{});
+                    AddAlt<CommandMessage::TestStart>("TestStart", TestStartParser{});
+                    AddAlt<CommandMessage::TestEnd>("TestEnd", TestEndParser{});
+                    AddAlt<CommandMessage::TestUpdate>("TestUpdate", TestUpdateParser{});
+                    AddAlt<CommandMessage::IntStart>("IntStart", IntStartParser{});
+                    AddAlt<CommandMessage::IntStop>("IntStop", IntStopParser{});
                 }
             };
 
@@ -70,35 +70,34 @@ namespace Sagax::SCG {
             }
         };
 
+        CommandMessageJsonParser commandMessageParser;
+        LogMessageJsonParser logMessageParser;
+
     }
 
     CommandMessage ParseCommandMessage(const std::string &s) {
         Json::JsonHandle j = Json::ParseJson(s);
         CommandMessage msg;
-        CommandMessageJsonParser parser;
-        parser.Parse(j, msg);
+        commandMessageParser.Parse(j, msg);
         return msg;
     }
 
     std::string SerializeCommandMessage(const CommandMessage &t) {
         Json::JsonHandle j;
-        CommandMessageJsonParser parser;
-        parser.Serialize(t, j);
+        commandMessageParser.Serialize(t, j);
         return Json::DumpJson(j);
     }
 
     LogMessage ParseLogMessage(const std::string &s) {
         Json::JsonHandle j = Json::ParseJson(s);
         LogMessage m;
-        LogMessageJsonParser parser;
-        parser.Parse(j, m);
+        logMessageParser.Parse(j, m);
         return m;
     }
 
     std::string SerializeLogMessage(const LogMessage &t) {
         Json::JsonHandle j;
-        LogMessageJsonParser parser;
-        parser.Serialize(t, j);
+        logMessageParser.Serialize(t, j);
         return Json::DumpJson(j);
     }
 

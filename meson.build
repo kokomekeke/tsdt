@@ -54,15 +54,16 @@ ssg_defines = ssgSub.get_variable('ssg_defines')
 scgLib = static_library(
     'scg_core',
     sources: [
-        'src/SCG/JsonParsing/OutputParserRegistry.cpp',
-        'src/SCG/JsonParsing/Parsers.cpp',
-        'src/SCG/JsonParsing/SignalParserRegistry.cpp',
-        'src/SCG/Parser2/JsonParser.cpp',
+        # 'src/SCG/JsonParsing/OutputParserRegistry.cpp',
+        'src/SCG/Json/Scenario.cpp',
+        # 'src/SCG/JsonParsing/SignalParserRegistry.cpp',
+        'src/SCG/Json/JsonParser.cpp',
         'src/SCG/Modules/Merger.cpp',
         'src/SCG/Modules/Source.cpp',
         'src/SCG/Modules/Tuner.cpp',
         'src/SCG/Output/OutputDevice.cpp',
         'src/SCG/Scenario/OutputVariant.cpp',
+        'src/SCG/Scenario/Validate.cpp',
         'src/SCG/ScenarioTransform/BuildPipeline.cpp',
         'src/SCG/ScenarioTransform/Transform.cpp',
         'src/SCG/Signal/SignalGenerator.cpp'
@@ -107,7 +108,7 @@ if buildScgClient or buildMqttExamples
     executable(
         'scgclient',
         sources: [
-            'src/SCG/Client/MessageParser.cpp',
+            'src/SCG/Json/Messages.cpp',
             'src/SCG/Client/MqttClient.cpp',
             'src/SCG/Client/main.cpp',
         ],
@@ -125,7 +126,7 @@ if buildScgClient or buildMqttExamples
     executable(
         'scgcommander',
         sources: [
-            'src/SCG/Client/MessageParser.cpp',
+            'src/SCG/Json/Messages.cpp',
             'src/SCG/Client/MqttClient.cpp',
             'src/SCG/Client/Commander.cpp',
         ],

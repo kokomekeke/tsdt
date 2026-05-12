@@ -7,9 +7,9 @@
 #include <chrono>
 #include "Common/Logger.hpp"
 #include "Common/Defer.hpp"
-#include "MqttClient.hpp"
-#include "MessageParser.hpp"
 #include "Messages.hpp"
+#include "SCG/Json/Messages.hpp"
+#include "MqttClient.hpp"
 
 using namespace Sagax;
 using namespace Sagax::SCG;
