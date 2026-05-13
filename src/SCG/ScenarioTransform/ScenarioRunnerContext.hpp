@@ -8,14 +8,14 @@
 
 namespace Sagax::SCG {
 
-    struct ScenarioContext {
+    struct ScenarioRunnerContext : public Resource {
         Scenario scenario;
         Pipeline::Pipeline pipeline;
         std::unique_ptr<Pipeline::Controller> controller;
         std::vector<Resource*> resources;
         std::vector<std::unique_ptr<Resource>> ownedResources;
 
-        void Init() {
+        void Init_() {
             for(auto &p : ownedResources) {
                 p->Init();
             }
@@ -24,7 +24,7 @@ namespace Sagax::SCG {
             }
         }
 
-        void Dispose() {
+        void Dispose_() {
             for(auto p : resources) {
                 p->Dispose();
             }

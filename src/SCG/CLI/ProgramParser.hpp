@@ -7,8 +7,7 @@
 #include "SSG/argparse/argparse.hpp"
 
 struct Parameters {
-    enum struct Mode { help, stream, record, playback };
-    enum struct HelpCategory { general, output, signal };
+    enum struct Mode { stream, record, playback };
 
     // could use variants but why
     bool success;
@@ -16,8 +15,6 @@ struct Parameters {
     Mode mode;
     std::string jsonPath;
     std::string recordingDirectory;
-    HelpCategory helpCategory;
-    std::optional<std::string> helpSubject;
 };
 
 struct ProgramParser {
@@ -25,20 +22,15 @@ struct ProgramParser {
     Parameters params;
     argparse::ArgumentParser program;
 
-    ProgramParser() : program("ScenarioGenerator", "1.0", argparse::default_arguments::version) {
-        program.add_argument("-h", "--help")
-            .help("prints general help, or help for a specific signal or output. (use \"-h signal\" or \"-h output\")")
-            .nargs(0, 2)
-            .default_value(std::vector<std::string>{ });
-
+    ProgramParser() : program("ScenarioGenerator", "1.0", argparse::default_arguments::all) {
         auto &mode = program.add_mutually_exclusive_group(false);
         mode.add_argument("-r", "--record")
             .help("record mode: -r <jsonPath> <recordingDirectory>")
             .nargs(2);
 
         mode.add_argument("-p", "--playback")
-            .help("playback mode: -p <jsonPath> <recordingDirectory>")
-            .nargs(2);
+            .help("playback mode: -p <recordingDirectory>")
+            .nargs(1);
 
         mode.add_argument("-s", "--stream")
             .help("stream mode: -s <jsonPath>")
@@ -58,50 +50,27 @@ struct ProgramParser {
             return;
         }
 
-        if(program.is_used("-h")) {
-            auto help = program.get<std::vector<std::string>>("-h");
-            params.success = true;
-            params.mode = Parameters::Mode::help;
-            if(help.size() >= 1 && help.size() < 3 && help[0] == "output") {
-                params.helpCategory = Parameters::HelpCategory::output;
-            }
-            else if(help.size() >= 1 && help.size() < 3 && help[0] == "signal") {
-                params.helpCategory = Parameters::HelpCategory::signal;
-            }
-            else {
-                params.helpCategory = Parameters::HelpCategory::general;
-            }
-            if(help.size() > 1) {
-                params.helpSubject = help[1];
-            }
-            else {
-                params.helpSubject = std::nullopt;
-            }
-            return;
-        }
-
         if(program.is_used("-r")) {
             auto values = program.get<std::vector<std::string>>("-r");
             params.jsonPath = values[0];
             params.recordingDirectory = values[1];
-            params.success = true;
             params.mode = Parameters::Mode::record;
+            params.success = true;
             return;
         }
         else if(program.is_used("-p")) {
             auto values = program.get<std::vector<std::string>>("-p");
-            params.jsonPath = values[0];
-            params.recordingDirectory = values[1];
-            params.success = true;
+            params.recordingDirectory = values[0];
             params.mode = Parameters::Mode::playback;
+            params.success = true;
             return;
         }
         else if(program.is_used("-s")) {
             auto values = program.get<std::vector<std::string>>("-s");
             params.jsonPath = values[0];
             params.recordingDirectory.clear();
-            params.success = true;
             params.mode = Parameters::Mode::stream;
+            params.success = true;
             return;
         }
         else {

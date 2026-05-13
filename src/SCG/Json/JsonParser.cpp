@@ -54,8 +54,13 @@ namespace Sagax::SCG::Json {
         return std::move(j);
     }
 
-    std::string DumpJson(const JsonHandle &j) {
-        return j.impl->j.dump();
+    std::string DumpJson(const JsonHandle &j, bool indent) {
+        if(indent) {
+            return j.impl->j.dump(4);
+        }
+        else {
+            return j.impl->j.dump(-1);
+        }
     }
 
 

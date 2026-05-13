@@ -16,7 +16,7 @@
 #include "SCG/Scenario/Validate.hpp"
 #include "SCG/Json/Scenario.hpp"
 #include "SCG/ScenarioTransform/BuildPipeline.hpp"
-#include "SCG/ScenarioTransform/ScenarioContext.hpp"
+#include "SCG/ScenarioTransform/ScenarioRunnerContext.hpp"
 #include "SCG/ScenarioTransform/Transform.hpp"
 #include "MqttClient.hpp"
 #include "SCG/Json/Messages.hpp"
@@ -68,7 +68,7 @@ public:
     }
 
 private:
-    SCG::ScenarioContext ctx;
+    SCG::ScenarioRunnerContext ctx;
     bool running = false;
 
     bool StartScenario(const std::string &profile) {
@@ -92,7 +92,7 @@ private:
         try {
             ctx.scenario = SCG::ParseScenario(jsonStr, p.stem().string());
         } catch (const std::exception &e) {
-            Common::Logger::Error("could not parse scenario: {}", e.what());
+            Common::Logger::Error("\ncould not parse scenario:\n{}", e.what());
             return false;
         }
 
@@ -108,7 +108,7 @@ private:
             ctx.pipeline = b.builder.Build();
             ctx.resources = b.resources;
         } catch (const std::exception &e) {
-            Common::Logger::Error("could not build pipeline: {}", e.what());
+            Common::Logger::Error("\ncould not build pipeline:\n{}", e.what());
             return false;
         }
 
@@ -116,7 +116,7 @@ private:
         dynamic_cast<Sagax::Pipeline::PpController*>(ctx.controller.get())->Setup(ctx.pipeline, 8);
         ctx.controller->Reset();
         try { ctx.Init(); } catch (const std::exception &e) {
-            Common::Logger::Error("could not initialize resources: {}", e.what());
+            Common::Logger::Error("\ncould not initialize resources:\n{}", e.what());
             ctx.Dispose();
             ctx.controller.reset();
             return false;
@@ -135,7 +135,7 @@ private:
             ctx.controller->Join();
             ctx.Dispose();
         } catch (const std::exception &e) {
-            Common::Logger::Error("error stopping scenario: {}", e.what());
+            Common::Logger::Error("\nerror while stopping scenario:\n{}", e.what());
         }
         ctx.controller.reset();
         running = false;
@@ -170,7 +170,7 @@ private:
                     StopScenario();
                 }
             } catch (const std::exception &e) {
-                Common::Logger::Error("received [{}]: failed to parse payload: {} payload='{}'", msg.topic, e.what(), payload);
+                Common::Logger::Error("received [{}]: failed to parse payload: \"{}\"\n{}", msg.topic, payload, e.what());
             }
         }
     }

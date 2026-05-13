@@ -2,7 +2,7 @@
 #include "OutputVariant.hpp"
 
 namespace Sagax::SCG {
-    OutputVariant::CommonParams OutputVariant::GetCommonParams() {
+    OutputVariant::CommonParams OutputVariant::GetCommonParams() const {
         CommonParams params;
         bool found = false;
         if(auto *s = std::get_if<Null>(&variant)){

@@ -73,7 +73,8 @@
     "events": [
         {
             "signal": "s1",
-            "output": "r1.0",
+            "output": "r1",
+            "channel": 0,
             "frequency": 434500000.0,
             "amplitude": 0.7,
             "start": 1,
@@ -81,7 +82,8 @@
         },
         {
             "signal": "s2",
-            "output": "r1.0",
+            "output": "r1",
+            "channel": 0,
             "frequency": 434550000.0,
             "amplitude": 0.5,
             "start": 5,
@@ -89,7 +91,8 @@
         },
         {
             "signal": "s3",
-            "output": "r1.0",
+            "output": "r1",
+            "channel": 0,
             "frequency": 434500000.0,
             "amplitude": 0.4,
             "start": 8,
@@ -97,7 +100,8 @@
         },
         {
             "signal": "s4",
-            "output": "r1.0",
+            "output": "r1",
+            "channel": 0,
             "frequency": 434550000.0,
             "amplitude": 0.3,
             "start": 0,
@@ -105,7 +109,8 @@
         },
         {
             "signal": "s5",
-            "output": "r2.0",
+            "output": "r2",
+            "channel": 0,
             "frequency": 434550000.0,
             "amplitude": 0.7,
             "start": 0,
@@ -113,7 +118,8 @@
         },
         {
             "signal": "s6",
-            "output": "r2.0",
+            "output": "r2",
+            "channel": 0,
             "frequency": 434600000.0,
             "amplitude": 0.7,
             "start": 7,

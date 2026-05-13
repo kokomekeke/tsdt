@@ -12,7 +12,7 @@ namespace Sagax::SCG {
 
     public:
         virtual ~Resource() {
-            Dispose();
+            // Dispose(); // cant call this here
         }
 
         bool Valid() const {

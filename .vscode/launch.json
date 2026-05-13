@@ -11,8 +11,8 @@
             "request": "launch",
             "program": "${workspaceFolder}/build-msvc/SCG.exe",
             "args": [
-                "-r",
-                "../scenarios/test1.json",
+                "-p",
+                // "../scenarios/test1.json",
                 "recording_test1"
             ],
             // "envFile": "${workspaceFolder}/build-msvc/.env",

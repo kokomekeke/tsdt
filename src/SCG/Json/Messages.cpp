@@ -34,7 +34,8 @@ namespace Sagax::SCG {
 
             struct CommandMessageVariantParser : Json::JsonVariantParser<CommandMessage::Variant> {
                 CommandMessageVariantParser() {
-                    typeTagKey = "type";
+                    typeTagKey = "command";
+                    subKey = "extras";
                     AddAlt<CommandMessage::TestStart>("TestStart", TestStartParser{});
                     AddAlt<CommandMessage::TestEnd>("TestEnd", TestEndParser{});
                     AddAlt<CommandMessage::TestUpdate>("TestUpdate", TestUpdateParser{});
@@ -44,7 +45,9 @@ namespace Sagax::SCG {
             };
 
             CommandMessageJsonParser() {
-                AddParam(&CommandMessage::variant, CommandMessageVariantParser{}, "variant");
+                AddParamFlat(&CommandMessage::variant, CommandMessageVariantParser{});
+                // addparam timestamp
+                // addparam id
             }
         };
 
@@ -85,7 +88,7 @@ namespace Sagax::SCG {
     std::string SerializeCommandMessage(const CommandMessage &t) {
         Json::JsonHandle j;
         commandMessageParser.Serialize(t, j);
-        return Json::DumpJson(j);
+        return Json::DumpJson(j, false);
     }
 
     LogMessage ParseLogMessage(const std::string &s) {
@@ -98,7 +101,7 @@ namespace Sagax::SCG {
     std::string SerializeLogMessage(const LogMessage &t) {
         Json::JsonHandle j;
         logMessageParser.Serialize(t, j);
-        return Json::DumpJson(j);
+        return Json::DumpJson(j, false);
     }
 
 }

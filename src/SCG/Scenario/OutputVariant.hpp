@@ -40,7 +40,7 @@ namespace Sagax::SCG {
         T variant;
 
 
-        CommonParams GetCommonParams();
+        CommonParams GetCommonParams() const;
 
     };
 }

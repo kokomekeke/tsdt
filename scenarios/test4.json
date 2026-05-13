@@ -75,7 +75,8 @@
     "events": [
         {
             "signal": "s2",
-            "output": "r2.0",
+            "output": "r2",
+            "channel": 0,
             "frequency": 1236000000.0,
             "amplitude": 0.7,
             "start": 1,

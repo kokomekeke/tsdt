@@ -42,7 +42,7 @@ namespace Sagax::SCG::Json {
 
 
     JsonHandle ParseJson(const std::string &s);
-    std::string DumpJson(const JsonHandle &j);
+    std::string DumpJson(const JsonHandle &j, bool indent);
 
 
     bool IsObject(const JsonView &j);
@@ -297,7 +297,9 @@ namespace Sagax::SCG::Json {
         }
 
         void Serialize(const T &t, const JsonView &j) const override {
-            SetObject(j);
+            if(!IsObject(j)) {
+                SetObject(j);
+            }
             for(const auto &p : params) {
                 p->Serialize(t, j);
             }
@@ -404,18 +406,19 @@ namespace Sagax::SCG::Json {
         }
 
         void Serialize(const T &t, const JsonView &j) const override {
-            JsonView typeTagH = AddParameter(j, typeTagKey);
-
             bool found = false;
+            if(!IsObject(j)) {
+                SetObject(j);
+            }
 
             if(subKey.has_value()) {
-                SetObject(j);
                 JsonView subH = AddParameter(j, subKey.value());
                 for(const auto &variant : alts) {
                     if(variant->HasAlt(t)) {
                         found = true;
-                        SetValue<std::string>(typeTagH, variant->typeTag);
                         variant->Serialize(t, subH);
+                        JsonView typeTagH = AddParameter(j, typeTagKey);
+                        SetValue<std::string>(typeTagH, variant->typeTag);
                     }
                 }
             }
@@ -423,16 +426,14 @@ namespace Sagax::SCG::Json {
                 for(const auto &variant : alts) {
                     if(variant->HasAlt(t)) {
                         found = true;
-                        SetValue<std::string>(typeTagH, variant->typeTag);
                         variant->Serialize(t, j);
+                        JsonView typeTagH = AddParameter(j, typeTagKey);
+                        SetValue<std::string>(typeTagH, variant->typeTag);
                     }
                 }
             }
 
             Common::Assert(found, "variant value does not match any registered type");
-
-            Common::Assert(IsObject(j), "variant parser with no subtype key can only contain objects");
-            Common::Assert(!HasParameter(j, typeTagKey), "variant alternative parser set the type tag attribute");
         }
     };
 
@@ -535,18 +536,19 @@ namespace Sagax::SCG::Json {
         }
 
         void Serialize(const std::unique_ptr<Base> &t, const JsonView &j) const override {
-            JsonView typeTagH = AddParameter(j, typeTagKey);
-
             bool found = false;
+            if(!IsObject(j)) {
+                SetObject(j);
+            }
 
             if(subKey.has_value()) {
-                SetObject(j);
                 JsonView subH = AddParameter(j, subKey.value());
                 for(const auto &st : subtypes) {
                     if(st->IsInstance(t.get())) {
                         found = true;
-                        SetValue<std::string>(typeTagH, st->typeTag);
                         st->Serialize(t, subH);
+                        JsonView typeTagH = AddParameter(j, typeTagKey);
+                        SetValue<std::string>(typeTagH, st->typeTag);
                     }
                 }
             }
@@ -554,16 +556,14 @@ namespace Sagax::SCG::Json {
                 for(const auto &st : subtypes) {
                     if(st->IsInstance(t.get())) {
                         found = true;
-                        SetValue<std::string>(typeTagH, st->typeTag);
                         st->Serialize(t, j);
+                        JsonView typeTagH = AddParameter(j, typeTagKey);
+                        SetValue<std::string>(typeTagH, st->typeTag);
                     }
                 }
             }
 
             Common::Assert(found, "subtype value does not match any registered type");
-
-            Common::Assert(IsObject(j), "subtype parser with no subtype key can only contain objects");
-            Common::Assert(!HasParameter(j, typeTagKey), "subtype alternative parser set the type tag attribute");
         }
     };
 
@@ -624,7 +624,9 @@ namespace Sagax::SCG::Json {
                 std::format("array size {} out of expected range", t.size())
             );
 
-            SetArray(j);
+            if(!IsArray(j)) {
+                SetArray(j);
+            }
             for(std::size_t i = 0; i < t.size(); ++i) {
                 JsonView ji = AddAt(j, i);
                 itemParser->Serialize(t[i], ji);

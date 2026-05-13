@@ -20,9 +20,7 @@
 #include "SCG/Scenario/Scenario.hpp"
 #include "SCG/Scenario/Validate.hpp"
 #include "SCG/Json/Scenario.hpp"
-// #include "SCG/JsonParsing/OutputParserRegistry.hpp"
-// #include "SCG/JsonParsing/SignalParserRegistry.hpp"
-#include "SCG/ScenarioTransform/ScenarioContext.hpp"
+#include "SCG/ScenarioTransform/ScenarioRunnerContext.hpp"
 #include "SCG/ScenarioTransform/Transform.hpp"
 #include "SCG/ScenarioTransform/BuildPipeline.hpp"
 
@@ -36,75 +34,12 @@ struct Program {
 
     ProgramParser parser;
 
-    // Sagax::Parser::Registry<Sagax::SCG::OutputParser> outputRegistry;
-    // Sagax::Parser::Registry<Sagax::SCG::SignalParser> signalRegistry;
-
-    void PrintHelp(
-        Parameters::HelpCategory category,
-        std::optional<std::string> subject
-    ) {
-        switch(category) {
-            case Parameters::HelpCategory::general: {
-                Common::Logger::Info("\n{}", parser.Help().c_str());
-            } break;
-            case Parameters::HelpCategory::output: {
-                // if(!subject.has_value()) {
-                //     std::stringstream ss;
-                //     ss << "available Outputs (use -h output <name> for details):\n";
-                //     std::vector<std::string> names;
-                //     for (const auto& pair : outputRegistry.entries) {
-                //         names.push_back(pair.first);
-                //     }
-                //     std::sort(names.begin(), names.end());
-                //     for (const auto& name_ : names) {
-                //         ss << "    " << name_ << std::endl;
-                //     }
-                //     Common::Logger::Info("\n{}", ss.str());
-                // }
-                // else {
-                //     std::string name = subject.value();
-                //     if (outputRegistry.entries.contains(name)) {
-                //         auto parser_ = outputRegistry.entries.at(name).ctor();
-                //         Common::Logger::Info("\n{}", parser_->Help());
-                //     } else {
-                //         Common::Logger::Error("missing Output: {}", name);
-                //     }
-                // }
-            } break;
-            case Parameters::HelpCategory::signal: {
-                // if(!subject.has_value()) {
-                //     std::stringstream ss;
-                //     ss << "available Signals (use -h signal <name> for details):\n";
-                //     std::vector<std::string> names;
-                //     for (const auto& pair : signalRegistry.entries) {
-                //         names.push_back(pair.first);
-                //     }
-                //     std::sort(names.begin(), names.end());
-                //     for (const auto& name_ : names) {
-                //         ss << "    " << name_ << std::endl;
-                //     }
-                //     Common::Logger::Info("\n{}", ss.str());
-                // }
-                // else {
-                //     std::string name = subject.value();
-                //     if (signalRegistry.entries.contains(name)) {
-                //         auto parser_ = signalRegistry.entries.at(name).ctor();
-                //         Common::Logger::Info("\n{}", parser_->Help());
-                //     } else {
-                //         Common::Logger::Error("missing Signal: {}", name);
-                //     }
-                // }
-            } break;
-        }
-    }
-
-    void Run(Parameters params) {
-        Common::Logger::Info("SCG");
-
+    Scenario ParseFile(std::string jsonPath) {
         Scenario scenario;
+
         try {
-            std::filesystem::path path = std::filesystem::absolute(params.jsonPath);
-            Common::Assert(path.has_filename(), std::format("wrong filename: {}", params.jsonPath));
+            std::filesystem::path path = std::filesystem::absolute(jsonPath);
+            Common::Assert(path.has_filename(), std::format("wrong filename: {}", jsonPath));
             std::string scenName = path.filename().stem().string();
             Common::Assert(std::filesystem::exists(path), std::format("file missing: {}", path.string()));
             std::ifstream file(path);
@@ -114,15 +49,14 @@ struct Program {
             buffer << file.rdbuf();
             std::string jsonStr = buffer.str();
 
-            // scenario = ParseScenario(jsonStr, scenName, signalRegistry, outputRegistry);
             scenario = ParseScenario(jsonStr, scenName);
         }
         catch(const std::exception &e) {
-            Common::Logger::Error("could not parse scenario:\n{}", e.what());
-            return;
+            throw std::runtime_error(std::format("could not parse scenario file:\n{}", e.what()));
         }
 
         {
+            Common::Logger::Info("validating scenario..");
             auto problems = ValidateScenario(scenario);
             for(auto &e : problems.warnings) {
                 Common::Logger::Warn("{}", e.c_str());
@@ -131,47 +65,65 @@ struct Program {
                 for(auto &e : problems.errors) {
                     Common::Logger::Error("{}", e.c_str());
                 }
-                Common::Logger::Info("pipeline invalid");
-                return;
+                throw std::runtime_error("validation failed");
             }
             else {
-                Common::Logger::Info("scenario validated");
+                Common::Logger::Info("validation successful");
             }
         }
 
-        ScenarioContext ctx = {
-            .scenario = scenario
-        };
+        return scenario;
+    }
+
+    ScenarioRunnerContext SetupRecording(std::string jsonPath, std::string dirPath) {
+        ScenarioRunnerContext ctx;
+        ctx.scenario = ParseFile(jsonPath);
+        auto b = BuildRecordingPipeline(ctx.scenario, dirPath);
+        ctx.pipeline = b.builder.Build();
+        ctx.resources = b.resources;
+        ctx.ownedResources.emplace_back(std::move(b.dir));
+        return ctx;
+    }
+
+    ScenarioRunnerContext SetupPlayback(std::string dirPath) {
+        ScenarioRunnerContext ctx;
+        auto b = BuildPlaybackPipeline(dirPath);
+        ctx.pipeline = b.builder.Build();
+        ctx.resources = b.resources;
+        ctx.scenario = b.dir->GetScenario();
+        ctx.ownedResources.emplace_back(std::move(b.dir));
+        return ctx;
+    }
+
+    ScenarioRunnerContext SetupStreaming(std::string jsonPath) {
+        ScenarioRunnerContext ctx;
+        ctx.scenario = ParseFile(jsonPath);
+        auto b = BuildStreamingPipeline(ctx.scenario);
+        ctx.pipeline = b.builder.Build();
+        ctx.resources = b.resources;
+        return ctx;
+    }
+
+    void Run(Parameters params) {
+        Common::Logger::Info("SCG");
+
+        ScenarioRunnerContext ctx;
         try {
             switch(params.mode) {
-                case Parameters::Mode::playback: {
-                    auto b = BuildPlaybackPipeline(scenario, params.recordingDirectory);
-                    ctx.pipeline = b.builder.Build();
-                    ctx.resources = b.resources;
-                    ctx.ownedResources = std::move(b.ownedResources);
-                } break;
-                case Parameters::Mode::record: {
-                    auto b = BuildRecordingPipeline(scenario, params.recordingDirectory);
-                    ctx.pipeline = b.builder.Build();
-                    ctx.resources = b.resources;
-                    ctx.ownedResources = std::move(b.ownedResources);
-                } break;
-                case Parameters::Mode::stream: {
-                    auto b = BuildStreamingPipeline(scenario);
-                    ctx.pipeline = b.builder.Build();
-                    ctx.resources = b.resources;
-                    ctx.ownedResources = std::move(b.ownedResources);
-                } break;
+                case Parameters::Mode::playback: { ctx = SetupPlayback(params.recordingDirectory); } break;
+                case Parameters::Mode::record: { ctx = SetupRecording(params.jsonPath, params.recordingDirectory); } break;
+                case Parameters::Mode::stream: { ctx = SetupStreaming(params.jsonPath); } break;
                 default: {
                     Common::Assert(false, "wrong mode");
                 }
             }
         }
         catch(const std::exception &e) {
-            Common::Logger::Error("could not build pipeline:\n{}", e.what());
+            Common::Logger::Error("\ncould not set up pipeline:\n{}", e.what());
             return;
         }
 
+        // this could maybe be controlled individually for each mode
         auto controller = std::make_unique<Pipeline::PpController>();
         controller->Setup(ctx.pipeline, 8);
         controller->Reset();
@@ -181,10 +133,9 @@ struct Program {
             ctx.Init();
         }
         catch(const std::exception &e) {
-            Common::Logger::Error("could not initialize resources:\n{}", e.what());
+            Common::Logger::Error("\ncould not initialize resources:\n{}", e.what());
             return;
         }
-
 
         Common::Timer timer;
         timer.Set();
@@ -196,7 +147,7 @@ struct Program {
             ctx.controller->Throw();
         }
         catch(const std::exception &e) {
-            Common::Logger::Error("error running pipeline:\n{}", e.what());
+            Common::Logger::Error("\nerror running pipeline:\n{}", e.what());
         }
 
         Common::Logger::Info("time: {} ms", time_ms);
@@ -211,23 +162,15 @@ struct Program {
             Common::Logger::RemoveStream(&logStream);
         });
 
-        // outputRegistry = GetOutputParserRegistry();
-        // signalRegistry = GetSignalParserRegistry();
-
         parser.Parse(argc, argv);
         Parameters params = parser.params;
         if(!params.success) {
-            Common::Logger::Error("failed to parse parameters: {}", params.error.c_str());
+            Common::Logger::Error("\ncould not parse parameters:\n{}", params.error.c_str());
             Common::Logger::Info("\n{}", parser.Help().c_str());
             return;
         }
 
-        if(params.mode == Parameters::Mode::help) {
-            PrintHelp(parser.params.helpCategory, parser.params.helpSubject);
-        }
-        else {
-            Run(params);
-        }
+        Run(params);
     }
 
 };

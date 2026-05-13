@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <memory>
 #include <format>
 #include <chrono>
@@ -9,6 +10,7 @@
 #include "Common/Logger.hpp"
 #include "SCG/Utility/Resource.hpp"
 #include "SCG/Scenario/Scenario.hpp"
+#include "SCG/Json/Scenario.hpp"
 
 namespace Sagax::SCG {
 
@@ -27,11 +29,10 @@ namespace Sagax::SCG {
         Scenario scenario;
 
     public:
-        void Setup(
+        void SetupWrite(
             Scenario scenario_,
             const std::string &parentPath_,
-            const std::string &recordingName_,
-            bool writeMode_
+            const std::string &recordingName_
         ) {
             Common::Assert(!parentPath_.empty(), "directory path cannot be empty");
             Common::Assert(!recordingName_.empty(), "recording name cannot be empty");
@@ -40,8 +41,25 @@ namespace Sagax::SCG {
             parentPathAbs = std::filesystem::absolute(parentPathAbs);
 
             path = parentPathAbs / recordingName_;
-            writeMode = writeMode_;
+            writeMode = true;
             scenario = scenario_;
+        }
+
+        void SetupRead(
+            const std::string &path_
+        ) {
+            std::filesystem::path pathAbs(path_);
+            pathAbs = std::filesystem::absolute(pathAbs);
+
+            path = pathAbs;
+            writeMode = false;
+
+            {
+                std::ifstream file(path / "scenario.json");
+                std::stringstream buffer;
+                buffer << file.rdbuf();
+                scenario = ParseScenario(buffer.str(), std::nullopt);
+            }
         }
 
         const std::filesystem::path &Path() const {
@@ -50,6 +68,10 @@ namespace Sagax::SCG {
 
         std::string GetOutputFileName(std::size_t iOutput, std::size_t iChannel) const {
             return (path / std::format("{}_{:03}_{:03}.wav", scenario.name, iOutput, iChannel)).string();
+        }
+
+        const Scenario &GetScenario() {
+            return scenario;
         }
 
     protected:
@@ -72,6 +94,12 @@ namespace Sagax::SCG {
                         scenario.name,
                         now
                     );
+                }
+
+                {
+                    std::string str = SerializeScenario(scenario);
+                    std::ofstream scenFile(path / "scenario.json");
+                    scenFile << str;
                 }
 
                 logFile.open(path / "log.txt");

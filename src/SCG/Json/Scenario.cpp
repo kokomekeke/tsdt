@@ -46,8 +46,8 @@ namespace Sagax::SCG {
             };
 
             OutputParser() {
-                AddParam(&Scenario::Output::name, JsonPrimitiveParser<std::string>{}, "name");
                 AddParamFlat(&Scenario::Output::variant, OutputVariantParser{});
+                AddParam(&Scenario::Output::name, JsonPrimitiveParser<std::string>{}, "name");
             }
         };
 
@@ -113,8 +113,8 @@ namespace Sagax::SCG {
             };
 
             SignalParser() {
-                AddParam(&Scenario::Signal::name, JsonPrimitiveParser<std::string>{}, "name");
                 AddParamFlat(&Scenario::Signal::variant, SignalVariantParser{});
+                AddParam(&Scenario::Signal::name, JsonPrimitiveParser<std::string>{}, "name");
             }
         };
 
@@ -184,7 +184,7 @@ namespace Sagax::SCG {
 
         JsonHandle j;
         scenarioParser.Serialize(scen, j);
-        str = DumpJson(j);
+        str = DumpJson(j, true);
 
         return str;
     }
