@@ -67,7 +67,7 @@ namespace Sagax::SCG {
         }
 
         std::string GetOutputFileName(std::size_t iOutput, std::size_t iChannel) const {
-            return (path / std::format("{}_{:03}_{:03}.wav", scenario.name, iOutput, iChannel)).string();
+            return (path / std::format("OUT_{}_CH_{:02}.wav", scenario.outputs[iOutput].name, iChannel)).string();
         }
 
         const Scenario &GetScenario() {

@@ -13,10 +13,10 @@ option(
 )
 
 option(
-    'build_scgclient',
+    'build_scgserver',
     type: 'boolean',
     value: true,
-    description: 'Build scgclient.exe'
+    description: 'Build scgserver.exe'
 )
 
 option(

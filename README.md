@@ -1,10 +1,16 @@
 
 ## Sagax Scenario Generator
 
-There are 2 targets.
+There are 2 projects in the repo:
 
-- scg.exe: Command line utility to stream/record/playback scenarios
-- scgclient.exe: MQTT client, listens for commands and publishes logs
+1. scenario generator command line tool with one target:
+    - scg.exe: utility program used to record/playback/stream scenarios defined by a scenario.json file
+
+2. server for SISI project, with multiple targets:
+    - scgserver.exe: MQTT client server listening for commands, generating and playing scenarios, and sending logs
+    - scgcommander.exe: MQTT publisher tool to control scgserver via the command line
+    - mqtt_publisher.exe / mqtt_subscriber.exe: example mqtt programs that can send/receive plain text messages
+
 
 ## building instructions - windows
 
@@ -43,5 +49,24 @@ meson compile
 
 idk lol
 
+
+## scg.exe examples
+
+some examples of commands that should work with scg.exe
+
+create a recording of the scenario described by `test3.json`, into the `recording_test` directory
+```
+scg.exe -r ..\scenarios\test3.json recording_test
+```
+
+play back the recorded scenario
+```
+scg.exe -p recording_test
+```
+
+stream the scenario (generate and transmit without saving)
+```
+scg.exe -s ..\scenarios\test3.json
+```
 
 

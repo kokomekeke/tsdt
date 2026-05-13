@@ -1,6 +1,6 @@
 #pragma once
 #include <string>
-#include "SCG/Client/Messages.hpp"
+#include "SCG/Sisi/Messages.hpp"
 
 namespace Sagax::SCG {
 

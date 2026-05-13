@@ -40,7 +40,7 @@ endif
 
 
 buildScg = get_option('build_scg')
-buildScgClient = get_option('build_scgclient')
+buildScgServer = get_option('build_scgserver')
 buildMqttExamples = get_option('build_mqtt_examples')
 
 
@@ -103,14 +103,14 @@ if buildScg
 endif
 
 
-if buildScgClient or buildMqttExamples
+if buildScgServer or buildMqttExamples
     mosquittoDep = dependency('mosquitto')
     executable(
-        'scgclient',
+        'scgserver',
         sources: [
             'src/SCG/Json/Messages.cpp',
-            'src/SCG/Client/MqttClient.cpp',
-            'src/SCG/Client/main.cpp',
+            'src/SCG/Sisi/MqttClient.cpp',
+            'src/SCG/Sisi/Server.cpp',
         ],
         include_directories: [ 'src/' ],
         dependencies: [
@@ -127,8 +127,8 @@ if buildScgClient or buildMqttExamples
         'scgcommander',
         sources: [
             'src/SCG/Json/Messages.cpp',
-            'src/SCG/Client/MqttClient.cpp',
-            'src/SCG/Client/Commander.cpp',
+            'src/SCG/Sisi/MqttClient.cpp',
+            'src/SCG/Sisi/Commander.cpp',
         ],
         include_directories: [ 'src/' ],
         dependencies: [
