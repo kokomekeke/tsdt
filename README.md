@@ -47,6 +47,16 @@ meson compile
 
 ## build instructions - linux
 
+1. download mosquitto `https://mosquitto.org/download/` or use vcpkg (i guess)
+
+```
+meson setup build -DSSG:have_usrp=true -DSSG:use_oneapi=true -DSSG:oneAPIDevPath=/home/intel/oneapi/include
+cd build
+meson devenv
+meson compile
+```
+
+
 idk lol
 
 meson setup build -DSSG:have_usrp=true -DSSG:use_oneapi=true -DIntelOneAPI:oneAPIDevPath=$HOME/intel/oneapi
@@ -69,5 +79,3 @@ stream the scenario (generate and transmit without saving)
 ```
 scg.exe -s ..\scenarios\test3.json
 ```
-
-

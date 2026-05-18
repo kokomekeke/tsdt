@@ -176,4 +176,3 @@ foreach path : extra_paths
 endforeach
 
 meson.add_devenv(devenv, method: 'append')
-
