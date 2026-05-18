@@ -49,6 +49,7 @@ meson compile
 
 idk lol
 
+meson setup build -DSSG:have_usrp=true -DSSG:use_oneapi=true -DIntelOneAPI:oneAPIDevPath=$HOME/intel/oneapi
 
 ## scg.exe examples
 

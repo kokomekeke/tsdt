@@ -8,6 +8,8 @@ project(
     ],
     meson_version: '>=1.1'
 )
+isWindows = host_machine.system() in [ 'windows' ]
+
 
 compiler = meson.get_compiler('cpp')
 if compiler.get_id() == 'gcc'
@@ -104,7 +106,11 @@ endif
 
 
 if buildScgServer or buildMqttExamples
-    mosquittoDep = dependency('mosquitto')
+    if isWindows
+        mosquittoDep = dependency('mosquitto')
+    else
+        mosquittoDep = dependency('libmosquitto')
+    endif
     executable(
         'scgserver',
         sources: [
