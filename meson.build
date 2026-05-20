@@ -105,17 +105,19 @@ if buildScg
 endif
 
 if buildScgServer or buildMqttExamples
-    if cjsonDep.found()
-        mosquittoDep = declare_dependency(
-            dependencies: [mosquittoDep, cjsonDep]
-        )
     if isWindows
         mosquittoDep = dependency('mosquitto')
     else
         # Handle transitive cjson dependency which is sometimes required by mosquitto public headers (e.g. on macOS)
         cjsonDep = dependency('libcjson', required: false)
         mosquittoDep = dependency('libmosquitto')
+        if cjsonDep.found()
+            mosquittoDep = declare_dependency(
+                dependencies: [mosquittoDep, cjsonDep]
+            )
+        endif
     endif
+
     executable(
         'scgserver',
         sources: [
