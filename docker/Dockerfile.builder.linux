@@ -1,0 +1,5 @@
+FROM sagax/ssg-base:linux
+
+RUN apt-get update && \
+    apt-get install -y libmosquitto-dev && \
+    rm -rf /var/lib/apt/lists/*
