@@ -52,14 +52,11 @@ If new dependencies are used, upload the updated `vcpkg_installed` directory to 
 1. download mosquitto `https://mosquitto.org/download/` or use vcpkg (i guess)
 
 ```
-meson setup build -DSSG:have_usrp=true -DSSG:use_oneapi=true -DSSG:oneAPIDevPath=/home/intel/oneapi/include
+meson setup build -DSSG:have_usrp=true -DSSG:use_oneapi=true -DIntelOneAPI:oneAPIDevPath=$HOME/intel/oneapi
 cd build
 meson devenv
 meson compile
 ```
-
-
-idk lol
 
 
 ## scg.exe examples

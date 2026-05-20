@@ -8,6 +8,8 @@ project(
     ],
     meson_version: '>=1.1'
 )
+isWindows = host_machine.system() in [ 'windows' ]
+
 
 compiler = meson.get_compiler('cpp')
 if compiler.get_id() == 'gcc'
@@ -103,17 +105,16 @@ if buildScg
 endif
 
 if buildScgServer or buildMqttExamples
-    mosquittoDep = dependency('libmosquitto', required: false)
-    if not mosquittoDep.found()
-        mosquittoDep = dependency('mosquitto')
-    endif
-
-    # Handle transitive cjson dependency which is sometimes required by mosquitto public headers (e.g. on macOS)
-    cjsonDep = dependency('libcjson', required: false)
     if cjsonDep.found()
         mosquittoDep = declare_dependency(
             dependencies: [mosquittoDep, cjsonDep]
         )
+    if isWindows
+        mosquittoDep = dependency('mosquitto')
+    else
+        # Handle transitive cjson dependency which is sometimes required by mosquitto public headers (e.g. on macOS)
+        cjsonDep = dependency('libcjson', required: false)
+        mosquittoDep = dependency('libmosquitto')
     endif
     executable(
         'scgserver',
