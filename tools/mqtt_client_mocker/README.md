@@ -5,6 +5,17 @@ Ezzel könnyebb lesz később tesztelni a scenario generatorban létrehozott mqt
 Paho-mqtt-t használok pythonban.  
 venv-ből fogom futtatni.
 
+## Run mosquito broker
+~~~bash
+cd mosquito-broker
+docker compose up
+~~~
+
+## Run mqtt mocker
+~~~bash
+cd mqtt_client_mocker
+python mqtt_client_mocker.py
+~~~
 
 
 
