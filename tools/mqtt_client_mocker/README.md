@@ -14,7 +14,7 @@ docker compose up
 ## Run mqtt mocker
 ~~~bash
 cd mqtt_client_mocker
-python mqtt_client_mocker.py
+streamlit run mqtt_scenario_gui.py --server.headless true --browser.gatherUsageStats false
 ~~~
 
 
