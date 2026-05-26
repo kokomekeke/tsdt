@@ -1,0 +1,134 @@
+{
+"$schema": "http://json-schema.org/draft-07/schema#",
+"title": "Radio Interference Description File - Minimum Viable Requirements",
+"type": "object",
+"required": [
+"global_settings",
+"interference_sources"
+],
+    "properties": {
+        "global_settings": {
+        "type": "object",
+        "required": [
+        "center_frequency_hz"
+        ],
+            "properties": {
+            "center_frequency_hz": 
+                {
+                "type": "number",
+                "minimum": 100,
+                "maximum": 6000000000,
+                "description": "RF center frequency in Hz"
+                }
+            }
+        },
+        "interference_sources": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": [
+                "type",
+                "power_dbm",
+                "start_time_s",
+                "end_time_s"
+                ],
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                        "cw_jammer",
+                        "noise_jammer",
+                        "chirp_jammer",
+                        "gnss_spoofer"
+                        ]
+                    },
+                    "power_dbm": {
+                    "type": "number",
+                    "minimum": -150,
+                    "maximum": 60
+                    },
+                    "start_time_s": {
+                    "type": "number",
+                    "minimum": 0
+                    },
+                    "end_time_s": {
+                    "type": "number",
+                    "minimum": 0
+                    },
+                    "frequency_offset_hz": {
+                    "type": "number",
+                    "minimum": -100000000,
+                    "maximum": 100000000,
+                    "default": 0
+                    },
+                    "bandwidth_hz": {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 100000000
+                    },
+                    "modulation": {
+                    "type": "string",
+                    "enum": [
+                    "none",
+                    "bpsk",
+                    "qpsk",
+                    "noise",
+                    "gnss"
+                    ],
+                    "default": "none"
+                    },
+                    "chirp": {
+                        "type": "object",
+                        "required": [
+                        "start_offset_hz",
+                        "end_offset_hz"
+                        ],
+                        "properties": {
+                            "start_offset_hz": {
+                            "type": "number"
+                            },
+                            "end_offset_hz": {
+                            "type": "number"
+                            },
+                            "sweep_time_s": {
+                            "type": "number",
+                            "minimum": 0.0001
+                            }
+                        }
+                    },
+                    "spoofing": {
+                    "type": "object",
+                        "properties": {
+                            "constellation": {
+                            "type": "string",
+                            "enum": [
+                            "GPS",
+                            "GLONASS",
+                            "GALILEO",
+                            "BEIDOU"
+                            ]
+                            },
+                            "prn_list": {
+                            "type": "array",
+                                "items": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 210
+                                }
+                            },
+                            "position_offset_m": {
+                            "type": "array",
+                                "items": {
+                                "type": "number"
+                                },
+                            "minItems": 3,
+                            "maxItems": 3
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
