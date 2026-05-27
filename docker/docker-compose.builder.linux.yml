@@ -1,0 +1,14 @@
+services:
+  builder:
+    image: scg-builder:linux
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.builder.linux
+    volumes:
+      # Mount source code
+      - ..:/workspace
+
+      # Mount artifacts output directory
+      - ${ARTIFACTS_DIR}:/mnt/artifacts
+    # Default command for the builder
+    command: bash -lc "mkdir -p /src && cp -a /workspace/. /src/ && cd /src && ls -la && python3 scripts/package.py --type=release --platform=linux --outdir=/mnt/artifacts"

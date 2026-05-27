@@ -1,41 +1,41 @@
 {
-    "duration": 21,
+    "duration": 5,
     "outputs": [
         {
             "name": "r1",
             "type": "UsrpB200",
             "serial": "8002512",
             "subdevSpec": "A:A",
-            "samplerate": 300000,
-            "frequency": 1183500000.0,
-            "gain": 50.0
+            "samplerate": 500000,
+            "frequency": 1176450000.0,
+            "gain": 30.0
         },
         {
             "name": "r2",
             "serial": "8002514",
             "type": "UsrpB200",
             "subdevSpec": "A:A",
-            "samplerate": 300000,
-            "frequency": 1236000000.0,
-            "gain": 60.0
+            "samplerate": 500000,
+            "frequency": 1227600000.0,
+            "gain": 30.0
         },
         {
             "name": "r3",
             "type": "UsrpB200",
-            "serial": "GUV6HJ7",
+            "serial": "8002051",
             "subdevSpec": "A:A",
-            "samplerate": 300000,
-            "frequency": 1279000000.0,
-            "gain": 75.0
+            "samplerate": 500000,
+            "frequency": 1278750000.0,
+            "gain": 30.0
         },
         {
             "name": "r4",
             "type": "UsrpB200",
-            "serial": "XHZDI27",
+            "serial": "8002065",
             "subdevSpec": "A:A",
-            "samplerate": 300000,
-            "frequency": 1582500000.0,
-            "gain": 70.0
+            "samplerate": 500000,
+            "frequency": 1575420000.0,
+            "gain": 30.0
         }
     ],
     "signals": [
@@ -74,13 +74,40 @@
     ],
     "events": [
         {
-            "signal": "s2",
+            "signal": "s3",
+            "output": "r1",
+            "channel": 0,
+            "frequency": 1176450000.0,
+            "amplitude": 0.5,
+            "start": 0,
+            "end": 5
+        },
+        {
+            "signal": "s3",
             "output": "r2",
             "channel": 0,
-            "frequency": 1236000000.0,
-            "amplitude": 0.7,
+            "frequency": 1227600000.0,
+            "amplitude": 0.5,
             "start": 1,
-            "end": 15
+            "end": 5
+        },
+        {
+            "signal": "s3",
+            "output": "r3",
+            "channel": 0,
+            "frequency": 1278750000.0,
+            "amplitude": 0.5,
+            "start": 2,
+            "end": 5
+        },
+        {
+            "signal": "s3",
+            "output": "r4",
+            "channel": 0,
+            "frequency": 1575420000.0,
+            "amplitude": 0.5,
+            "start": 3,
+            "end": 5
         }
     ]
 }

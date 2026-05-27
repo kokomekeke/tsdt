@@ -156,6 +156,10 @@ namespace Sagax::SCG::Json {
     SGX_EXPLICIT_INST(std::int32_t)
     SGX_EXPLICIT_INST(std::uint32_t)
     SGX_EXPLICIT_INST(std::uint64_t)
+    // won't compile without this... on linux it causes duplicate explicit inst :))
+    #if defined(__APPLE__)
+    SGX_EXPLICIT_INST(std::size_t)
+    #endif
     #undef SGX_EXPLICIT_INST
 
 }

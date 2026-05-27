@@ -44,6 +44,8 @@ meson devenv
 meson compile
 ```
 
+If new dependencies are used, upload the updated `vcpkg_installed` directory to `S:\temp\3rdprat\scg_vcpkg_deps`
+
 
 ## build instructions - linux
 
