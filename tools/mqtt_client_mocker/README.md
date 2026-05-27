@@ -3,7 +3,12 @@ Létrehozok egy python mqtt klienst, ami tudja küldeni és fogadni az üzenetek
 Ezzel könnyebb lesz később tesztelni a scenario generatorban létrehozott mqtt kliens működését.
 
 Paho-mqtt-t használok pythonban.  
-venv-ből fogom futtatni.
+# deps
+~~~bash
+pip install streamlit
+pip install paho-mqtt
+pip install jsonschema
+~~~
 
 ## Run mosquito broker
 ~~~bash
