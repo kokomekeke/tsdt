@@ -50,7 +50,7 @@ with st.sidebar:
 
     topic = st.text_input(
         "Publish topic",
-        "project/device/mock-client/command",
+        "test/topic",
     )
 
 
