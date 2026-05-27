@@ -15,6 +15,7 @@
 #include "Common/Logger.hpp"
 #include "Common/Defer.hpp"
 #include "Pipeline/PpController.hpp"
+#include "Pipeline/RtcController.hpp"
 #include "SCG/Scenario/Scenario.hpp"
 #include "SCG/Scenario/Validate.hpp"
 #include "SCG/Json/Scenario.hpp"
@@ -143,8 +144,8 @@ private:
         }
 
         {
-            auto controller = std::make_unique<Sagax::Pipeline::PpController>();
-            controller->Setup(ctx.pipeline, 16);
+            auto controller = std::make_unique<Sagax::Pipeline::RtcController>();
+            controller->Setup(ctx.pipeline, 4);
             ctx.controller = std::move(controller);
         }
         ctx.controller->Reset();

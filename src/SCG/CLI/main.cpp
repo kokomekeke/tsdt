@@ -124,8 +124,8 @@ struct Program {
         }
 
         // this could maybe be controlled individually for each mode
-        auto controller = std::make_unique<Pipeline::PpController>();
-        controller->Setup(ctx.pipeline, 16);
+        auto controller = std::make_unique<Pipeline::RtcController>();
+        controller->Setup(ctx.pipeline, 4);
         controller->Reset();
         ctx.controller = std::move(controller);
 
