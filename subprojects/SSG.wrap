@@ -1,4 +1,6 @@
 [wrap-git]
-url = git@10.1.1.50:SAGAX/ssg.git
+; url = git@bitbucket.org:sgx/ssg.git
+; http is needed for CI
+url = http://10.1.1.50:3000/SAGAX/ssg.git
 revision = 6b35e5e3e1ca0ed638b93d4d3d635ad6d8d9c9bf
 depth = 1
