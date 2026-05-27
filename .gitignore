@@ -1,3 +1,4 @@
 build*/
 *.wav
 /vcpkg_installed/
+/tools/mqtt_client_mocker/venv
