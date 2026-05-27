@@ -10,7 +10,10 @@ services:
       - "1883:1883"   # MQTT
       # - "9001:9001"   # WebSockets (optional)
 
-    # volumes:
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
       # - ./config:/mosquitto/config
       # - ./data:/mosquitto/data
       # - ./log:/mosquitto/log
+
+      
