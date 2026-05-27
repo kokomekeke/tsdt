@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
     });
 
     std::string host = "localhost";
-    std::string topic = "test/topic";
+    std::string topic = "cmd/tms";
     int port = 1883;
 
     if (argc > 1) host = argv[1];

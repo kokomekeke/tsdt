@@ -122,6 +122,9 @@ if buildScgServer or buildMqttExamples
         'scgserver',
         sources: [
             'src/SCG/Json/Messages.cpp',
+            'src/SCG/Json/Rid.cpp',
+            'src/SCG/Json/ServerConfig.cpp',
+            'src/SCG/Sisi/RidTransform.cpp',
             'src/SCG/Sisi/MqttClient.cpp',
             'src/SCG/Sisi/Server.cpp',
         ],

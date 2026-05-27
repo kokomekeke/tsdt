@@ -5,15 +5,30 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug SCG (MSVC)",
+            "name": "Debug scg (MSVC)",
             "cwd": "${workspaceFolder}/build-msvc/",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build-msvc/SCG.exe",
+            "program": "${workspaceFolder}/build-msvc/scg.exe",
             "args": [
                 "-p",
                 // "../scenarios/test1.json",
                 "recording_test1"
+            ],
+            // "envFile": "${workspaceFolder}/build-msvc/.env",
+            "stopAtEntry": false,
+            "environment": [],
+            "envFile": "${workspaceFolder}/build-msvc/subprojects/SSG/.env",
+            "console": "internalConsole",
+        },
+        {
+            "name": "Debug scgserver (MSVC)",
+            "cwd": "${workspaceFolder}/build-msvc/",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build-msvc/scgserver.exe",
+            "args": [
+                "..\\sisiconfig\\config-1.json"
             ],
             // "envFile": "${workspaceFolder}/build-msvc/.env",
             "stopAtEntry": false,
