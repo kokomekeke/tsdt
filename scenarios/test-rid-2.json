@@ -1,0 +1,62 @@
+{
+    "metadata": {
+        "version": "1.0.0",
+        "scenario_name": "asfd",
+        "description": "",
+        "created_utc": "utc date time...",
+        "author": "valaki"
+    },
+    "global_settings": {
+        "duration_s": 10.0
+    },
+    "radio_settings": [
+        {
+            "radio_id": "r0",
+            "type": "transmitter",
+            "center_frequency_hz": 100,
+            "bandwidth_hz": 100,
+            "gain_db": 70.0
+        },
+        {
+            "radio_id": "r1",
+            "type": "transmitter",
+            "center_frequency_hz": 200,
+            "bandwidth_hz": 110,
+            "gain_db": 100.0
+        }
+    ],
+    "interference_sources": [
+        {
+            "type": "cw_jammer",
+            "radio_id": "r0",
+            "center_frequency_hz": 100,
+            "power_dbm": 11,
+            "start_time_s": 0.3,
+            "end_time_s": 0.4,
+            "parameters": {}
+        },
+        {
+            "type": "noise_jammer",
+            "radio_id": "r0",
+            "center_frequency_hz": 200,
+            "power_dbm": 10,
+            "start_time_s": 0.5,
+            "end_time_s": 0.6,
+            "parameters": {
+                "span_hz": 30
+            }
+        },
+        {
+            "type": "chirp_jammer",
+            "radio_id": "r0",
+            "center_frequency_hz": 110,
+            "power_dbm": 20,
+            "start_time_s": 0.7,
+            "end_time_s": 0.8,
+            "parameters": {
+                "span_hz": 20,
+                "sweep_time_s": 0.1
+            }
+        }
+    ]
+}

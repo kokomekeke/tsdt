@@ -1,0 +1,79 @@
+#pragma once
+#include <variant>
+#include <string>
+#include <cstdint>
+#include <vector>
+#include "SCG/Scenario/Scenario.hpp"
+
+namespace Sagax::SCG {
+
+    struct Rid {
+
+        struct Metadata {
+            std::string version;
+            std::string name;
+            std::string author;
+            std::string created_utc;
+            std::string description;
+        };
+
+        struct GlobalSettings {
+            double duration_s;
+        };
+
+        struct RadioSettings {
+            enum struct Type { transmitter, receiver };
+            std::string radioId;
+            Type type;
+            double center_hz;
+            double bandwidth_hz;
+            double gain_db;
+        };
+
+        struct InterferenceSource {
+            struct Cw {
+            };
+            struct Noise {
+                double span_hz;
+            };
+            struct Chirp {
+                double sweepSpan_hz;
+                double sweepTime_s;
+            };
+            struct Spoofing {
+                enum struct Constellation { gps, glonass, galileo, beidou };
+                struct TrajectoryItem {
+                    double t;
+                    std::vector<double> position_m;
+                };
+                Constellation constellation;
+                std::vector<std::int32_t> pnrList;
+                std::vector<TrajectoryItem> trajectory;
+            };
+
+            using Variant = std::variant<
+                Cw,
+                Noise,
+                Chirp,
+                Spoofing
+            >;
+
+            std::string radioId;
+            double center_hz;
+            double power_dbm;
+            double startTime_s;
+            double endTime_s;
+            Variant variant;
+        };
+
+        GlobalSettings globalSettings;
+        Metadata metadata;
+        std::vector<RadioSettings> radioSettings;
+        std::vector<InterferenceSource> interferenceSources;
+    };
+
+
+
+}
+
+
