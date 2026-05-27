@@ -139,42 +139,45 @@
                     "default": "none"
                 },
                 "parameters": {
-                    "span_hz": {
-                        "type": "number",
-                        "minimum": 1,
-                        "maximum": 56e6
-                    },
-                    "sweep_time_s": {
-                        "type": "number",
-                        "minimum": 0.0001
-                    },
-                    "constellation": {
-                        "type": "string",
-                        "enum": ["GPS", "GLONASS", "GALILEO", "BEIDOU"]
-                    },
-                    "prn_list": {
-                        "type": "array",
-                        "items": {
-                            "type": "integer",
+                    "type": "object",
+                    "properties": {
+                        "span_hz": {
+                            "type": "number",
                             "minimum": 1,
-                            "maximum": 210
-                        }
-                    },
-                    "trajectory": {
-                    "type": "array",
-                        "items": {
-                            "type": "object",
-                            "required": [
-                                "t",
-                                "position_m"
-                            ],
-                            "properties": {
-                                "t": { "type": "number" },
-                                "position_m": {
-                                    "type": "array",
-                                    "items": { "type": "number" },
-                                    "minItems": 3,
-                                    "maxItems": 3
+                            "maximum": 56e6
+                        },
+                        "sweep_time_s": {
+                            "type": "number",
+                            "minimum": 0.0001
+                        },
+                        "constellation": {
+                            "type": "string",
+                            "enum": ["GPS", "GLONASS", "GALILEO", "BEIDOU"]
+                        },
+                        "prn_list": {
+                            "type": "array",
+                            "items": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 210
+                            }
+                        },
+                        "trajectory": {
+                        "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": [
+                                    "t",
+                                    "position_m"
+                                ],
+                                "properties": {
+                                    "t": { "type": "number" },
+                                    "position_m": {
+                                        "type": "array",
+                                        "items": { "type": "number" },
+                                        "minItems": 3,
+                                        "maxItems": 3
+                                    }
                                 }
                             }
                         }

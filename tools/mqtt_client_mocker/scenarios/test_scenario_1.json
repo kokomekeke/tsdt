@@ -9,7 +9,7 @@
     "global_settings": {
         "duration_s": 10.0
     },
-    "radio_settings": [
+    "radios": [
         {
             "radio_id": "r0",
             "type": "transmitter",
