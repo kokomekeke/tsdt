@@ -8,141 +8,179 @@
 #include <atomic>
 #include <csignal>
 #include <type_traits>
+#include <mutex>
+#include <condition_variable>
 #include <variant>
+#include "SSG/argparse/argparse.hpp"
 #include "Common/Logger.hpp"
 #include "Common/Defer.hpp"
 #include "Pipeline/PpController.hpp"
+#include "Pipeline/RtcController.hpp"
 #include "SCG/Scenario/Scenario.hpp"
 #include "SCG/Scenario/Validate.hpp"
 #include "SCG/Json/Scenario.hpp"
 #include "SCG/ScenarioTransform/BuildPipeline.hpp"
 #include "SCG/ScenarioTransform/ScenarioRunnerContext.hpp"
 #include "SCG/ScenarioTransform/Transform.hpp"
-#include "MqttClient.hpp"
 #include "SCG/Json/Messages.hpp"
-
-namespace {
-    std::atomic<bool> g_running{true};
-
-    void HandleSignal(int /*signal*/) {
-        g_running.store(false);
-    }
-}
+#include "SCG/Json/Rid.hpp"
+#include "SCG/Json/ServerConfig.hpp"
+#include "MqttClient.hpp"
+#include "RidTransform.hpp"
 
 using namespace Sagax;
 using namespace Sagax::SCG;
 
-class MainApp {
-public:
-    int Main() {
-        Common::StdLogStream logStream(std::cerr, Common::Logger::Level::Trace, {});
-        Common::Logger::AddStream(&logStream);
-        Common::Defer disposeLogger([&](){ Common::Logger::RemoveStream(&logStream); });
+struct Parameters {
+    bool success;
+    std::string error;
+    std::string configPath;
+};
 
-        MqttClient::LibraryInit();
+struct ProgramParser {
+    Parameters params;
+    argparse::ArgumentParser program;
 
-        MqttClient::Configuration cfg;
-        cfg.host = "localhost";
-        cfg.port = 1883;
-        cfg.keepAlive_s = 60;
-        cfg.subscribeTopics = { "test/topic" };
-        cfg.clientId = "RSG";
-        cfg.reconnectDelays_ms = { 1000, 2000, 5000, 10000, 30000 };
-        cfg.maxQueueSize = 200;
-
-        // configure update handler
-        cfg.onUpdate = [this]() { this->OnUpdate(); };
-
-        client.Configure(std::move(cfg));
-        client.Start();
-
-        std::signal(SIGINT, HandleSignal);
-        Common::Logger::Info("waiting for Ctrl+C to stop...");
-        while (g_running.load()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-
-        client.Stop();
-        MqttClient::LibraryCleanup();
-        return 0;
+    ProgramParser() : program("scgserver.exe", "1.0", argparse::default_arguments::all) {
+        program.add_argument("config_path")
+            .help("path to configuration .json");
     }
 
-private:
-    SCG::ScenarioRunnerContext ctx;
-    bool running = false;
+    std::string Help() {
+        return program.help().str();
+    }
 
-    bool StartScenario(const std::string &profile) {
-        if (running) StopScenario();
-
-        std::filesystem::path p(profile);
-        if (!std::filesystem::exists(p)) p = std::filesystem::path("scenarios") / (profile + std::string(".json"));
-        if (!std::filesystem::exists(p)) {
-            Common::Logger::Error("scenario file not found for profile: {}", profile);
-            return false;
-        }
-
-        std::ifstream file(p);
-        if (!file.is_open()) {
-            Common::Logger::Error("failed to open scenario file: {}", p.string());
-            return false;
-        }
-        std::stringstream buf; buf << file.rdbuf();
-        std::string jsonStr = buf.str();
-
+    void Parse(int argc, char **argv) {
         try {
-            ctx.scenario = SCG::ParseScenario(jsonStr, p.stem().string());
-        } catch (const std::exception &e) {
-            Common::Logger::Error("\ncould not parse scenario:\n{}", e.what());
-            return false;
+            program.parse_args(argc, argv);
+        }
+        catch(const std::exception &e) {
+            params.success = false;
+            params.error = e.what();
+            return;
         }
 
-        auto problems = SCG::ValidateScenario(ctx.scenario);
-        for (auto &w : problems.warnings) Common::Logger::Warn("{}", w);
-        if (!problems.errors.empty()) {
-            for (auto &er : problems.errors) Common::Logger::Error("{}", er);
-            return false;
+        params.configPath = program.get<std::string>("config_path");
+        params.success = true;
+    }
+};
+
+struct Program {
+private:
+    static Program instance;
+
+    ProgramParser parser;
+    SCG::ServerConfig config;
+    SCG::ScenarioRunnerContext ctx;
+    MqttClient client;
+
+    bool scenarioRunning = false;
+    bool programRunning = false;
+    std::mutex mtx; // only used for signal handler
+    std::condition_variable cv;
+
+
+    void StartScenario(const std::string &profile) {
+        if(scenarioRunning) {
+            StopScenario();
         }
+
+        auto p = std::filesystem::path(profile);
+        try {
+            p = std::filesystem::absolute(p);
+        }
+        catch(const std::exception &e) {
+            Common::Logger::Error("invalid scenario file path: \"{}\": {}", profile, e.what());
+            return;
+        }
+        std::ifstream file(p);
+        if(!file.is_open()) {
+            Common::Logger::Error("failed to open scenario file: {}", p.string());
+            return;
+        }
+        std::stringstream buf;
+        buf << file.rdbuf();
+        std::string jsonStr = buf.str();
+        file.close();
+
+        SCG::Rid rid;
+        try {
+            rid = SCG::ParseRid(jsonStr);
+        }
+        catch(const std::exception &e) {
+            Common::Logger::Error("\nfailed to parse RID:\n{}", e.what());
+            return;
+        }
+
+        {
+            Common::Logger::Info("validating RID..");
+            auto validity = SCG::ValidateRid(config, rid);
+            for(auto &s : validity.warnings) {
+                Common::Logger::Warn("{}", s.c_str());
+            }
+            if(!validity.errors.empty()) {
+                for(auto &s : validity.errors) {
+                    Common::Logger::Error("{}", s.c_str());
+                }
+                return;
+            }
+            else {
+                Common::Logger::Info("validation successful");
+            }
+        }
+
+        auto scenMap = SCG::MapRidToScenario(config, rid);
+        ctx.scenario = scenMap.scen;
+        Common::Logger::Info("converted scenario:\n{}", SCG::SerializeScenario(ctx.scenario));
 
         try {
             auto b = SCG::BuildStreamingPipeline(ctx.scenario);
             ctx.pipeline = b.builder.Build();
             ctx.resources = b.resources;
-        } catch (const std::exception &e) {
+        }
+        catch (const std::exception &e) {
             Common::Logger::Error("\ncould not build pipeline:\n{}", e.what());
-            return false;
+            return;
         }
 
-        ctx.controller = std::make_unique<Sagax::Pipeline::PpController>();
-        dynamic_cast<Sagax::Pipeline::PpController*>(ctx.controller.get())->Setup(ctx.pipeline, 8);
+        {
+            auto controller = std::make_unique<Sagax::Pipeline::RtcController>();
+            controller->Setup(ctx.pipeline, 4);
+            ctx.controller = std::move(controller);
+        }
         ctx.controller->Reset();
-        try { ctx.Init(); } catch (const std::exception &e) {
+        try {
+            ctx.Init();
+        }
+        catch (const std::exception &e) {
             Common::Logger::Error("\ncould not initialize resources:\n{}", e.what());
             ctx.Dispose();
             ctx.controller.reset();
-            return false;
+            return;
         }
 
         ctx.controller->Start();
-        running = true;
+        scenarioRunning = true;
         Common::Logger::Info("scenario started: {}", p.string());
-        return true;
+        return;
     }
 
     void StopScenario() {
-        if (!running) return;
+        if(!scenarioRunning) {
+            return;
+        }
         try {
             ctx.controller->Stop(true);
             ctx.controller->Join();
             ctx.Dispose();
-        } catch (const std::exception &e) {
+        }
+        catch (const std::exception &e) {
             Common::Logger::Error("\nerror while stopping scenario:\n{}", e.what());
         }
         ctx.controller.reset();
-        running = false;
+        scenarioRunning = false;
         Common::Logger::Info("scenario stopped");
     }
-
-    MqttClient client;
 
     void OnUpdate() {
         MqttClient::Message msg;
@@ -150,33 +188,136 @@ private:
             std::string payload(msg.bytes.begin(), msg.bytes.end());
             try {
                 auto cm = Sagax::SCG::ParseCommandMessage(payload);
-                if (std::holds_alternative<CommandMessage::TestStart>(cm.variant)) {
+                if(std::holds_alternative<CommandMessage::TestStart>(cm.variant)) {
                     auto &v = std::get<CommandMessage::TestStart>(cm.variant);
                     Common::Logger::Info("received [{}]: TestStart - scenario={} vehicle={} customer={}", msg.topic, v.scenario, v.vehicle, v.customer);
                 }
-                else if (std::holds_alternative<CommandMessage::TestEnd>(cm.variant)) {
+                else if(std::holds_alternative<CommandMessage::TestEnd>(cm.variant)) {
                     Common::Logger::Info("received [{}]: TestEnd", msg.topic);
                 }
-                else if (std::holds_alternative<CommandMessage::TestUpdate>(cm.variant)) {
+                else if(std::holds_alternative<CommandMessage::TestUpdate>(cm.variant)) {
                     Common::Logger::Info("received [{}]: TestUpdate", msg.topic);
                 }
-                else if (std::holds_alternative<CommandMessage::IntStart>(cm.variant)) {
+                else if(std::holds_alternative<CommandMessage::IntStart>(cm.variant)) {
                     auto &v = std::get<CommandMessage::IntStart>(cm.variant);
                     Common::Logger::Info("received [{}]: IntStart - profile={}", msg.topic, v.profile);
                     StartScenario(v.profile);
                 }
-                else if (std::holds_alternative<CommandMessage::IntStop>(cm.variant)) {
+                else if(std::holds_alternative<CommandMessage::IntStop>(cm.variant)) {
                     Common::Logger::Info("received [{}]: IntStop", msg.topic);
                     StopScenario();
                 }
-            } catch (const std::exception &e) {
+            }
+            catch (const std::exception &e) {
                 Common::Logger::Error("received [{}]: failed to parse payload: \"{}\"\n{}", msg.topic, payload, e.what());
             }
         }
     }
-};
 
-int main() {
-    MainApp app;
-    return app.Main();
+    void Run(Parameters params) {
+        {
+            std::ifstream file(params.configPath);
+            if(!file.is_open()) {
+                Common::Logger::Error("failed to open config file: {}", params.configPath);
+                return;
+            }
+            std::stringstream buf;
+            buf << file.rdbuf();
+            try {
+                config = ParseServerConfig(buf.str());
+            }
+            catch(const std::exception &e) {
+                Common::Logger::Error("\nfailed to parse config:\n{}", e.what());
+                return;
+            }
+
+            Common::Logger::Info("validating configuration..");
+            auto validity = SCG::ValidateConfig(config);
+            for(auto &s : validity.warnings) {
+                Common::Logger::Warn("{}", s.c_str());
+            }
+            if(!validity.errors.empty()) {
+                for(auto &s : validity.errors) {
+                    Common::Logger::Error("{}", s.c_str());
+                }
+                return;
+            }
+            else {
+                Common::Logger::Info("validation successful");
+            }
+        }
+
+        {
+            MqttClient::LibraryInit();
+            MqttClient::Configuration mqttConfig;
+            mqttConfig.host = config.mqtt.brokerHost;
+            mqttConfig.port = config.mqtt.brokerPort;
+            mqttConfig.subscribeTopics = { config.mqtt.commandTopic };
+            mqttConfig.keepAlive_s = 60;
+            mqttConfig.clientId = "RSG";
+            mqttConfig.reconnectDelays_ms = { 1000, 2000, 5000, 10000, 30000 };
+            mqttConfig.maxQueueSize = 200;
+            mqttConfig.onUpdate = [this]() {
+                this->OnUpdate();
+            };
+            client.Configure(std::move(mqttConfig));
+            client.Start();
+        }
+
+        {
+            Common::Logger::Info("server running.. ctrl+c to stop");
+            programRunning = true;
+            std::signal(SIGINT, [](int){
+                auto &program = Program::instance;
+                {
+                    std::unique_lock lck(program.mtx);
+                    program.programRunning = false;
+                }
+                program.cv.notify_all();
+            });
+            std::unique_lock lck(mtx);
+            cv.wait(lck, [this]() {
+                return !(this->programRunning);
+            });
+        }
+
+        client.Stop();
+        MqttClient::LibraryCleanup();
+    }
+
+public:
+
+    static Program &GetInstance() {
+        return instance;
+    }
+
+    void Main(int argc, char **argv) {
+        Common::StdLogStream logStream(std::cerr, Common::Logger::Level::Trace, {});
+        Common::Logger::AddStream(&logStream);
+        Common::Defer disposeLogger([&](){
+            Common::Logger::RemoveStream(&logStream);
+        });
+
+        try {
+            parser.Parse(argc, argv);
+            Parameters params = parser.params;
+            if(!params.success) {
+                Common::Logger::Error("\nfailed to parse parameters:\n{}", params.error.c_str());
+                Common::Logger::Info("\n{}", parser.Help().c_str());
+                return;
+            }
+
+            Run(params);
+        }
+        catch(const std::exception &e) {
+            Common::Logger::Error("\ntop level exception:\n{}", e.what());
+        }
+    }
+
+};
+Program Program::instance;
+
+int main(int argc, char **argv) {
+    Program::GetInstance().Main(argc, argv);
+    return 0;
 }

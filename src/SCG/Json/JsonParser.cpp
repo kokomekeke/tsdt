@@ -5,7 +5,7 @@
 namespace Sagax::SCG::Json {
 
     struct JsonHandle::Impl {
-        nlohmann::json j;
+        nlohmann::ordered_json j;
     };
 
     JsonHandle::JsonHandle() : impl(std::make_unique<Impl>()) {
@@ -19,7 +19,7 @@ namespace Sagax::SCG::Json {
 
 
     struct JsonView::Impl {
-        nlohmann::json *j;
+        nlohmann::ordered_json *j;
     };
 
     JsonView::JsonView() : impl(std::make_unique<Impl>()) {
@@ -67,7 +67,7 @@ namespace Sagax::SCG::Json {
 
 
     namespace {
-        nlohmann::json &Get(const JsonView &j) {
+        nlohmann::ordered_json &Get(const JsonView &j) {
             return *j.impl->j;
         }
     }

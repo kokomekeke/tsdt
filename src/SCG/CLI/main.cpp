@@ -124,8 +124,8 @@ struct Program {
         }
 
         // this could maybe be controlled individually for each mode
-        auto controller = std::make_unique<Pipeline::PpController>();
-        controller->Setup(ctx.pipeline, 8);
+        auto controller = std::make_unique<Pipeline::RtcController>();
+        controller->Setup(ctx.pipeline, 4);
         controller->Reset();
         ctx.controller = std::move(controller);
 
@@ -158,7 +158,7 @@ struct Program {
         // SetCurrentThreadName("main");
         Common::StdLogStream logStream(std::cerr, Common::Logger::Level::Trace, {});
         Common::Logger::AddStream(&logStream);
-        Common::Defer disposeLogger([&](){
+        Common::Defer disposeLogger([&]() {
             Common::Logger::RemoveStream(&logStream);
         });
 

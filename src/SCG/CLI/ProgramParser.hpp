@@ -22,7 +22,7 @@ struct ProgramParser {
     Parameters params;
     argparse::ArgumentParser program;
 
-    ProgramParser() : program("ScenarioGenerator", "1.0", argparse::default_arguments::all) {
+    ProgramParser() : program("scg.exe", "1.0", argparse::default_arguments::all) {
         auto &mode = program.add_mutually_exclusive_group(false);
         mode.add_argument("-r", "--record")
             .help("record mode: -r <jsonPath> <recordingDirectory>")
@@ -44,7 +44,8 @@ struct ProgramParser {
     void Parse(int argc, char **argv) {
         try {
             program.parse_args(argc, argv);
-        } catch(const std::exception &e) {
+        }
+        catch(const std::exception &e) {
             params.success = false;
             params.error = e.what();
             return;

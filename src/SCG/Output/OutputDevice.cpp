@@ -37,6 +37,7 @@ namespace Sagax::SCG {
     void UsrpB200Device::Init_() {
         dev.reset();
         dev = std::make_unique<SSG::UsrpB200::Device>(std::format("serial={}", serial), subdevSpec, 1);
+        Common::Assert(dev->GetState() == SSG::UsrpB200::DeviceState::stopped, "usrp b200 device error");
         SSG::UsrpB200::DeviceParams params;
         params.sampleRate = sampleRate;
         params.bandwidth = sampleRate + 1.0;
