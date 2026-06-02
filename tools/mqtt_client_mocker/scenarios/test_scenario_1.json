@@ -9,19 +9,19 @@
     "global_settings": {
         "duration_s": 10.0
     },
-    "radios": [
+    "radio_settings": [
         {
             "radio_id": "r0",
             "type": "transmitter",
-            "center_frequency_hz": 100,
-            "sample_rate_hz": 100,
+            "center_frequency_hz": 1575420000,
+            "sample_rate_hz": 1000000,
             "gain_db": 70.0
         },
         {
             "radio_id": "r1",
             "type": "transmitter",
-            "center_frequency_hz": 200,
-            "sample_rate_hz": 110,
+            "center_frequency_hz": 1602000000,
+            "sample_rate_hz": 1100000,
             "gain_db": 100.0
         }
     ],
@@ -29,7 +29,7 @@
         {
             "type": "cw_jammer",
             "radio_id": "r0",
-            "center_frequency_hz": 100,
+            "center_frequency_hz": 1575420000,
             "power_dbm": 11,
             "start_time_s": 0.3,
             "end_time_s": 0.4,
@@ -38,30 +38,30 @@
         {
             "type": "noise_jammer",
             "radio_id": "r0",
-            "center_frequency_hz": 200,
+            "center_frequency_hz": 1575420000,
             "power_dbm": 10,
             "start_time_s": 0.5,
             "end_time_s": 0.6,
             "parameters": {
-                "span_hz": 30
+                "span_hz": 30000
             }
         },
         {
             "type": "chirp_jammer",
             "radio_id": "r0",
-            "center_frequency_hz": 110,
+            "center_frequency_hz": 1575420000,
             "power_dbm": 20,
             "start_time_s": 0.7,
             "end_time_s": 0.8,
             "parameters": {
-                "span_hz": 20,
+                "span_hz": 20000,
                 "sweep_time_s": 0.1
             }
         },
         {
             "type": "gnss_spoofer",
-            "radio_id": "r0",
-            "center_frequency_hz": 201,
+            "radio_id": "r1",
+            "center_frequency_hz": 1602000000,
             "power_dbm": 5,
             "start_time_s": 0.8,
             "end_time_s": 0.9,
