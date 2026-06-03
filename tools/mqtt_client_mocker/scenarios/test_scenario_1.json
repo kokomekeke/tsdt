@@ -1,27 +1,27 @@
 {
     "metadata": {
-        "version": "1.0.0",
+        "version": "1.0",
         "scenario_name": "asfd",
         "description": "",
-        "created_utc": "utc date time...",
+        "created_utc": "2026-05-29T12:00:00Z",
         "author": "valaki"
     },
     "global_settings": {
         "duration_s": 10.0
     },
-    "radios": [
+    "radio_settings": [
         {
             "radio_id": "r0",
             "type": "transmitter",
-            "center_frequency_hz": 100,
-            "bandwidth_hz": 100,
+            "center_frequency_hz": 1575420000,
+            "sample_rate_hz": 1000000,
             "gain_db": 70.0
         },
         {
             "radio_id": "r1",
             "type": "transmitter",
-            "center_frequency_hz": 200,
-            "bandwidth_hz": 110,
+            "center_frequency_hz": 1602000000,
+            "sample_rate_hz": 1100000,
             "gain_db": 100.0
         }
     ],
@@ -29,7 +29,7 @@
         {
             "type": "cw_jammer",
             "radio_id": "r0",
-            "center_frequency_hz": 100,
+            "center_frequency_hz": 1575420000,
             "power_dbm": 11,
             "start_time_s": 0.3,
             "end_time_s": 0.4,
@@ -38,48 +38,51 @@
         {
             "type": "noise_jammer",
             "radio_id": "r0",
-            "center_frequency_hz": 200,
+            "center_frequency_hz": 1575420000,
             "power_dbm": 10,
             "start_time_s": 0.5,
             "end_time_s": 0.6,
             "parameters": {
-                "span_hz": 30
+                "span_hz": 30000
             }
         },
         {
             "type": "chirp_jammer",
             "radio_id": "r0",
-            "center_frequency_hz": 110,
+            "center_frequency_hz": 1575420000,
             "power_dbm": 20,
             "start_time_s": 0.7,
             "end_time_s": 0.8,
             "parameters": {
-                "span_hz": 20,
+                "span_hz": 20000,
                 "sweep_time_s": 0.1
             }
         },
         {
             "type": "gnss_spoofer",
-            "radio_id": "r0",
-            "center_frequency_hz": 201,
+            "radio_id": "r1",
+            "center_frequency_hz": 1602000000,
             "power_dbm": 5,
             "start_time_s": 0.8,
             "end_time_s": 0.9,
             "parameters": {
-                "constellation": "beidou",
-                "pnr_list": [1, 2, 3],
+                "constellation": "BEIDOU",
+                "prn_list": [1, 2, 3],
                 "trajectory": [
                     {
                         "t": 2.0,
-                        "position_m": [1.0, 2.0, 3.0]
+                        "latitude_deg": 47.497913,
+                        "longitude_deg": 19.040236,
+                        "altitude_m": 105.2
                     },
                     {
                         "t": 2.1,
-                        "position_m": [1.1, 2.0, 3.0]
+                        "latitude_deg": 47.497923,
+                        "longitude_deg": 19.040286,
+                        "altitude_m": 105.2
                     }
                 ]
             }
         }
     ]
 }
-

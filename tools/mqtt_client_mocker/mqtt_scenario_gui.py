@@ -12,16 +12,25 @@ from jsonschema import validate, ValidationError
 SCHEMA_PATH = Path("schemas/radio_interference.schema.json")
 
 
-def load_schema():
+def load_schema() -> dict:
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def publish_mqtt(host, port, topic, payload):
+def publish_mqtt(host: str, port: int, topic: str, payload: dict) -> None:
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.connect(host, int(port), keepalive=60)
     client.publish(topic, json.dumps(payload), qos=1)
     client.disconnect()
+
+
+def parse_prn_list(text: str) -> list[int]:
+    values = []
+    for item in text.split(","):
+        item = item.strip()
+        if item:
+            values.append(int(item))
+    return values
 
 
 st.set_page_config(page_title="MQTT Scenario Mocker", layout="wide")
@@ -214,9 +223,9 @@ for i in range(num_sources):
 
             source_center_frequency_hz = st.number_input(
                 "center_frequency_hz",
-                min_value=-100_000_000.0,
-                max_value=100_000_000.0,
-                value=0.0,
+                min_value=100.0,
+                max_value=6_000_000_000.0,
+                value=1_575_420_000.0,
                 step=1_000.0,
                 key=f"source_cf_{i}",
             )
@@ -279,11 +288,11 @@ for i in range(num_sources):
                     key=f"prn_list_{i}",
                 )
 
-                parameters["prn_list"] = [
-                    int(x.strip())
-                    for x in prn_text.split(",")
-                    if x.strip()
-                ]
+                try:
+                    parameters["prn_list"] = parse_prn_list(prn_text)
+                except ValueError:
+                    st.error("PRN list must contain comma separated integers, e.g. 1,2,3,4")
+                    parameters["prn_list"] = []
 
             with col_b:
                 trajectory_count = st.number_input(
@@ -300,45 +309,53 @@ for i in range(num_sources):
             for j in range(trajectory_count):
                 st.markdown(f"Trajectory point #{j + 1}")
 
-                t_col, x_col, y_col, z_col = st.columns(4)
+                t_col, lat_col, lon_col, alt_col = st.columns(4)
 
                 with t_col:
                     t = st.number_input(
-                        "t",
+                        "t [s]",
                         min_value=0.0,
                         value=float(j),
                         step=0.1,
                         key=f"traj_t_{i}_{j}",
                     )
 
-                with x_col:
-                    x = st.number_input(
-                        "x [m]",
-                        value=0.0,
-                        step=1.0,
-                        key=f"traj_x_{i}_{j}",
+                with lat_col:
+                    latitude_deg = st.number_input(
+                        "latitude_deg",
+                        min_value=-90.0,
+                        max_value=90.0,
+                        value=47.4979,
+                        step=0.000001,
+                        format="%.6f",
+                        key=f"traj_lat_{i}_{j}",
                     )
 
-                with y_col:
-                    y = st.number_input(
-                        "y [m]",
-                        value=0.0,
-                        step=1.0,
-                        key=f"traj_y_{i}_{j}",
+                with lon_col:
+                    longitude_deg = st.number_input(
+                        "longitude_deg",
+                        min_value=-180.0,
+                        max_value=180.0,
+                        value=19.0402,
+                        step=0.000001,
+                        format="%.6f",
+                        key=f"traj_lon_{i}_{j}",
                     )
 
-                with z_col:
-                    z = st.number_input(
-                        "z [m]",
-                        value=0.0,
+                with alt_col:
+                    altitude_m = st.number_input(
+                        "altitude_m",
+                        value=100.0,
                         step=1.0,
-                        key=f"traj_z_{i}_{j}",
+                        key=f"traj_alt_{i}_{j}",
                     )
 
                 trajectory.append(
                     {
                         "t": t,
-                        "position_m": [x, y, z],
+                        "latitude_deg": latitude_deg,
+                        "longitude_deg": longitude_deg,
+                        "altitude_m": altitude_m,
                     }
                 )
 
@@ -391,13 +408,16 @@ col_a, col_b = st.columns(2)
 
 with col_a:
     if st.button("Publish scenario to MQTT", disabled=not valid):
-        publish_mqtt(
-            broker_host,
-            int(broker_port),
-            topic,
-            command_envelope,
-        )
-        st.success(f"Published to topic: {topic}")
+        try:
+            publish_mqtt(
+                broker_host,
+                int(broker_port),
+                topic,
+                command_envelope,
+            )
+            st.success(f"Published to topic: {topic}")
+        except Exception as e:
+            st.error(f"MQTT publish failed: {e}")
 
 with col_b:
     st.download_button(
@@ -406,3 +426,5 @@ with col_b:
         file_name="scenario.json",
         mime="application/json",
     )
+
+    

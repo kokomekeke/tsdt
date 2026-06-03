@@ -125,9 +125,9 @@
                 },
                 "center_frequency_hz": {
                     "type": "number",
-                    "minimum": -100e6,
-                    "maximum": 100e6,
-                    "default": 0
+                    "minimum": 100,
+                    "maximum": 6e9,
+                    "description": "RF center frequency in Hz"
                 },
                 "modulation": {
                     "type": "string",
@@ -163,20 +163,34 @@
                             }
                         },
                         "trajectory": {
-                        "type": "array",
+                            "type": "array",
                             "items": {
                                 "type": "object",
                                 "required": [
                                     "t",
-                                    "position_m"
+                                    "latitude_deg",
+                                    "longitude_deg",
+                                    "altitude_m"
                                 ],
                                 "properties": {
-                                    "t": { "type": "number" },
-                                    "position_m": {
-                                        "type": "array",
-                                        "items": { "type": "number" },
-                                        "minItems": 3,
-                                        "maxItems": 3
+                                    "t": {
+                                        "type": "number"
+                                    },
+                                    "latitude_deg": {
+                                        "type": "number",
+                                        "minimum": -90,
+                                        "maximum": 90,
+                                        "description": "Latitude in degrees (WGS84)"
+                                    },
+                                    "longitude_deg": {
+                                        "type": "number",
+                                        "minimum": -180,
+                                        "maximum": 180,
+                                        "description": "Longitude in degrees (WGS84)"
+                                    },
+                                    "altitude_m": {
+                                        "type": "number",
+                                        "description": "Altitude above mean sea level in meters"
                                     }
                                 }
                             }
