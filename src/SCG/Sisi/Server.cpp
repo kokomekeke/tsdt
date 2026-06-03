@@ -144,8 +144,8 @@ private:
         }
 
         {
-            auto controller = std::make_unique<Sagax::Pipeline::RtcController>();
-            controller->Setup(ctx.pipeline, 4);
+            auto controller = std::make_unique<Sagax::Pipeline::PpController>();
+            controller->Setup(ctx.pipeline, 32);
             ctx.controller = std::move(controller);
         }
         ctx.controller->Reset();
