@@ -18,7 +18,7 @@ namespace Sagax::SCG {
     // the directory will have the output channel recordings,
     // logs, and metadata
     //
-    // TODO: it should also have the scg version and the scenario in json format
+    // TODO: make metadata json and add scg version
 
     struct RecordingDirectoryResource : public Resource {
     private:

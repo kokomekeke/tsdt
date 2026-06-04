@@ -56,14 +56,14 @@ ssg_defines = ssgSub.get_variable('ssg_defines')
 scgLib = static_library(
     'scg_core',
     sources: [
-        # 'src/SCG/JsonParsing/OutputParserRegistry.cpp',
         'src/SCG/Json/Scenario.cpp',
-        # 'src/SCG/JsonParsing/SignalParserRegistry.cpp',
         'src/SCG/Json/JsonParser.cpp',
         'src/SCG/Modules/Merger.cpp',
         'src/SCG/Modules/Source.cpp',
         'src/SCG/Modules/Tuner.cpp',
-        'src/SCG/Output/OutputDevice.cpp',
+        # 'src/SCG/Output/OutputDevice.cpp',
+        'src/SCG/Output/FileOutputDevice.cpp',
+        'src/SCG/Output/UsrpB200Device.cpp',
         'src/SCG/Scenario/OutputVariant.cpp',
         'src/SCG/Scenario/Validate.cpp',
         'src/SCG/ScenarioTransform/BuildPipeline.cpp',

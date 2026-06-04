@@ -6,28 +6,42 @@
 #include "SCG/Scenario/Scenario.hpp"
 #include "RecordingDirectoryResource.hpp"
 #include "ScenarioRunnerContext.hpp"
+#include "PreinitConfig.hpp"
 
 namespace Sagax::SCG {
 
+    // Recording --> Output
     struct PlaybackPipelineBuild {
         Sagax::Pipeline::SimplePipelineBuilder builder;
         std::vector<Resource*> resources;
         std::unique_ptr<RecordingDirectoryResource> dir;
     };
-    PlaybackPipelineBuild BuildPlaybackPipeline(const std::string &recordingDirectory);  // Recording --> Output
+    PlaybackPipelineBuild BuildPlaybackPipeline(
+        const std::string &recordingDirectory,
+        const PreinitConfig &preinit
+    );
 
+    // Signal --> Recording
     struct RecordingPipelineBuild {
         Sagax::Pipeline::SimplePipelineBuilder builder;
         std::vector<Resource*> resources;
         std::unique_ptr<RecordingDirectoryResource> dir;
     };
-    RecordingPipelineBuild BuildRecordingPipeline(Scenario &scen, const std::string &recordingDirectory); // Signal --> Recording
+    RecordingPipelineBuild BuildRecordingPipeline(
+        const Scenario &scen,
+        const std::string &recordingDirectory,
+        const PreinitConfig &preinit
+    );
 
+    // Signal --> Output
     struct StreamingPipelineBuild {
         Sagax::Pipeline::SimplePipelineBuilder builder;
         std::vector<Resource*> resources;
     };
-    StreamingPipelineBuild BuildStreamingPipeline(Scenario &scen); // Signal --> Output
+    StreamingPipelineBuild BuildStreamingPipeline(
+        const Scenario &scen,
+        const PreinitConfig &preinit
+    );
 }
 
 

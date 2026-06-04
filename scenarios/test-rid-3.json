@@ -1,0 +1,32 @@
+{
+    "metadata": {
+        "version": "1.0.0",
+        "scenario_name": "asfd",
+        "description": "",
+        "created_utc": "utc date time...",
+        "author": "valaki"
+    },
+    "global_settings": {
+        "duration_s": 10.0
+    },
+    "radio_settings": [
+        {
+            "radio_id": "r0",
+            "type": "transmitter",
+            "center_frequency_hz": 434500000.0,
+            "bandwidth_hz": 1000000.0,
+            "gain_db": 70.0
+        }
+    ],
+    "interference_sources": [
+        {
+            "type": "cw_jammer",
+            "radio_id": "r0",
+            "center_frequency_hz": 434500000.0,
+            "power_dbm": 11,
+            "start_time_s": 0.3,
+            "end_time_s": 9.0,
+            "parameters": {}
+        }
+    ]
+}

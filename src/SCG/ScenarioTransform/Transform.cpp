@@ -6,11 +6,20 @@
 #include <format>
 #include "Common/Assert.hpp"
 #include "Common/Logger.hpp"
+#include "SCG/Output/FileOutputDevice.hpp"
+#include "SCG/Output/UsrpB200Device.hpp"
 #include "Transform.hpp"
 
 namespace Sagax::SCG {
 
-    std::tuple<std::unique_ptr<OutputDevice>, std::vector<Resource*>> GetOutputDevice(OutputVariant &v) {
+    std::tuple<
+        std::unique_ptr<OutputDevice>,
+        std::vector<Resource*>
+    >
+    GetOutputDevice(
+        const OutputVariant &v,
+        const PreinitConfig &preinit
+    ) {
         std::unique_ptr<OutputDevice> basePtr;
         std::vector<Resource*> resources;
         if([[maybe_unused]] auto *s = std::get_if<OutputVariant::Null>(&v.variant)) {
@@ -24,6 +33,16 @@ namespace Sagax::SCG {
             p->sampleRate = s->sampleRate;
             p->center = s->center;
             p->gain = s->gain;
+            {
+                auto it = preinit.usrp.devices.find(s->serial);
+                if(it == preinit.usrp.devices.end()) {
+                    Common::Assert(!preinit.usrp.usePreinitOnly, "device was not preinitialized");
+                    p->dev = nullptr;
+                }
+                else {
+                    p->dev = it->second.get();
+                }
+            }
             resources.push_back((Resource*)(p.get()));
             basePtr = std::move(p);
 #else
@@ -44,7 +63,14 @@ namespace Sagax::SCG {
     }
 
 
-    std::tuple<std::unique_ptr<SignalGenerator>, std::vector<Resource*>> GetSignalGenerator(SignalVariant &v) {
+    std::tuple<
+        std::unique_ptr<SignalGenerator>,
+        std::vector<Resource*>
+    >
+    GetSignalGenerator(
+        const SignalVariant &v,
+        [[maybe_unused]] const PreinitConfig &preinit
+    ) {
         std::unique_ptr<SignalGenerator> basePtr;
         std::vector<Resource*> resources;
         if([[maybe_unused]] auto *s = std::get_if<SignalVariant::Null>(&v.variant)) {

@@ -1,10 +1,10 @@
 {
-    "duration": 20,
+    "duration": 5,
     "outputs": [
         {
             "name": "r1",
             "type": "UsrpB200",
-            "serial": "8002514",
+            "serial": "8002051",
             "subdevSpec": "A:A",
             "samplerate": 1000000,
             "frequency": 434500000.0,
@@ -14,9 +14,7 @@
     "signals": [
         {
             "name": "s1",
-            "type": "AudioFile",
-            "file": "S:/temp/ssg/rec/debug/macskadob.wav",
-            "modulation": "FM"
+            "type": "Tone"
         }
     ],
     "events": [
@@ -27,7 +25,7 @@
             "frequency": 434500000.0,
             "amplitude": 0.7,
             "start": 0,
-            "end": 20
+            "end": 5
         },
     ]
 }

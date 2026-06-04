@@ -70,14 +70,36 @@ private:
     static Program instance;
 
     ProgramParser parser;
+    MqttClient client;
     SCG::ServerConfig config;
     SCG::ScenarioRunnerContext ctx;
-    MqttClient client;
+    SCG::PreinitConfig preinit;
 
     bool scenarioRunning = false;
     bool programRunning = false;
     std::mutex mtx; // only used for signal handler
     std::condition_variable cv;
+
+
+    void Preinit() {
+        preinit = SCG::PreinitConfig{};
+#ifdef HAVE_USRP
+        preinit.usrp.usePreinitOnly = true;
+#endif
+        for(auto &v : config.radios) {
+            if(std::holds_alternative<SCG::ServerConfig::Radio::UsrpB200>(v.variant)) {
+                auto &w = std::get<SCG::ServerConfig::Radio::UsrpB200>(v.variant);
+#ifdef HAVE_USRP
+                auto dev = SSG::UsrpB200::GetDevice(w.serial);
+                Common::Assert(bool(dev), "failed to initialize radio");
+                preinit.usrp.devices[w.serial] = std::move(dev);
+#endif
+            }
+            else {
+                Common::Assert(false, "unknown radio type in config");
+            }
+        }
+    }
 
 
     void StartScenario(const std::string &profile) {
@@ -134,7 +156,7 @@ private:
         Common::Logger::Info("converted scenario:\n{}", SCG::SerializeScenario(ctx.scenario));
 
         try {
-            auto b = SCG::BuildStreamingPipeline(ctx.scenario);
+            auto b = SCG::BuildStreamingPipeline(ctx.scenario, preinit);
             ctx.pipeline = b.builder.Build();
             ctx.resources = b.resources;
         }
@@ -225,11 +247,13 @@ private:
             buf << file.rdbuf();
             try {
                 config = ParseServerConfig(buf.str());
+                Preinit();
             }
             catch(const std::exception &e) {
                 Common::Logger::Error("\nfailed to parse config:\n{}", e.what());
                 return;
             }
+
 
             Common::Logger::Info("validating configuration..");
             auto validity = SCG::ValidateConfig(config);

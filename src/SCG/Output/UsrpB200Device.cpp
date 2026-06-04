@@ -1,3 +1,5 @@
+#ifdef HAVE_USRP
+
 #include <thread>
 #include <vector>
 #include <span>
@@ -6,39 +8,23 @@
 #include "Common/Logger.hpp"
 #include "SSG/Math/Math.hpp"
 #include "OutputDevice.hpp"
+#include "UsrpB200Device.hpp"
 
 namespace Sagax::SCG {
 
-    void FileOutputDevice::Start() {
-        SCGIQPacket dummy;
-        dummy.Reshape(sampleRate, nChannels, 0, true);
-        auto &m = dummy.meta.AddEntry<SSG::Packets::MFrequency>();
-        m.frequency = center;
-        file.Open(fileName, dummy);
-        Common::Assert(file.IsOpen(), "failed to open file");
-    }
 
-    void FileOutputDevice::Stop() {
-        if(file.IsOpen()) {
-            file.Close();
-        }
-    }
-
-    void FileOutputDevice::Take(SCGIQPacket &packet) {
-        Common::Assert(file.IsOpen(), "file not open");
-        Common::Assert(packet.nChannels == nChannels, "wrong number of channels");
-        // assert sample rate
-
-        file.WritePacket(packet);
-    }
-
-
-#ifdef HAVE_USRP
     void UsrpB200Device::Init_() {
-        dev.reset();
-        dev = std::make_unique<SSG::UsrpB200::Device>(std::format("serial={}", serial), subdevSpec, 1);
-        Common::Assert(dev->GetState() == SSG::UsrpB200::DeviceState::stopped, "usrp b200 device error");
+        if(dev == nullptr) {
+            devOwned.reset();
+            std::string deviceArgs = std::format("serial={}", serial);
+            devOwned = SSG::UsrpB200::GetDevice(deviceArgs);
+            dev = devOwned.get();
+        }
+        Common::Assert(dev, "usrp b200 device was not initialized");
+
         SSG::UsrpB200::DeviceParams params;
+        params.subdevSpec = "A:A";
+        params.nChannels = 1;
         params.sampleRate = sampleRate;
         params.bandwidth = sampleRate + 1.0;
         params.centers = { center };
@@ -56,37 +42,41 @@ namespace Sagax::SCG {
     }
 
     void UsrpB200Device::Dispose_() {
-        dev.reset();
+        if(dev == devOwned.get()) {
+            devOwned.reset();
+        }
+        dev = nullptr;
     }
 
     void UsrpB200Device::Start() {
-        Common::Assert(bool(dev), "device is not set up");
-        dev->StartStream();
+        Common::Assert(dev != nullptr, "device is not set up");
+        stream = dev->GetTxStream();
     }
 
     void UsrpB200Device::Stop() {
-        dev->StopStream();
+        stream.reset();
     }
 
     void UsrpB200Device::Take(SCGIQPacket &packet) {
         Common::Assert(packet.nChannels == 1, "only 1 channel is allowed");
         // assert samplerate
 
-        if(packet.null) { // definitely not the way we should be doing this
+        if(packet.null) {
             auto duration =
                 std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                     std::chrono::duration<double>(
                         double(packet.nSamples) / packet.sampleRate
                     )
                 );
-            std::this_thread::sleep_for(duration);
-            return;
+            std::this_thread::sleep_for(duration); // likely not the way we should be doing this
+        }
+        else {
+            stream->Burst(packet.nSamples, packet.GetChannels());
         }
 
-        auto ci = packet.GetChannels();
-        dev->Burst(packet.nSamples, ci);
     }
-#endif
 
 }
+
+#endif
 

@@ -8,7 +8,6 @@
 #include "Common/Assert.hpp"
 #include "Common/Logger.hpp"
 #include "Pipeline/Pipeline.hpp"
-#include "SSG/Modules/Resampler.hpp"
 
 #include "SCG/Scenario/Scenario.hpp"
 #include "SCG/Modules/Source.hpp"
@@ -143,12 +142,12 @@ namespace Sagax::SCG {
             InPort<SCGIQPacket>* port;
             std::vector<Resource*> resources;
         };
-        OutputPipeline BuildOutputStream(ScenarioCtx &scen, std::size_t iOutput) {
+        OutputPipeline BuildOutputStream(ScenarioCtx &scen, const PreinitConfig &preinit, std::size_t iOutput) {
             auto &output = scen.outputs[iOutput];
             SimplePipelineBuilder b;
             auto &sink = b.AddVertex<StreamSink>();
 
-            auto [dev, rsc] = GetOutputDevice(output.output.variant);
+            auto [dev, rsc] = GetOutputDevice(output.output.variant, preinit);
             sink.dev = std::move(dev);
 
             return { std::move(b), &sink.inP, rsc };
@@ -172,7 +171,7 @@ namespace Sagax::SCG {
             OutPort<SCGIQPacket> *port;
             std::vector<Resource*> resources;
         };
-        SignalPipeline BuildSignalStream(ScenarioCtx &scen, std::size_t iLine) {
+        SignalPipeline BuildSignalStream(ScenarioCtx &scen, const PreinitConfig &preinit, std::size_t iLine) {
             auto &line = scen.lines[iLine];
             auto &output = scen.outputs[line.iOutput];
             std::vector<Resource*> resources;
@@ -187,7 +186,7 @@ namespace Sagax::SCG {
             src.generators.clear();
             for(auto &ie : line.events) {
                 auto &e = scen.events[ie];
-                auto [gen, rsc] = GetSignalGenerator(scen.scen.signals[e.iSignal].variant);
+                auto [gen, rsc] = GetSignalGenerator(scen.scen.signals[e.iSignal].variant, preinit);
                 gen->SetSampleRate(output.params.sampleRate);
                 src.generators.push_back(std::move(gen));
                 resources.insert(resources.end(), rsc.begin(), rsc.end());
@@ -221,7 +220,10 @@ namespace Sagax::SCG {
 
 
 
-    PlaybackPipelineBuild BuildPlaybackPipeline(const std::string &recordingDirectory) {
+    PlaybackPipelineBuild BuildPlaybackPipeline(
+        const std::string &recordingDirectory,
+        const PreinitConfig &preinit
+    ) {
         auto dir = std::make_unique<RecordingDirectoryResource>();
         dir->SetupRead(recordingDirectory);
 
@@ -232,7 +234,7 @@ namespace Sagax::SCG {
         std::vector<std::vector<SignalPipeline>> signalPipelines;
 
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
-            auto p = BuildOutputStream(ctx, io);
+            auto p = BuildOutputStream(ctx, preinit, io);
             b = SimplePipelineBuilder::Merge(std::move(b), std::move(p.b));
             resources.insert(resources.end(), p.resources.begin(), p.resources.end());
             outputPipelines.push_back(std::move(p));
@@ -265,7 +267,11 @@ namespace Sagax::SCG {
         return { std::move(b), resources, std::move(dir) };
     }
 
-    RecordingPipelineBuild BuildRecordingPipeline(Scenario &scen, const std::string &recordingDirectory) {
+    RecordingPipelineBuild BuildRecordingPipeline(
+        const Scenario &scen,
+        const std::string &recordingDirectory,
+        const PreinitConfig &preinit
+    ) {
         ScenarioCtx ctx = SortScenario(scen);
         std::vector<Resource*> resources;
         SimplePipelineBuilder b;
@@ -286,7 +292,7 @@ namespace Sagax::SCG {
             }
         }
         for(std::size_t il = 0; il < ctx.lines.size(); ++il) {
-            auto p = BuildSignalStream(ctx, il);
+            auto p = BuildSignalStream(ctx, preinit, il);
             b = SimplePipelineBuilder::Merge(std::move(b), std::move(p.b));
             resources.insert(resources.end(), p.resources.begin(), p.resources.end());
             signalPipelines.push_back(std::move(p));
@@ -314,20 +320,23 @@ namespace Sagax::SCG {
         return { std::move(b), resources, std::move(dir) };
     }
 
-    StreamingPipelineBuild BuildStreamingPipeline(Scenario &scen) {
+    StreamingPipelineBuild BuildStreamingPipeline(
+        const Scenario &scen,
+        const PreinitConfig &preinit
+    ) {
         ScenarioCtx ctx = SortScenario(scen);
         std::vector<Resource*> resources;
         SimplePipelineBuilder b;
         std::vector<OutputPipeline> outputPipelines;
         std::vector<SignalPipeline> signalPipelines;
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
-            auto p = BuildOutputStream(ctx, io);
+            auto p = BuildOutputStream(ctx, preinit, io);
             b = SimplePipelineBuilder::Merge(std::move(b), std::move(p.b));
             resources.insert(resources.end(), p.resources.begin(), p.resources.end());
             outputPipelines.push_back(std::move(p));
         }
         for(std::size_t il = 0; il < ctx.lines.size(); ++il) {
-            auto p = BuildSignalStream(ctx, il);
+            auto p = BuildSignalStream(ctx, preinit, il);
             b = SimplePipelineBuilder::Merge(std::move(b), std::move(p.b));
             resources.insert(resources.end(), p.resources.begin(), p.resources.end());
             signalPipelines.push_back(std::move(p));
