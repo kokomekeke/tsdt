@@ -59,6 +59,7 @@ scgLib = static_library(
         'src/SCG/Json/Scenario.cpp',
         'src/SCG/Json/JsonParser.cpp',
         'src/SCG/Modules/Merger.cpp',
+        'src/SCG/Modules/Sink.cpp',
         'src/SCG/Modules/Source.cpp',
         'src/SCG/Modules/Tuner.cpp',
         # 'src/SCG/Output/OutputDevice.cpp',
@@ -121,7 +122,6 @@ if buildScgServer or buildMqttExamples
     executable(
         'scgserver',
         sources: [
-            'src/SCG/Json/Messages.cpp',
             'src/SCG/Json/Rid.cpp',
             'src/SCG/Json/ServerConfig.cpp',
             'src/SCG/Sisi/RidTransform.cpp',
@@ -142,7 +142,8 @@ if buildScgServer or buildMqttExamples
     executable(
         'scgcommander',
         sources: [
-            'src/SCG/Json/Messages.cpp',
+            'src/SCG/Json/Rid.cpp',
+            'src/SCG/Json/ServerConfig.cpp',
             'src/SCG/Sisi/MqttClient.cpp',
             'src/SCG/Sisi/Commander.cpp',
         ],

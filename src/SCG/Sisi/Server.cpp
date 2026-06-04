@@ -22,7 +22,6 @@
 #include "SCG/ScenarioTransform/BuildPipeline.hpp"
 #include "SCG/ScenarioTransform/ScenarioRunnerContext.hpp"
 #include "SCG/ScenarioTransform/Transform.hpp"
-#include "SCG/Json/Messages.hpp"
 #include "SCG/Json/Rid.hpp"
 #include "SCG/Json/ServerConfig.hpp"
 #include "MqttClient.hpp"
@@ -69,22 +68,24 @@ struct Program {
 private:
     static Program instance;
 
-    ProgramParser parser;
-    MqttClient client;
-    SCG::ServerConfig config;
-    SCG::ScenarioRunnerContext ctx;
-    SCG::PreinitConfig preinit;
-
-    bool scenarioRunning = false;
     bool programRunning = false;
     std::mutex mtx; // only used for signal handler
     std::condition_variable cv;
 
+    ProgramParser parser;
+    MqttClient client;
+    SCG::ServerConfig config;
+    SCG::PipelineConfig pipelineConfig;
 
-    void Preinit() {
-        preinit = SCG::PreinitConfig{};
+    bool scenarioRunning = false;
+    SCG::ScenarioRunnerContext ctx;
+    SCG::Rid rid;
+    SCG::ScenarioRidMap scenarioMap;
+
+    void Configure() {
+        pipelineConfig = SCG::PipelineConfig{};
 #ifdef HAVE_USRP
-        preinit.usrp.usePreinitOnly = true;
+        pipelineConfig.preinit.usrp.usePreinitOnly = true;
 #endif
         for(auto &v : config.radios) {
             if(std::holds_alternative<SCG::ServerConfig::Radio::UsrpB200>(v.variant)) {
@@ -92,15 +93,55 @@ private:
 #ifdef HAVE_USRP
                 auto dev = SSG::UsrpB200::GetDevice(w.serial);
                 Common::Assert(bool(dev), "failed to initialize radio");
-                preinit.usrp.devices[w.serial] = std::move(dev);
+                pipelineConfig.preinit.usrp.devices[w.serial] = std::move(dev);
 #endif
             }
             else {
                 Common::Assert(false, "unknown radio type in config");
             }
         }
+
+
+        pipelineConfig.events.eventStart = [this](std::int32_t eventId) {
+            this->PushLogMessage(eventId, true);
+        };
+        pipelineConfig.events.eventEnd = [this](std::int32_t eventId) {
+            this->PushLogMessage(eventId, false);
+        };
     }
 
+    void PushLogMessage(std::int32_t eventId, bool start) {
+        LogMessage message;
+        message.status = (start ? LogMessage::Status::active : LogMessage::Status::inactive);
+
+        {
+            auto ifId = scenarioMap.eventMap[eventId];
+            auto &variant = rid.interferenceSources[ifId].variant;
+            if(std::holds_alternative<Rid::InterferenceSource::Cw>(variant)) {
+                message.type = LogMessage::Type::jamming;
+            }
+            else if(std::holds_alternative<Rid::InterferenceSource::Chirp>(variant)) {
+                message.type = LogMessage::Type::jamming;
+            }
+            else if(std::holds_alternative<Rid::InterferenceSource::Noise>(variant)) {
+                message.type = LogMessage::Type::jamming;
+            }
+            else if(std::holds_alternative<Rid::InterferenceSource::Spoofing>(variant)) {
+                message.type = LogMessage::Type::spoofing;
+            }
+            else {
+                message.type = LogMessage::Type::none;
+            }
+        }
+
+        std::string str = SerializeLogMessage(message);
+        MqttClient::Message mqttMessage;
+        mqttMessage.bytes.assign(str.begin(), str.end());
+        mqttMessage.qos = 2;
+        mqttMessage.retain = false;
+        mqttMessage.topic = config.mqtt.logTopic;
+        client.Push(mqttMessage);
+    }
 
     void StartScenario(const std::string &profile) {
         if(scenarioRunning) {
@@ -125,7 +166,6 @@ private:
         std::string jsonStr = buf.str();
         file.close();
 
-        SCG::Rid rid;
         try {
             rid = SCG::ParseRid(jsonStr);
         }
@@ -151,12 +191,12 @@ private:
             }
         }
 
-        auto scenMap = SCG::MapRidToScenario(config, rid);
-        ctx.scenario = scenMap.scen;
+        scenarioMap = SCG::MapRidToScenario(config, rid);
+        ctx.scenario = scenarioMap.scen;
         Common::Logger::Info("converted scenario:\n{}", SCG::SerializeScenario(ctx.scenario));
 
         try {
-            auto b = SCG::BuildStreamingPipeline(ctx.scenario, preinit);
+            auto b = SCG::BuildStreamingPipeline(pipelineConfig, ctx.scenario);
             ctx.pipeline = b.builder.Build();
             ctx.resources = b.resources;
         }
@@ -247,7 +287,7 @@ private:
             buf << file.rdbuf();
             try {
                 config = ParseServerConfig(buf.str());
-                Preinit();
+                Configure();
             }
             catch(const std::exception &e) {
                 Common::Logger::Error("\nfailed to parse config:\n{}", e.what());

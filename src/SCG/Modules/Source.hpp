@@ -14,7 +14,7 @@ namespace Sagax::SCG {
         struct EventCtx {
             std::size_t iStart;
             std::size_t iEnd;
-            Scenario::Event event;
+            std::int32_t id;
         };
         std::vector<EventCtx> events;
         std::size_t nSamples;

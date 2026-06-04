@@ -4,16 +4,16 @@
         {
             "name": "r1",
             "type": "UsrpB200",
-            "serial": "8002514",
+            "serial": "8002051",
             "subdevSpec": "A:A",
-            "samplerate": 1000000,
+            "samplerate": 200000,
             "frequency": 434500000.0,
             "gain": 70.0
         },
         {
             "name": "r2",
             "type": "UsrpB200",
-            "serial": "8002512",
+            "serial": "8001680",
             "subdevSpec": "A:A",
             "samplerate": 200000,
             "frequency": 434600000.0,
@@ -72,7 +72,7 @@
     ],
     "events": [
         {
-            "signal": "s1",
+            "signal": "s3",
             "output": "r1",
             "channel": 0,
             "frequency": 434500000.0,
@@ -81,49 +81,49 @@
             "end": 5
         },
         {
-            "signal": "s2",
-            "output": "r1",
+            "signal": "s3",
+            "output": "r2",
             "channel": 0,
             "frequency": 434550000.0,
             "amplitude": 0.5,
             "start": 5,
             "end": 10
         },
-        {
-            "signal": "s3",
-            "output": "r1",
-            "channel": 0,
-            "frequency": 434500000.0,
-            "amplitude": 0.4,
-            "start": 8,
-            "end": 10
-        },
-        {
-            "signal": "s4",
-            "output": "r1",
-            "channel": 0,
-            "frequency": 434550000.0,
-            "amplitude": 0.3,
-            "start": 0,
-            "end": 7
-        },
-        {
-            "signal": "s5",
-            "output": "r2",
-            "channel": 0,
-            "frequency": 434550000.0,
-            "amplitude": 0.7,
-            "start": 0,
-            "end": 10
-        },
-        {
-            "signal": "s6",
-            "output": "r2",
-            "channel": 0,
-            "frequency": 434600000.0,
-            "amplitude": 0.7,
-            "start": 7,
-            "end": 10
-        }
+        // {
+        //     "signal": "s3",
+        //     "output": "r1",
+        //     "channel": 0,
+        //     "frequency": 434500000.0,
+        //     "amplitude": 0.4,
+        //     "start": 8,
+        //     "end": 10
+        // },
+        // {
+        //     "signal": "s4",
+        //     "output": "r1",
+        //     "channel": 0,
+        //     "frequency": 434550000.0,
+        //     "amplitude": 0.3,
+        //     "start": 0,
+        //     "end": 7
+        // },
+        // {
+        //     "signal": "s5",
+        //     "output": "r2",
+        //     "channel": 0,
+        //     "frequency": 434550000.0,
+        //     "amplitude": 0.7,
+        //     "start": 0,
+        //     "end": 10
+        // },
+        // {
+        //     "signal": "s6",
+        //     "output": "r2",
+        //     "channel": 0,
+        //     "frequency": 434600000.0,
+        //     "amplitude": 0.7,
+        //     "start": 7,
+        //     "end": 10
+        // }
     ]
 }

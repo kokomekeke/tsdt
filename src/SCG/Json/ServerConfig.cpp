@@ -16,8 +16,7 @@ namespace Sagax::SCG {
 
                 RadioVariantParser() {
                     this->typeTagKey = "type";
-                    this->subKey = "parameters";
-                    AddAlt<ServerConfig::Radio::UsrpB200>("UsrpB200", UsrpB200Parser{});
+                    AddAlt<ServerConfig::Radio::UsrpB200>("UsrpB200", "parameters", UsrpB200Parser{});
                 }
             };
 

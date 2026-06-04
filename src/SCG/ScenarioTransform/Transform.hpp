@@ -7,7 +7,7 @@
 #include "SCG/Scenario/Scenario.hpp"
 #include "SCG/Signal/SignalGenerator.hpp"
 #include "SCG/Output/OutputDevice.hpp"
-#include "PreinitConfig.hpp"
+#include "PipelineConfig.hpp"
 
 namespace Sagax::SCG {
 
@@ -16,8 +16,8 @@ namespace Sagax::SCG {
         std::vector<Resource*>
     >
     GetOutputDevice(
-        const OutputVariant &v,
-        const PreinitConfig &preinit
+        const PipelineConfig &config,
+        const OutputVariant &v
     );
 
     std::tuple<
@@ -25,8 +25,8 @@ namespace Sagax::SCG {
         std::vector<Resource*>
     >
     GetSignalGenerator(
-        const SignalVariant &v,
-        const PreinitConfig &preinit
+        const PipelineConfig &config,
+        const SignalVariant &v
     );
 
 }

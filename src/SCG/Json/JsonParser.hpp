@@ -311,6 +311,7 @@ namespace Sagax::SCG::Json {
     template<typename T>
     struct JsonVariantParser : public JsonParser<T> {
         struct AltBase : public JsonParser<T> {
+            std::optional<std::string> subKey;
             std::string typeTag;
             std::type_index typeIndex{typeid(void)};
             virtual ~AltBase() = default;
@@ -346,11 +347,10 @@ namespace Sagax::SCG::Json {
         };
 
         std::string typeTagKey;
-        std::optional<std::string> subKey;
         std::vector<std::unique_ptr<AltBase>> alts;
 
         template<typename S, typename P>
-        P *AddAlt(const std::string &typeTag, P &&parser) {
+        P *AddAlt(const std::string &typeTag, std::optional<std::string> subKey, P &&parser) {
             Common::Assert(!typeTag.empty(), "variant type tag must not be empty");
             static_assert(std::is_base_of_v<JsonParser<S>, std::remove_reference_t<P>>, "parser must derive from JsonParser<S>");
 
@@ -364,6 +364,7 @@ namespace Sagax::SCG::Json {
             auto parserP = parserU.get();
             auto variant = std::make_unique<Alt<S>>();
             variant->typeTag = typeTag;
+            variant->subKey = subKey;
             variant->typeIndex = newTypeIndex;
             variant->parser = std::move(parserU);
             alts.push_back(std::move(variant));
@@ -379,25 +380,18 @@ namespace Sagax::SCG::Json {
             std::string typeTag;
             GetValue<std::string>(typeTagH, typeTag);
 
-
             bool found = false;
 
-            if(subKey.has_value()) {
-                Common::Assert(HasParameter(j, subKey.value()), std::format("missing subtype: \"{}\"", subKey.value()));
-                JsonView subH = GetParameter(j, subKey.value());
-
-                for(const auto &alt : alts) {
-                    if(alt->typeTag == typeTag) {
-                        found = true;
+            for(const auto &alt : alts) {
+                if(alt->typeTag == typeTag) {
+                    found = true;
+                    if(alt->subKey.has_value()) {
+                        Common::Assert(HasParameter(j, alt->subKey.value()), std::format("missing subparameter key: \"{}\"", alt->subKey.value()));
+                        JsonView subH = GetParameter(j, alt->subKey.value());
                         alt->Parse(subH, t);
                     }
-                }
-            }
-            else {
-                for(const auto &variant : alts) {
-                    if(variant->typeTag == typeTag) {
-                        found = true;
-                        variant->Parse(j, t);
+                    else {
+                        alt->Parse(j, t);
                     }
                 }
             }
@@ -411,24 +405,19 @@ namespace Sagax::SCG::Json {
                 SetObject(j);
             }
 
-            if(subKey.has_value()) {
-                JsonView subH = AddParameter(j, subKey.value());
-                for(const auto &variant : alts) {
-                    if(variant->HasAlt(t)) {
-                        found = true;
-                        variant->Serialize(t, subH);
+            for(const auto &alt : alts) {
+                if(alt->HasAlt(t)) {
+                    found = true;
+                    if(alt->subKey.has_value()) {
                         JsonView typeTagH = AddParameter(j, typeTagKey);
-                        SetValue<std::string>(typeTagH, variant->typeTag);
+                        SetValue<std::string>(typeTagH, alt->typeTag);
+                        JsonView subH = AddParameter(j, alt->subKey.value());
+                        alt->Serialize(t, subH);
                     }
-                }
-            }
-            else {
-                for(const auto &variant : alts) {
-                    if(variant->HasAlt(t)) {
-                        found = true;
-                        variant->Serialize(t, j);
+                    else {
                         JsonView typeTagH = AddParameter(j, typeTagKey);
-                        SetValue<std::string>(typeTagH, variant->typeTag);
+                        SetValue<std::string>(typeTagH, alt->typeTag);
+                        alt->Serialize(t, j);
                     }
                 }
             }

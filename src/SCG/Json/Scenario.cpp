@@ -5,6 +5,7 @@
 #include "SSG/Modules/PacketSource.hpp"
 #include "SSG/Modules/IQFileSink.hpp"
 #include "SSG/Modules/IQFileSource.hpp"
+#include "SCG/Json/JsonParser.hpp"
 #include "Scenario.hpp"
 
 using namespace Sagax::SCG::Json;
@@ -35,9 +36,8 @@ namespace Sagax::SCG {
                 struct VariantParser : public JsonVariantParser<OutputVariant::T> {
                     VariantParser() {
                         typeTagKey = "type";
-                        subKey = std::nullopt;
-                        AddAlt<OutputVariant::FileIQ>("File", FileIQParser{});
-                        AddAlt<OutputVariant::RadioUsrpB200>("UsrpB200", RadioUsrpB200Parser{});
+                        AddAlt<OutputVariant::FileIQ>("File", std::nullopt, FileIQParser{});
+                        AddAlt<OutputVariant::RadioUsrpB200>("UsrpB200", std::nullopt, RadioUsrpB200Parser{});
                     }
                 };
                 OutputVariantParser() {
@@ -98,13 +98,12 @@ namespace Sagax::SCG {
                 struct VariantParser : public JsonVariantParser<SignalVariant::T> {
                     VariantParser() {
                         typeTagKey = "type";
-                        subKey = std::nullopt;
-                        AddAlt<SignalVariant::Tone>("Tone", ToneParser{});
-                        AddAlt<SignalVariant::Chirp>("Chirp", ChirpParser{});
-                        AddAlt<SignalVariant::Pulse>("Pulse", PulseParser{});
-                        AddAlt<SignalVariant::Noise>("Noise", NoiseParser{});
-                        AddAlt<SignalVariant::IQFile>("IQFile", IQFileParser{});
-                        AddAlt<SignalVariant::AudioFile>("AudioFile", AudioFileParser{});
+                        AddAlt<SignalVariant::Tone>("Tone", std::nullopt, ToneParser{});
+                        AddAlt<SignalVariant::Chirp>("Chirp", std::nullopt, ChirpParser{});
+                        AddAlt<SignalVariant::Pulse>("Pulse", std::nullopt, PulseParser{});
+                        AddAlt<SignalVariant::Noise>("Noise", std::nullopt, NoiseParser{});
+                        AddAlt<SignalVariant::IQFile>("IQFile", std::nullopt, IQFileParser{});
+                        AddAlt<SignalVariant::AudioFile>("AudioFile", std::nullopt, AudioFileParser{});
                     }
                 };
                 SignalVariantParser() {
@@ -113,8 +112,8 @@ namespace Sagax::SCG {
             };
 
             SignalParser() {
-                AddParamFlat(&Scenario::Signal::variant, SignalVariantParser{});
                 AddParam(&Scenario::Signal::name, JsonPrimitiveParser<std::string>{}, "name");
+                AddParamFlat(&Scenario::Signal::variant, SignalVariantParser{});
             }
         };
 

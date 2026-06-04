@@ -1,18 +1,57 @@
-#include <iostream>
-#include <string>
-#include <sstream>
-#include <vector>
 #include <algorithm>
-#include <thread>
+#include <atomic>
 #include <chrono>
-#include "Common/Logger.hpp"
+#include <cctype>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <thread>
+
+#include "SSG/argparse/argparse.hpp"
 #include "Common/Defer.hpp"
+#include "Common/Logger.hpp"
 #include "Messages.hpp"
-#include "SCG/Json/Messages.hpp"
 #include "MqttClient.hpp"
+#include "SCG/Json/Rid.hpp"
+#include "SCG/Json/ServerConfig.hpp"
 
 using namespace Sagax;
 using namespace Sagax::SCG;
+
+struct Parameters {
+    bool success;
+    std::string error;
+    std::string configPath;
+};
+
+struct ProgramParser {
+    Parameters params;
+    argparse::ArgumentParser program;
+
+    ProgramParser() : program("scgcommander.exe", "1.0", argparse::default_arguments::all) {
+        program.add_argument("config_path")
+            .help("path to configuration .json");
+    }
+
+    std::string Help() {
+        return program.help().str();
+    }
+
+    void Parse(int argc, char **argv) {
+        try {
+            program.parse_args(argc, argv);
+        }
+        catch(const std::exception &e) {
+            params.success = false;
+            params.error = e.what();
+            return;
+        }
+
+        params.configPath = program.get<std::string>("config_path");
+        params.success = true;
+    }
+};
 
 static void PrintHelp() {
     Common::Logger::Info("commands:");
@@ -25,6 +64,23 @@ static void PrintHelp() {
     Common::Logger::Info("  quit\n");
 }
 
+static void DrainIncomingMessages(MqttClient &client, std::atomic<bool> &running) {
+    while(true) {
+        MqttClient::Message msg;
+        if(client.Pop(msg)) {
+            std::string payload(msg.bytes.begin(), msg.bytes.end());
+            Common::Logger::Info("received [{}]: {}", msg.topic, payload);
+            continue;
+        }
+
+        if(!running.load() && !client.IsRunning()) {
+            break;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+}
+
 int main(int argc, char **argv) {
     Common::StdLogStream logStream(std::cerr, Common::Logger::Level::Trace, {});
     Common::Logger::AddStream(&logStream);
@@ -32,73 +88,121 @@ int main(int argc, char **argv) {
         Common::Logger::RemoveStream(&logStream);
     });
 
-    std::string host = "localhost";
-    std::string topic = "cmd/tms";
-    int port = 1883;
+    ProgramParser parser;
+    parser.Parse(argc, argv);
+    Parameters params = parser.params;
+    if(!params.success) {
+        Common::Logger::Error("\nfailed to parse parameters:\n{}", params.error.c_str());
+        Common::Logger::Info("\n{}", parser.Help().c_str());
+        return 1;
+    }
 
-    if (argc > 1) host = argv[1];
-    if (argc > 2) topic = argv[2];
-    if (argc > 3) {
-        try { port = std::stoi(argv[3]); } catch(...){}
+    std::ifstream file(params.configPath);
+    if(!file.is_open()) {
+        Common::Logger::Error("failed to open config file: {}", params.configPath);
+        return 1;
+    }
+
+    std::stringstream buf;
+    buf << file.rdbuf();
+
+    ServerConfig config;
+    try {
+        config = ParseServerConfig(buf.str());
+    }
+    catch(const std::exception &e) {
+        Common::Logger::Error("\nfailed to parse config:\n{}", e.what());
+        return 1;
     }
 
     MqttClient::LibraryInit();
     MqttClient client;
 
     MqttClient::Configuration cfg;
-    cfg.host = host;
-    cfg.port = port;
+    cfg.host = config.mqtt.brokerHost;
+    cfg.port = config.mqtt.brokerPort;
     cfg.keepAlive_s = 60;
-    cfg.subscribeTopics = { topic };
+    cfg.subscribeTopics = { config.mqtt.logTopic };
     cfg.clientId = "Commander";
-    cfg.reconnectDelays_ms = {1000,2000,5000};
+    cfg.reconnectDelays_ms = { 1000, 2000, 5000 };
     cfg.maxQueueSize = 100;
-    cfg.onUpdate = [](){};
+    cfg.onUpdate = []() {};
 
     client.Configure(std::move(cfg));
     client.Start();
-    PrintHelp();
+    if(!client.IsRunning()) {
+        Common::Logger::Error("failed to start MQTT client");
+        MqttClient::LibraryCleanup();
+        return 1;
+    }
 
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::atomic<bool> running{true};
+    std::thread logThread([&]() {
+        DrainIncomingMessages(client, running);
+    });
+
+    PrintHelp();
+    Common::Logger::Info("connected command topic: {}", config.mqtt.commandTopic);
+    Common::Logger::Info("listening log topic: {}", config.mqtt.logTopic);
 
     std::string line;
-    while (true) {
-        std::cout << "> ";
-        if (!std::getline(std::cin, line)) break;
+    while(running.load()) {
+        // std::cout << "> " << std::flush;
+        if(!std::getline(std::cin, line)) {
+            running.store(false);
+            break;
+        }
+
         std::istringstream iss(line);
         std::string cmd;
-        if (!(iss >> cmd)) continue;
-        std::transform(cmd.begin(), cmd.end(), cmd.begin(), [](unsigned char c){ return char(std::tolower(c)); });
+        if(!(iss >> cmd)) {
+            continue;
+        }
+        std::transform(cmd.begin(), cmd.end(), cmd.begin(), [](unsigned char c) { return char(std::tolower(c)); });
 
-        if (cmd == "quit" || cmd == "exit") break;
-        if (cmd == "help") { PrintHelp(); continue; }
+        if(cmd == "quit" || cmd == "exit") {
+            running.store(false);
+            break;
+        }
+        if(cmd == "help") {
+            PrintHelp();
+            continue;
+        }
 
         CommandMessage cm;
         bool make = true;
 
-        if (cmd == "teststart") {
+        if(cmd == "teststart") {
             std::string scenario, vehicle, customer;
             iss >> scenario >> vehicle >> customer;
             cm.variant = CommandMessage::TestStart{scenario, vehicle, customer};
-        } else if (cmd == "testend") {
+        }
+        else if(cmd == "testend") {
             cm.variant = CommandMessage::TestEnd{};
-        } else if (cmd == "testupdate") {
+        }
+        else if(cmd == "testupdate") {
             cm.variant = CommandMessage::TestUpdate{};
-        } else if (cmd == "intstart") {
-            std::string profile; iss >> profile;
+        }
+        else if(cmd == "intstart") {
+            std::string profile;
+            iss >> profile;
             cm.variant = CommandMessage::IntStart{profile};
-        } else if (cmd == "intstop") {
+        }
+        else if(cmd == "intstop") {
             cm.variant = CommandMessage::IntStop{};
-        } else {
+        }
+        else {
             Common::Logger::Warn("unknown command: {}", cmd);
             make = false;
         }
 
-        if (!make) continue;
+        if(!make) {
+            continue;
+        }
 
         std::string payload = Sagax::SCG::SerializeCommandMessage(cm);
         MqttClient::Message out;
-        out.topic = topic;
+        out.topic = config.mqtt.commandTopic;
         out.bytes.assign(payload.begin(), payload.end());
         out.qos = 0;
         out.retain = false;
@@ -107,7 +211,12 @@ int main(int argc, char **argv) {
         Common::Logger::Info("sent: {}", payload);
     }
 
-    client.Stop();
+    if(client.IsRunning()) {
+        client.Stop();
+    }
+    if(logThread.joinable()) {
+        logThread.join();
+    }
     MqttClient::LibraryCleanup();
     return 0;
 }

@@ -6,7 +6,7 @@
 #include "SCG/Scenario/Scenario.hpp"
 #include "RecordingDirectoryResource.hpp"
 #include "ScenarioRunnerContext.hpp"
-#include "PreinitConfig.hpp"
+#include "PipelineConfig.hpp"
 
 namespace Sagax::SCG {
 
@@ -17,8 +17,8 @@ namespace Sagax::SCG {
         std::unique_ptr<RecordingDirectoryResource> dir;
     };
     PlaybackPipelineBuild BuildPlaybackPipeline(
-        const std::string &recordingDirectory,
-        const PreinitConfig &preinit
+        const PipelineConfig &config,
+        const std::string &recordingDirectory
     );
 
     // Signal --> Recording
@@ -28,9 +28,9 @@ namespace Sagax::SCG {
         std::unique_ptr<RecordingDirectoryResource> dir;
     };
     RecordingPipelineBuild BuildRecordingPipeline(
+        const PipelineConfig &config,
         const Scenario &scen,
-        const std::string &recordingDirectory,
-        const PreinitConfig &preinit
+        const std::string &recordingDirectory
     );
 
     // Signal --> Output
@@ -39,8 +39,8 @@ namespace Sagax::SCG {
         std::vector<Resource*> resources;
     };
     StreamingPipelineBuild BuildStreamingPipeline(
-        const Scenario &scen,
-        const PreinitConfig &preinit
+        const PipelineConfig &config,
+        const Scenario &scen
     );
 }
 

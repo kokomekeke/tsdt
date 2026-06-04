@@ -23,7 +23,7 @@
 #include "SCG/ScenarioTransform/ScenarioRunnerContext.hpp"
 #include "SCG/ScenarioTransform/Transform.hpp"
 #include "SCG/ScenarioTransform/BuildPipeline.hpp"
-#include "SCG/ScenarioTransform/PreinitConfig.hpp"
+#include "SCG/ScenarioTransform/PipelineConfig.hpp"
 
 #include "ProgramParser.hpp"
 
@@ -34,7 +34,7 @@ using namespace Sagax::SCG;
 struct Program {
 
     ProgramParser parser;
-    PreinitConfig preinit;
+    PipelineConfig pipelineConfig;
 
     Scenario ParseFile(std::string jsonPath) {
         Scenario scenario;
@@ -80,7 +80,7 @@ struct Program {
     ScenarioRunnerContext SetupRecording(std::string jsonPath, std::string dirPath) {
         ScenarioRunnerContext ctx;
         ctx.scenario = ParseFile(jsonPath);
-        auto b = BuildRecordingPipeline(ctx.scenario, dirPath, preinit);
+        auto b = BuildRecordingPipeline(pipelineConfig, ctx.scenario, dirPath);
         ctx.pipeline = b.builder.Build();
         ctx.resources = b.resources;
         ctx.ownedResources.emplace_back(std::move(b.dir));
@@ -89,7 +89,7 @@ struct Program {
 
     ScenarioRunnerContext SetupPlayback(std::string dirPath) {
         ScenarioRunnerContext ctx;
-        auto b = BuildPlaybackPipeline(dirPath, preinit);
+        auto b = BuildPlaybackPipeline(pipelineConfig, dirPath);
         ctx.pipeline = b.builder.Build();
         ctx.resources = b.resources;
         ctx.scenario = b.dir->GetScenario();
@@ -100,14 +100,22 @@ struct Program {
     ScenarioRunnerContext SetupStreaming(std::string jsonPath) {
         ScenarioRunnerContext ctx;
         ctx.scenario = ParseFile(jsonPath);
-        auto b = BuildStreamingPipeline(ctx.scenario, preinit);
+        auto b = BuildStreamingPipeline(pipelineConfig, ctx.scenario);
         ctx.pipeline = b.builder.Build();
         ctx.resources = b.resources;
         return ctx;
     }
 
+    void Configure() {
+        #ifdef HAVE_USRP
+            pipelineConfig.preinit.usrp.usePreinitOnly = false;
+        #endif
+    }
+
     void Run(Parameters params) {
         Common::Logger::Info("SCG");
+
+        Configure();
 
         ScenarioRunnerContext ctx;
         try {

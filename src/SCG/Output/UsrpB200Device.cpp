@@ -16,8 +16,7 @@ namespace Sagax::SCG {
     void UsrpB200Device::Init_() {
         if(dev == nullptr) {
             devOwned.reset();
-            std::string deviceArgs = std::format("serial={}", serial);
-            devOwned = SSG::UsrpB200::GetDevice(deviceArgs);
+            devOwned = SSG::UsrpB200::GetDevice(serial);
             dev = devOwned.get();
         }
         Common::Assert(dev, "usrp b200 device was not initialized");

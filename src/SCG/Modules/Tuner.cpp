@@ -78,16 +78,20 @@ namespace Sagax::SCG {
             return;
         }
         Common::Assert(mEntry && mEntry->events.size() == 1, "multiple events");
-        auto &event = mEntry->events[0];
+        auto &eventId = mEntry->events[0];
+        auto it = eventMap.find(eventId);
+        Common::Assert(it != eventMap.end(), "missing event");
 
         output = input;
         output.SetNull(false);
 
-        double freqTune = event.frequency - freqOut;
-        double amplTune = event.amplitude;
+        double freqTune = it->second.frequency - freqOut;
+        double amplTune = it->second.amplitude;
 
-        impl->SetTone(sampleRate, freqTune, input.nSamples);
-        impl->ApplyTone(input.data, amplTune);
+        // Common::Logger::Debug("out: {};  freq: {};  tune: {}", freqOut, it->second.frequency, freqTune);
+
+        impl->SetTone(sampleRate, freqTune, output.nSamples);
+        impl->ApplyTone(output.data, amplTune);
     }
 
 }

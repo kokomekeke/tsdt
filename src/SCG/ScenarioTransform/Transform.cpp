@@ -17,8 +17,8 @@ namespace Sagax::SCG {
         std::vector<Resource*>
     >
     GetOutputDevice(
-        const OutputVariant &v,
-        const PreinitConfig &preinit
+        const PipelineConfig &config,
+        const OutputVariant &v
     ) {
         std::unique_ptr<OutputDevice> basePtr;
         std::vector<Resource*> resources;
@@ -34,9 +34,10 @@ namespace Sagax::SCG {
             p->center = s->center;
             p->gain = s->gain;
             {
-                auto it = preinit.usrp.devices.find(s->serial);
-                if(it == preinit.usrp.devices.end()) {
-                    Common::Assert(!preinit.usrp.usePreinitOnly, "device was not preinitialized");
+                auto &u = config.preinit.usrp;
+                auto it = u.devices.find(s->serial);
+                if(it == u.devices.end()) {
+                    Common::Assert(!u.usePreinitOnly, "device was not preinitialized");
                     p->dev = nullptr;
                 }
                 else {
@@ -68,8 +69,8 @@ namespace Sagax::SCG {
         std::vector<Resource*>
     >
     GetSignalGenerator(
-        const SignalVariant &v,
-        [[maybe_unused]] const PreinitConfig &preinit
+        [[maybe_unused]] const PipelineConfig &config,
+        const SignalVariant &v
     ) {
         std::unique_ptr<SignalGenerator> basePtr;
         std::vector<Resource*> resources;
