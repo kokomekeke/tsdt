@@ -44,7 +44,9 @@ namespace Sagax::SCG {
                 enum struct Constellation { gps, glonass, galileo, beidou };
                 struct TrajectoryItem {
                     double t;
-                    std::vector<double> position_m;
+                    double longitude;
+                    double latitude;
+                    double altitude;
                 };
                 Constellation constellation;
                 std::vector<std::int32_t> pnrList;

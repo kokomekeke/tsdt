@@ -70,10 +70,9 @@ namespace Sagax::SCG {
                     struct TrajectoryItemParser : public JsonObjectParser<Rid::InterferenceSource::Spoofing::TrajectoryItem> {
                         TrajectoryItemParser() {
                             AddParam(&Rid::InterferenceSource::Spoofing::TrajectoryItem::t, JsonPrimitiveParser<double>{}, "t");
-                            auto p0 = AddParam(&Rid::InterferenceSource::Spoofing::TrajectoryItem::position_m, JsonArrayParser<double>{}, "position_m");
-
-                            p0->SetItemParser(JsonPrimitiveParser<double>{});
-                            p0->SetSizeRange(3, 3);
+                            AddParam(&Rid::InterferenceSource::Spoofing::TrajectoryItem::longitude, JsonPrimitiveParser<double>{}, "longitude");
+                            AddParam(&Rid::InterferenceSource::Spoofing::TrajectoryItem::latitude, JsonPrimitiveParser<double>{}, "latitude");
+                            AddParam(&Rid::InterferenceSource::Spoofing::TrajectoryItem::altitude, JsonPrimitiveParser<double>{}, "altitude");
                         }
                     };
 
