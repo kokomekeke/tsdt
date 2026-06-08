@@ -1,7 +1,7 @@
-#include "JsonParser.hpp"
+#include "Json/JsonParser.hpp"
 #include "Rid.hpp"
 
-using namespace Sagax::SCG::Json;
+using namespace Sagax::Json;
 
 namespace Sagax::SCG {
     namespace {

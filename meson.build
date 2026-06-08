@@ -48,6 +48,7 @@ buildMqttExamples = get_option('build_mqtt_examples')
 
 ssgSub = subproject('SSG')
 commonLibDep = ssgSub.get_variable('commonLibDep')
+jsonLibDep = ssgSub.get_variable('jsonLibDep')
 coreLibDep = ssgSub.get_variable('coreLibDep')
 ssgLibDep = ssgSub.get_variable('ssgLibDep')
 ssg_defines = ssgSub.get_variable('ssg_defines')
@@ -57,7 +58,6 @@ scgLib = static_library(
     'scg_core',
     sources: [
         'src/SCG/Json/Scenario.cpp',
-        'src/SCG/Json/JsonParser.cpp',
         'src/SCG/Modules/Merger.cpp',
         'src/SCG/Modules/Sink.cpp',
         'src/SCG/Modules/Source.cpp',
@@ -74,6 +74,7 @@ scgLib = static_library(
     include_directories: [ 'src/' ],
     dependencies: [
         commonLibDep,
+        jsonLibDep,
         coreLibDep,
         ssgLibDep
     ],
@@ -96,6 +97,7 @@ if buildScg
         include_directories: [ 'src/' ],
         dependencies: [
             commonLibDep,
+            jsonLibDep,
             coreLibDep,
             ssgLibDep,
             scgLibDep
@@ -131,6 +133,7 @@ if buildScgServer or buildMqttExamples
         include_directories: [ 'src/' ],
         dependencies: [
             commonLibDep,
+            jsonLibDep,
             coreLibDep,
             ssgLibDep,
             scgLibDep,
@@ -150,6 +153,7 @@ if buildScgServer or buildMqttExamples
         include_directories: [ 'src/' ],
         dependencies: [
             commonLibDep,
+            jsonLibDep,
             coreLibDep,
             ssgLibDep,
             scgLibDep,

@@ -1,14 +1,14 @@
 #include <variant>
 #include <stdexcept>
 #include <string>
+#include "Json/JsonParser.hpp"
 #include "SSG/Modules/IQSink.hpp"
 #include "SSG/Modules/PacketSource.hpp"
 #include "SSG/Modules/IQFileSink.hpp"
 #include "SSG/Modules/IQFileSource.hpp"
-#include "SCG/Json/JsonParser.hpp"
 #include "Scenario.hpp"
 
-using namespace Sagax::SCG::Json;
+using namespace Sagax::Json;
 
 namespace Sagax::SCG {
 
