@@ -585,8 +585,8 @@ namespace Sagax::SCG::Json {
 
             std::size_t size = ArraySize(j);
             Common::Assert(
-                ((!minSize.has_value()) || size >= minSize.value()) &&
-                ((!maxSize.has_value()) || size <= maxSize.value()),
+                ((!minSize.has_value()) || std::int32_t(size) >= minSize.value()) &&
+                ((!maxSize.has_value()) || std::int32_t(size) <= maxSize.value()),
                 std::format("Json array size {} out of expected range", size)
             );
 
@@ -608,8 +608,8 @@ namespace Sagax::SCG::Json {
         void Serialize(const std::vector<T> &t, const JsonView &j) const override {
             Common::Assert(bool(itemParser), "item parser not set");
             Common::Assert(
-                ((!minSize.has_value()) || t.size() >= minSize.value()) &&
-                ((!maxSize.has_value()) || t.size() <= maxSize.value()),
+                ((!minSize.has_value()) || std::int32_t(t.size()) >= minSize.value()) &&
+                ((!maxSize.has_value()) || std::int32_t(t.size()) <= maxSize.value()),
                 std::format("array size {} out of expected range", t.size())
             );
 

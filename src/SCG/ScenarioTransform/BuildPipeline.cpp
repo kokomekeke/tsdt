@@ -260,9 +260,9 @@ namespace Sagax::SCG {
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
             auto &output = ctx.outputs[io];
 
-            std::vector<std::vector<std::size_t>> channelMap;
+            std::vector<std::vector<std::int32_t>> channelMap;
             for(std::size_t ic = 0; ic < output.params.nChannels; ++ic) {
-                channelMap.push_back({ ic });
+                channelMap.push_back({ std::int32_t(ic) });
             }
             auto &merger = b.AddVertex<Merger>(output.params.nChannels, channelMap);
             merger.sampleRate = output.params.sampleRate;
@@ -309,7 +309,7 @@ namespace Sagax::SCG {
             auto &output = ctx.outputs[io];
             for(std::size_t ic = 0; ic < output.params.nChannels; ++ic) {
 
-                std::vector<std::vector<std::size_t>> channelMap;
+                std::vector<std::vector<std::int32_t>> channelMap;
                 for([[maybe_unused]] std::size_t il : output.lines[ic]) {
                     channelMap.push_back({ 0 });
                 }
@@ -352,10 +352,10 @@ namespace Sagax::SCG {
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
             auto &output = ctx.outputs[io];
 
-            std::vector<std::vector<std::size_t>> channelMap;
+            std::vector<std::vector<std::int32_t>> channelMap;
             for(std::size_t ic = 0; ic < output.lines.size(); ++ic) {
                 for(std::size_t il = 0; il < output.lines[ic].size(); ++il) {
-                    channelMap.push_back({ ic });
+                    channelMap.push_back({ std::int32_t(ic) });
                 }
             }
             auto &merger = b.AddVertex<Merger>(output.params.nChannels, channelMap);

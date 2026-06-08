@@ -33,7 +33,7 @@ namespace Sagax::SCG {
         }
 
         std::span<Item> Push(std::int32_t n) {
-            if(i != 0 && i + cnt + n > buffer.capacity()) {
+            if(i != 0 && i + cnt + n > std::int32_t(buffer.capacity())) {
                 std::copy_n(
                     buffer.begin() + i,
                     cnt,

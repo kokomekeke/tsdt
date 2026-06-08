@@ -139,11 +139,11 @@ namespace Sagax::SCG {
         scen.name = rid.metadata.name;
 
         std::map<std::string, std::int32_t> radioMap;
-        for(std::int32_t i = 0; i < cfg.radios.size(); ++i) {
+        for(std::int32_t i = 0; i < std::int32_t(cfg.radios.size()); ++i) {
             radioMap[cfg.radios[i].id] = i;
         }
 
-        for(std::int32_t i = 0; i < rid.radioSettings.size(); ++i) {
+        for(std::int32_t i = 0; i < std::int32_t(rid.radioSettings.size()); ++i) {
             auto &radioSettings = rid.radioSettings[i];
             auto &radio = cfg.radios[radioMap[radioSettings.radioId]];
             Scenario::Output output;
@@ -166,7 +166,7 @@ namespace Sagax::SCG {
         }
 
 
-        for(std::int32_t i = 0; i < rid.interferenceSources.size(); ++i) {
+        for(std::int32_t i = 0; i < std::int32_t(rid.interferenceSources.size()); ++i) {
             auto &source = rid.interferenceSources[i];
             Scenario::Signal signal;
             signal.name = std::format("s{:03}", i);

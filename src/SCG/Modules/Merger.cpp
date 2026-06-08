@@ -11,7 +11,7 @@ namespace Sagax::SCG {
 
     Merger::Merger(
         std::size_t nChannelsOut_,
-        std::vector<std::vector<std::size_t>> channelMap_
+        std::vector<std::vector<std::int32_t>> channelMap_
     ) :
         impl(std::make_unique<Impl>())
     {

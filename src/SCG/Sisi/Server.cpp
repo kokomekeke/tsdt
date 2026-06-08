@@ -89,8 +89,8 @@ private:
 #endif
         for(auto &v : config.radios) {
             if(std::holds_alternative<SCG::ServerConfig::Radio::UsrpB200>(v.variant)) {
-                auto &w = std::get<SCG::ServerConfig::Radio::UsrpB200>(v.variant);
 #ifdef HAVE_USRP
+                auto &w = std::get<SCG::ServerConfig::Radio::UsrpB200>(v.variant);
                 auto dev = SSG::UsrpB200::GetDevice(w.serial);
                 Common::Assert(bool(dev), "failed to initialize radio");
                 pipelineConfig.preinit.usrp.devices[w.serial] = std::move(dev);

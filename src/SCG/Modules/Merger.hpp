@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <memory>
+#include <cstdint>
 #include "Pipeline/Pipeline.hpp"
 #include "SSG/Math/Math.hpp"
 #include "Packets.hpp"
@@ -16,10 +17,10 @@ namespace Sagax::SCG {
 
         double sampleRate;
         std::size_t nChannelsOut;
-        std::vector<std::vector<std::size_t>> channelMap;
+        std::vector<std::vector<std::int32_t>> channelMap;
 
 
-        Merger(std::size_t nChannelsOut_, std::vector<std::vector<std::size_t>> channelMap_);
+        Merger(std::size_t nChannelsOut_, std::vector<std::vector<std::int32_t>> channelMap_);
         ~Merger();
 
         void Reset() override;

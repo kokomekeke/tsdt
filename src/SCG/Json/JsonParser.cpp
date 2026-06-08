@@ -51,7 +51,7 @@ namespace Sagax::SCG::Json {
             true, // ignore comments
             true // allow trailing commas
         );
-        return std::move(j);
+        return j;
     }
 
     std::string DumpJson(const JsonHandle &j, bool indent) {

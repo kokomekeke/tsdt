@@ -17,7 +17,7 @@ namespace Sagax::SCG {
         std::vector<Resource*>
     >
     GetOutputDevice(
-        const PipelineConfig &config,
+        [[maybe_unused]] const PipelineConfig &config,
         const OutputVariant &v
     ) {
         std::unique_ptr<OutputDevice> basePtr;

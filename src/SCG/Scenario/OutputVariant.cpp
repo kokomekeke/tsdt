@@ -5,7 +5,7 @@ namespace Sagax::SCG {
     OutputVariant::CommonParams OutputVariant::GetCommonParams() const {
         CommonParams params;
         bool found = false;
-        if(auto *s = std::get_if<Null>(&variant)){
+        if([[maybe_unused]] auto *s = std::get_if<Null>(&variant)){
             found = true;
             Common::Assert(false, "null output");
         }
