@@ -35,10 +35,6 @@ namespace Sagax::SCG {
             else {
                 radioIds[radio.id] = i;
             }
-
-            if(!std::holds_alternative<ServerConfig::Radio::UsrpB200>(radio.variant)) {
-                res.errors.push_back(std::format("radios[{}]: unknown radio type", i));
-            }
         }
 
         return res;
@@ -153,6 +149,15 @@ namespace Sagax::SCG {
                 OutputVariant::RadioUsrpB200 outputV;
                 outputV.serial = v.serial;
                 outputV.subdevSpec = "A:A";
+                outputV.gain = radioSettings.gain_db;
+                outputV.center = radioSettings.center_hz;
+                outputV.sampleRate = radioSettings.bandwidth_hz;
+                output.variant.variant = outputV;
+            }
+            if(std::holds_alternative<ServerConfig::Radio::Sidekiq>(radio.variant)) {
+                auto &v = std::get<ServerConfig::Radio::Sidekiq>(radio.variant);
+                OutputVariant::RadioSidekiq outputV;
+                outputV.serial = v.serial;
                 outputV.gain = radioSettings.gain_db;
                 outputV.center = radioSettings.center_hz;
                 outputV.sampleRate = radioSettings.bandwidth_hz;

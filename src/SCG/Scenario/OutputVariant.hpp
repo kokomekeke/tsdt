@@ -29,6 +29,7 @@ namespace Sagax::SCG {
             std::string serial;
             double sampleRate;
             double center;
+            double gain;
         };
 
         using T = std::variant<

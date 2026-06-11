@@ -116,6 +116,7 @@
     },
     "C_Cpp.errorSquiggles": "disabled",
     "C_Cpp.default.defines": [
-      "HAVE_USRP"
+      "HAVE_USRP",
+      "HAVE_SIDEKIQ"
     ]
 }

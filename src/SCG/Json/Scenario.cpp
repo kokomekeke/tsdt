@@ -32,12 +32,21 @@ namespace Sagax::SCG {
                     AddParam(&OutputVariant::RadioUsrpB200::gain, JsonPrimitiveParser<double>{}, "gain");
                 }
             };
+            struct RadioSidekiqParser : public JsonObjectParser<OutputVariant::RadioSidekiq> {
+                RadioSidekiqParser() {
+                    AddParam(&OutputVariant::RadioSidekiq::serial, JsonPrimitiveParser<std::string>{}, "serial");
+                    AddParam(&OutputVariant::RadioSidekiq::sampleRate, JsonPrimitiveParser<double>{}, "samplerate");
+                    AddParam(&OutputVariant::RadioSidekiq::center, JsonPrimitiveParser<double>{}, "frequency");
+                    AddParam(&OutputVariant::RadioSidekiq::gain, JsonPrimitiveParser<double>{}, "gain");
+                }
+            };
             struct OutputVariantParser : public JsonObjectParser<OutputVariant> {
                 struct VariantParser : public JsonVariantParser<OutputVariant::T> {
                     VariantParser() {
                         typeTagKey = "type";
                         AddAlt<OutputVariant::FileIQ>("File", std::nullopt, FileIQParser{});
                         AddAlt<OutputVariant::RadioUsrpB200>("UsrpB200", std::nullopt, RadioUsrpB200Parser{});
+                        AddAlt<OutputVariant::RadioSidekiq>("Sidekiq", std::nullopt, RadioSidekiqParser{});
                     }
                 };
                 OutputVariantParser() {

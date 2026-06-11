@@ -8,6 +8,7 @@
 #include "Common/Logger.hpp"
 #include "SCG/Output/FileOutputDevice.hpp"
 #include "SCG/Output/UsrpB200Device.hpp"
+#include "SCG/Output/SidekiqDevice.hpp"
 #include "Transform.hpp"
 
 namespace Sagax::SCG {
@@ -24,6 +25,14 @@ namespace Sagax::SCG {
         std::vector<Resource*> resources;
         if([[maybe_unused]] auto *s = std::get_if<OutputVariant::Null>(&v.variant)) {
             Common::Assert(false, "null output");
+        }
+        if(auto *s = std::get_if<OutputVariant::FileIQ>(&v.variant)) {
+            auto p = std::make_unique<FileOutputDevice>();
+            p->fileName = s->fileName;
+            p->nChannels = s->nChannels;
+            p->sampleRate = s->sampleRate;
+            p->center = s->center;
+            basePtr = std::move(p);
         }
         if([[maybe_unused]] auto *s = std::get_if<OutputVariant::RadioUsrpB200>(&v.variant)) {
 #ifdef HAVE_USRP
@@ -50,15 +59,30 @@ namespace Sagax::SCG {
             Common::Assert(false, "usrp output device not available");
 #endif
         }
-        if(auto *s = std::get_if<OutputVariant::FileIQ>(&v.variant)) {
-            auto p = std::make_unique<FileOutputDevice>();
-            p->fileName = s->fileName;
-            p->nChannels = s->nChannels;
+        if([[maybe_unused]] auto *s = std::get_if<OutputVariant::RadioSidekiq>(&v.variant)) {
+#if HAVE_SIDEKIQ
+            auto p = std::make_unique<Sidekiq>();
+            p->serial = s->serial;
             p->sampleRate = s->sampleRate;
             p->center = s->center;
+            p->gain = s->gain;
+            {
+                auto &u = config.preinit.sidekiq;
+                auto it = u.devices.find(s->serial);
+                if(it == u.devices.end()) {
+                    Common::Assert(!u.usePreinitOnly, "device was not preinitialized");
+                    p->dev = nullptr;
+                }
+                else {
+                    p->dev = it->second.get();
+                }
+            }
+            resources.push_back((Resource*)(p.get()));
             basePtr = std::move(p);
+#else
+            Common::Assert(false, "sidekiq output device not available");
+#endif
         }
-
         Common::Assert(bool(basePtr), "failed to create output device");
         return { std::move(basePtr), resources };
     }

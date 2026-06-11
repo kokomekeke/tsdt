@@ -5,7 +5,7 @@
 #include <memory>
 #include <complex>
 #include <string>
-#include "SSG/Radio/Usrp/UsrpB200.hpp"
+#include "SSG/Radio/Sidekiq/Sidekiq.hpp"
 #include "SCG/Utility/Resource.hpp"
 #include "SCG/Modules/Packets.hpp"
 #include "OutputDevice.hpp"
@@ -14,15 +14,14 @@ namespace Sagax::SCG {
 
     struct SidekiqDevice : public OutputDevice, public Resource {
         std::string serial;
-        std::string subdevSpec;
         double sampleRate;
         double center;
         double gain;
 
-        std::unique_ptr<SSG::UsrpB200::Device> devOwned; // null if the device is not owned by this
-        SSG::UsrpB200::Device *dev = nullptr; // the pointer that is actually used, it may point to the same as devOwned or another device
+        std::unique_ptr<SSG::Sidekiq::Device> devOwned; // null if the device is not owned by this
+        SSG::Sidekiq::Device *dev = nullptr; // the pointer that is actually used, it may point to the same as devOwned or another device
 
-        std::unique_ptr<SSG::UsrpB200::TxStream> stream;
+        // std::unique_ptr<SSG::Sidekiq::TxStream> stream;
 
         void Init_() override;
         void Dispose_() override;
