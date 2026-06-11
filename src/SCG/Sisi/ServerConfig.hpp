@@ -12,8 +12,13 @@ namespace Sagax::SCG {
                 std::string serial;
             };
 
+            struct Sidekiq {
+                std::string serial;
+            };
+
             using Variant = std::variant<
-                UsrpB200
+                UsrpB200,
+                Sidekiq
             >;
 
             std::string id;
