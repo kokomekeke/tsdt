@@ -1,0 +1,31 @@
+{
+    "duration": 5,
+    "outputs": [
+        {
+            "name": "r1",
+            "type": "UsrpB200",
+            "serial": "8001680",
+            "subdevSpec": "A:A",
+            "samplerate": 1000000,
+            "frequency": 1575000000.0,
+            "gain": 70.0
+        }
+    ],
+    "signals": [
+        {
+            "name": "s1",
+            "type": "Tone"
+        }
+    ],
+    "events": [
+        {
+            "signal": "s1",
+            "output": "r1",
+            "channel": 0,
+            "frequency": 1575000000.0,
+            "amplitude": 0.7,
+            "start": 0,
+            "end": 5
+        }
+    ]
+}

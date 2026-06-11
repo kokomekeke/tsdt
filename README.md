@@ -51,8 +51,25 @@ If new dependencies are used, upload the updated `vcpkg_installed` directory to 
 
 1. download mosquitto `https://mosquitto.org/download/` or use vcpkg (i guess)
 
-```
-meson setup build -DSSG:have_usrp=true -DSSG:use_oneapi=true -DIntelOneAPI:oneAPIDevPath=$HOME/intel/oneapi
+Ha összeakadnak az UHD verziók a rendszerben mert több is fel van telepítve érdemes lehet kikeresni a telepített verziót és kiexportálni a pathot
+~~~bash
+export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
+export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+~~~
+
+Ha nem megfelelő valamiért a gcc és a g++ verzió a linuxon akkor azt is ki kell exportálni meson setup előtt
+~~~bash
+export CC=gcc-13
+export CXX=g++-13
+~~~
+
+TODO: Az SgxExtRoot változó nálam nem működött mezonban ezt meg kell nézni miért nem működik.
+~~~bash
+export sgx_ext_path="/mnt/largeshare/temp/3rdparty/sgx-ext-20250120"
+~~~
+
+```bash
+meson setup build -DSSG:have_usrp=true -DSSG:use_oneapi=true -DIntelOneAPI:oneAPIDevPath=$HOME/intel/oneapi -DUHD:SgxExtRoot=sgx_ext_path
 cd build
 meson devenv
 meson compile
