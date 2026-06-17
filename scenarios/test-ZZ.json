@@ -1,31 +1,76 @@
 {
-    "duration": 5,
+    "duration": 1200,
     "outputs": [
         {
             "name": "r1",
             "type": "UsrpB200",
+            "serial": "8001820",
+            "subdevSpec": "A:A",
+            "samplerate": 40000000,
+            "frequency": 1558000000.0,
+            "gain": 90.0
+        },
+        {
+            "name": "r2",
+            "type": "UsrpB200",
+            "serial": "8002065",
+            "subdevSpec": "A:A",
+            "samplerate": 40000000,
+            "frequency": 1605000000.0,
+            "gain": 90.0
+        },
+        {
+            "name": "r3",
+            "type": "UsrpB200",
             "serial": "8001680",
             "subdevSpec": "A:A",
-            "samplerate": 1000000,
-            "frequency": 1575000000.0,
-            "gain": 70.0
+            "samplerate": 20000000,
+            "frequency": 1280000000.0,
+            "gain": 90.0
         }
     ],
     "signals": [
         {
             "name": "s1",
-            "type": "Tone"
+            "type": "Chirp",
+            "span": 30000000.0,
+            "rate": 3.0
+        },
+        {
+            "name": "s2",
+            "type": "Noise",
+            "span": 30000000.0
         }
+
     ],
     "events": [
         {
             "signal": "s1",
             "output": "r1",
             "channel": 0,
-            "frequency": 1575000000.0,
+            "frequency": 1558000000.0,
             "amplitude": 0.7,
             "start": 0,
-            "end": 5
+            "end": 1200
+        },
+        {
+            "signal": "s1",
+            "output": "r2",
+            "channel": 0,
+            "frequency": 1605000000.0,
+            "amplitude": 0.7,
+            "start": 0,
+            "end": 1200
+        },
+        {
+            "signal": "s1",
+            "output": "r3",
+            "channel": 0,
+            "frequency": 1280000000.0,
+            "amplitude": 0.7,
+            "start": 0,
+            "end": 1200
         }
     ]
 }
+
