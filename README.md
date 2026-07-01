@@ -103,7 +103,7 @@ TODO: Az SgxExtRoot változó nálam nem működött mezonban ezt meg kell nézn
 export sgx_ext_path="/mnt/largeshare/temp/3rdparty/sgx-ext-20250120"
 ~~~
 ### 4. Install CMAKE
-**Ubuntu:**~~~bash
+~~~bash
 # Ubumtu:
 sudo apt install cmake
 ~~~
@@ -113,7 +113,7 @@ sudo apt install cmake
 # Ubuntu:
 sudo apt install libcjson-dev
 ~~~
-### 5. Build
+### 6. Build
 ```bash
 meson setup build -DSSG:have_usrp=true -DSSG:use_oneapi=true -DIntelOneAPI:oneAPIDevPath=$oneAPIpath -DUHD:SgxExtRoot=sgx_ext_path
 cd build
