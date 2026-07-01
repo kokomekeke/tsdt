@@ -66,7 +66,7 @@ class LinuxPlatform(Platform):
         return [
             "-Db_lto=true",
             "-DSSG:use_oneapi=true",
-            "-Dhave_usrp=true",
+            "-DSSG:have_usrp=true",
             # these paths are container specific. TODO: get them from env
             "-DIntelOneAPI:oneAPIDevPath=/opt/intel/oneapi",
         ]
