@@ -77,14 +77,14 @@ sudo apt install intel-oneapi-toolkit
 export oneAPIpath="/opt/intel/oneapi"
 ~~~
 
-### 3. UHD dependency match
-**Installl UHD:**  
+### 3. UHD Install
 NOTE: Lehet érdemesebb ubuntun is inkább sourceból buildelni ezt majd meglátjuk
 ~~~bash
 # Ubuntu:
 sudo apt install libuhd-dev
 ~~~
 
+**UHD Dependency match**
 Ha összeakadnak az UHD verziók a rendszerben mert több is fel van telepítve érdemes lehet kikeresni a telepített verziót és kiexportálni a pathot
 ~~~bash
 export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
@@ -101,6 +101,16 @@ TODO: Az SgxExtRoot változó nálam nem működött mezonban ezt meg kell nézn
 ~~~bash
 # NOTE: use your path to the largeshare
 export sgx_ext_path="/mnt/largeshare/temp/3rdparty/sgx-ext-20250120"
+~~~
+
+**UHD linking error: (Ubuntu 24.04)**  
+Nálam elhasalt az UHD és nem tudta elcatchelni az exceptiont sem, mert linkelési hiba volt.
+a *meson.build*-ből kivettem a static linkelését a gcc-nek és az stdc-nek és utána futott rendesen.
+~~~bash
+cpp_args = []
+link_args = []
+# cpp_args = ['-static-libgcc', '-static-libstdc++']
+# link_args = ['-static-libgcc', '-static-libstdc++']
 ~~~
 ### 4. Install CMAKE
 ~~~bash

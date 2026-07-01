@@ -14,8 +14,13 @@ isWindows = host_machine.system() in [ 'windows' ]
 compiler = meson.get_compiler('cpp')
 if compiler.get_id() == 'gcc'
     message('Compiler: GCC')
-    cpp_args = ['-static-libgcc', '-static-libstdc++']
-    link_args = ['-static-libgcc', '-static-libstdc++']
+    # Ubuntu 24.04 with libuhd-dev dependency failed becouse of linking error.
+    # It was necessary to delete the static link flag from meson.
+    cpp_args = []
+    link_args = []
+    # This was the original linking strategy for gcc and std. If it's not working for you restore it.
+    # cpp_args = ['-static-libgcc', '-static-libstdc++']
+    # link_args = ['-static-libgcc', '-static-libstdc++']
 
     # non-oneapi resampler implementation is slow without these
     add_project_arguments(
