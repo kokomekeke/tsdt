@@ -61,7 +61,7 @@ namespace Sagax::SCG {
         }
         if([[maybe_unused]] auto *s = std::get_if<OutputVariant::RadioSidekiq>(&v.variant)) {
 #if HAVE_SIDEKIQ
-            auto p = std::make_unique<Sidekiq>();
+            auto p = std::make_unique<SidekiqDevice>();
             p->serial = s->serial;
             p->sampleRate = s->sampleRate;
             p->center = s->center;

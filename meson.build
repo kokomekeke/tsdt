@@ -70,6 +70,7 @@ scgLib = static_library(
         # 'src/SCG/Output/OutputDevice.cpp',
         'src/SCG/Output/FileOutputDevice.cpp',
         'src/SCG/Output/UsrpB200Device.cpp',
+        'src/SCG/Output/SidekiqDevice.cpp',
         'src/SCG/Scenario/OutputVariant.cpp',
         'src/SCG/Scenario/Validate.cpp',
         'src/SCG/ScenarioTransform/BuildPipeline.cpp',

@@ -132,7 +132,7 @@ cd build-uhd
 meson devenv
 meson compile
 ```
-### 6. Build - Sidekiq
+### 7. Build - Sidekiq
 ```bash
 meson setup build-sidekiq -DSSG:have_sidekiq=true -DSSG:use_oneapi=true -DIntelOneAPI:oneAPIDevPath=$oneAPIpath -DSSG:SgxExtRoot="$sgx_ext_path"
 cd build-sidekiq

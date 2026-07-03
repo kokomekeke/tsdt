@@ -8,6 +8,10 @@
 #include "SSG/Radio/Usrp/UsrpB200.hpp"
 #endif
 
+#ifdef HAVE_SIDEKIQ
+#include "SSG/Radio/Sidekiq/Sidekiq.hpp"
+#endif
+
 namespace Sagax::SCG {
 
     struct PipelineConfig {
@@ -22,9 +26,10 @@ namespace Sagax::SCG {
 
             #ifdef HAVE_SIDEKIQ
             struct Sidekiq {
-                bool preinitOnly;
-                std::map<std::strin, std::unique_ptr<SSG::Sidekiq::Device>> devices; // serial -> device
-            }
+                bool usePreinitOnly;
+                std::map<std::string, std::unique_ptr<SSG::Sidekiq::Device>> devices; // serial -> device
+            };
+            Sidekiq sidekiq;
             #endif
         };
 
