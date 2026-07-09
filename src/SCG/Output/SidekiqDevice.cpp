@@ -17,7 +17,7 @@ namespace Sagax::SCG {
     void SidekiqDevice::Init_() {
         if(dev == nullptr) {
             devOwned.reset();
-            devOwned = SSG::Sidekiq::GetDevice(serial);
+            devOwned = SSG::Sidekiq::GetDevice();
             dev = devOwned.get();
         }
         Common::Assert(dev, " device was not initialized");
