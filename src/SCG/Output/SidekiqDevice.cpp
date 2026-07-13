@@ -1,4 +1,4 @@
-#ifdef HAVE_USRP
+#ifdef HAVE_SIDEKIQ
 
 #include <thread>
 #include <vector>
@@ -9,7 +9,7 @@
 #include "Common/Logger.hpp"
 #include "SSG/Math/Math.hpp"
 #include "OutputDevice.hpp"
-#include "Sidekiq.hpp"
+#include "SidekiqDevice.hpp"
 
 namespace Sagax::SCG {
 
@@ -17,7 +17,7 @@ namespace Sagax::SCG {
     void SidekiqDevice::Init_() {
         if(dev == nullptr) {
             devOwned.reset();
-            devOwned = SSG::UsrpB200::GetDevice(serial);
+            devOwned = SSG::Sidekiq::GetDevice();
             dev = devOwned.get();
         }
         Common::Assert(dev, " device was not initialized");

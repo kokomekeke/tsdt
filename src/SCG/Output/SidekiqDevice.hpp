@@ -21,7 +21,7 @@ namespace Sagax::SCG {
         std::unique_ptr<SSG::Sidekiq::Device> devOwned; // null if the device is not owned by this
         SSG::Sidekiq::Device *dev = nullptr; // the pointer that is actually used, it may point to the same as devOwned or another device
 
-        // std::unique_ptr<SSG::Sidekiq::TxStream> stream;
+        std::unique_ptr<SSG::Sidekiq::TxStream> stream;
 
         void Init_() override;
         void Dispose_() override;
