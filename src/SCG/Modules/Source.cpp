@@ -125,7 +125,7 @@ namespace Sagax::SCG {
         fileAdapter.doLog = false;
         fileAdapter.filename = fileName;
         fileAdapter.mode = SSG::IO::FilePlaybackMode::File{};
-        fileAdapter.Start();
+        fileAdapter.Open();
     }
 
     void PlaybackSource::Stop() {
@@ -134,7 +134,7 @@ namespace Sagax::SCG {
 
     void PlaybackSource::Process() {
         std::size_t nSamplesNow = nSamples;
-        std::size_t iSample = fileAdapter.nSamplesTotal;
+        std::size_t iSample = fileAdapter.GetSeek();
         MEventTag m;
 
         for(std::size_t i = 0; i < events.events.size(); ++i) {

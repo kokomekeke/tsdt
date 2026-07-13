@@ -1,5 +1,5 @@
 #pragma once
-#ifdef HAVE_USRP
+#ifdef HAVE_SIDEKIQ
 
 #include <vector>
 #include <memory>
