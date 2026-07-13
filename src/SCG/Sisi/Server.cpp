@@ -356,7 +356,10 @@ public:
     }
 
     void Main(int argc, char **argv) {
-        Common::StdLogStream logStream(std::cerr, Common::Logger::Level::Trace, {});
+        Common::StdLogStream logStream(std::cerr, Common::Logger::Level::Trace, Common::StdLogStream::TagOptions{
+            .file = true,
+            .function = true
+        });
         Common::Logger::AddStream(&logStream);
         Common::Defer disposeLogger([&](){
             Common::Logger::RemoveStream(&logStream);
