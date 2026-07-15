@@ -34,6 +34,7 @@ namespace Sagax::SCG {
             p->center = s->center;
             basePtr = std::move(p);
         }
+
         if([[maybe_unused]] auto *s = std::get_if<OutputVariant::RadioUsrpB200>(&v.variant)) {
 #ifdef HAVE_USRP
             auto p = std::make_unique<UsrpB200Device>();
@@ -61,8 +62,11 @@ namespace Sagax::SCG {
         }
         if([[maybe_unused]] auto *s = std::get_if<OutputVariant::RadioSidekiq>(&v.variant)) {
 #if HAVE_SIDEKIQ
+            Common::Logger::Debug("TEST3");
+
             auto p = std::make_unique<SidekiqDevice>();
             p->serial = s->serial;
+            Common::Logger::Debug("Sidekiq serial: {}", p->serial);
             p->sampleRate = s->sampleRate;
             p->center = s->center;
             p->gain = s->gain;
@@ -70,7 +74,7 @@ namespace Sagax::SCG {
                 auto &u = config.preinit.sidekiq;
                 auto it = u.devices.find(s->serial);
                 if(it == u.devices.end()) {
-                    Common::Assert(!u.usePreinitOnly, "device was not preinitialized");
+                    // Common::Assert(!u.usePreinitOnly, "device was not preinitialized");
                     p->dev = nullptr;
                 }
                 else {

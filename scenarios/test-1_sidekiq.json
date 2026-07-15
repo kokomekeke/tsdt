@@ -1,0 +1,33 @@
+{
+    "duration": 120,
+    "outputs": [
+        {
+            "name": "r1",
+            "type": "Sidekiq",
+            "serial": "B161",
+            "subdevSpec": "A:A",
+            "samplerate": 10000000,
+            "frequency": 1575420000.0,
+            "gain": 89.75
+        }
+    ],
+    "signals": [
+        {
+            "name": "s1",
+            "type": "Chirp",
+            "span": 10000000,
+            "rate": 3.0
+        }
+    ],
+    "events": [
+        {
+            "signal": "s1",
+            "output": "r1",
+            "channel": 0,
+            "frequency": 1575420000.0,
+            "amplitude": 0.8,
+            "start": 0,
+            "end": 120
+        },
+    ]
+}
