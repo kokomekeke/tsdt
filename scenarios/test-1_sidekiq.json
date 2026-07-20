@@ -5,7 +5,7 @@
             "name": "r1",
             "type": "Sidekiq",
             "serial": "B161",
-            "subdevSpec": "A:A",
+            "subdevSpec": "A1",
             "samplerate": 10000000,
             "frequency": 1575420000.0,
             "gain": 89.75

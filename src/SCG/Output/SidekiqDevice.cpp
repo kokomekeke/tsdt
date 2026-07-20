@@ -15,28 +15,31 @@ namespace Sagax::SCG {
 
 
     void SidekiqDevice::Init_() {
-        if(sidekiqManager == nullptr) {
+        static bool sidekiqInitialized = false;
+        if(sidekiqManager == nullptr || sidekiqInitialized == false) {
+            // the sidekiq api is unique you can initialize only once
             sidekiqManager = std::make_unique<SSG::Sidekiq::SidekiqManager>();
             sidekiqManager->Init();
+            sidekiqInitialized = true;
         }
         if(dev == nullptr) {
             devOwned.reset();
             devOwned = SSG::Sidekiq::GetDevice(serial);
             dev = devOwned.get();
         }
-        Common::Assert(dev, " device was not initialized");
+        Common::Assert(dev, "sidekiq device was not initialized");
 
         SSG::Sidekiq::DeviceParams params;
-        params.nChannels = 2;
+        params.nChannels = 1;
         params.sampleRate = sampleRate;
         params.txFreq = center;
         params.rxParams.resize(1);
         params.txParams.resize(1);
         params.txParams[0].configure = true;
         params.txParams[0].gain = gain;
-        params.txParams[0].antenna = "TX/RX";
-        // dev->Configure(params);
-        // Common::Assert(std::abs(dev->params.sampleRate - sampleRate) < 1.0, "could not set samplerate");
+        params.txParams[0].antenna = "A1";
+        dev->Configure(params);
+        // Common::Assert(std::abs(dev->parasidekiqInitializedms.sampleRate - sampleRate) < 1.0, "could not set samplerate");
         // Common::Assert(std::abs(dev->params.txFreq - center) < 1.0, "could not set frequency");
         // if(abs(dev->params.txParams[0].gain - gain) >= 1.0) {
         //     Common::Logger::Warn("could not set gain");

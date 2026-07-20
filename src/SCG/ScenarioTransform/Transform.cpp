@@ -38,6 +38,7 @@ namespace Sagax::SCG {
         if([[maybe_unused]] auto *s = std::get_if<OutputVariant::RadioUsrpB200>(&v.variant)) {
 #ifdef HAVE_USRP
             auto p = std::make_unique<UsrpB200Device>();
+            Common::Logger::Debug("s->serial:{}",s->serial);
             p->serial = s->serial;
             p->subdevSpec = s->subdevSpec;
             p->sampleRate = s->sampleRate;

@@ -14,10 +14,12 @@ namespace Sagax::SCG {
 
     struct SidekiqDevice : public OutputDevice, public Resource {
         std::string serial;
+        
         double sampleRate;
         double center;
         double gain;
         std::unique_ptr<SSG::Sidekiq::SidekiqManager> sidekiqManager;
+        static bool sidekiqInitialized;
         std::unique_ptr<SSG::Sidekiq::Device> devOwned; // null if the device is not owned by this
         SSG::Sidekiq::Device *dev = nullptr; // the pointer that is actually used, it may point to the same as devOwned or another device
 
