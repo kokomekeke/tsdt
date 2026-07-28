@@ -61,6 +61,7 @@ namespace Sagax::SCG {
     void SidekiqDevice::Start() {
         Common::Logger::Debug("Start");
         Common::Assert(dev != nullptr, "device is not set up");
+        // TODO: Ezt át kell alakítani igazából a sideiq le tudja kezelni a több különálló channelt párhuzamosan.
         stream = dev->GetTxStream({ 0 });
     }
 
@@ -77,7 +78,7 @@ namespace Sagax::SCG {
             Common::Logger::Debug("Start");
         }
         
-        Common::Assert(packet.nChannels == 1, "only 1 channel is allowed");
+        Common::Assert(packet.nChannels <= 2, "maximum 2 channel is allowed");
         // assert samplerate
 
         if(packet.null) {
