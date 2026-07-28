@@ -30,20 +30,25 @@ namespace Sagax::SCG {
         Common::Assert(dev, "sidekiq device was not initialized");
 
         SSG::Sidekiq::DeviceParams params;
-        params.nChannels = 1;
+        // TODO: ne legyen már hardcodeolva a channel number
+        params.nChannels = 2;
         params.sampleRate = sampleRate;
         params.txFreq = center;
-        params.rxParams.resize(1);
-        params.txParams.resize(1);
+        // TODO: Itt se legyen hardcodeolva a ch number
+        params.rxParams.resize(2);
+        params.txParams.resize(2);
         params.txParams[0].configure = true;
         params.txParams[0].gain = gain;
         params.txParams[0].antenna = "A1";
+        params.txParams[1].configure = true;
+        params.txParams[1].gain = gain;
+        params.txParams[1].antenna = "B1";
         dev->Configure(params);
-        // Common::Assert(std::abs(dev->parasidekiqInitializedms.sampleRate - sampleRate) < 1.0, "could not set samplerate");
-        // Common::Assert(std::abs(dev->params.txFreq - center) < 1.0, "could not set frequency");
-        // if(abs(dev->params.txParams[0].gain - gain) >= 1.0) {
-        //     Common::Logger::Warn("could not set gain");
-        // }
+        Common::Assert(std::abs(dev->params.sampleRate - sampleRate) < 1.0, "could not set samplerate");
+        Common::Assert(std::abs(dev->params.txFreq - center) < 1.0, "could not set frequency");
+        if(abs(dev->params.txParams[0].gain - gain) >= 1.0) {
+            Common::Logger::Warn("could not set gain");
+        }
     }
 
     void SidekiqDevice::Dispose_() {
@@ -54,15 +59,24 @@ namespace Sagax::SCG {
     }
 
     void SidekiqDevice::Start() {
+        Common::Logger::Debug("Start");
         Common::Assert(dev != nullptr, "device is not set up");
         stream = dev->GetTxStream({ 0 });
     }
 
     void SidekiqDevice::Stop() {
+        Common::Logger::Debug("Start");
         stream.reset();
     }
 
     void SidekiqDevice::Take(SCGIQPacket &packet) {
+        static uint32_t counter = 0;
+        counter++;
+        if (counter % 10000 == 0)
+        {
+            Common::Logger::Debug("Start");
+        }
+        
         Common::Assert(packet.nChannels == 1, "only 1 channel is allowed");
         // assert samplerate
 
@@ -76,7 +90,7 @@ namespace Sagax::SCG {
             std::this_thread::sleep_for(duration); // likely not the way we should be doing this
         }
         else {
-            // stream->Burst(packet.nSamples, std::as_const(packet).GetChannels());
+            stream->Burst(packet.nSamples, std::as_const(packet).GetChannels());
         }
 
     }
