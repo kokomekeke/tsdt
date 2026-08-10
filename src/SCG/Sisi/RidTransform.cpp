@@ -154,7 +154,7 @@ namespace Sagax::SCG {
                 outputV.sampleRate = radioSettings.bandwidth_hz;
                 output.variant.variant = outputV;
             }
-            if(std::holds_alternative<ServerConfig::Radio::Sidekiq>(radio.variant)) {
+            else if(std::holds_alternative<ServerConfig::Radio::Sidekiq>(radio.variant)) {
                 auto &v = std::get<ServerConfig::Radio::Sidekiq>(radio.variant);
                 OutputVariant::RadioSidekiq outputV;
                 outputV.serial = v.serial;
