@@ -27,9 +27,10 @@ namespace Sagax::SCG {
 
         struct RadioSidekiq {
             std::string serial;
+            std::size_t nChannels;
             double sampleRate;
-            double center;
-            double gain;
+            std::vector<double> centers;
+            std::vector<double> gains;
         };
 
         using T = std::variant<

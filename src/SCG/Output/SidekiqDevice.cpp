@@ -42,7 +42,7 @@ namespace Sagax::SCG {
     }
 
     void SidekiqDevice::Take(SCGIQPacket &packet) {
-        Common::Assert(packet.nChannels == 1, "only 1 channel is allowed");
+        Common::Assert(packet.nChannels == nChannels, "wrong number of channels");
         // assert samplerate
 
         if(packet.null) {

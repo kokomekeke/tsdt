@@ -64,8 +64,8 @@ namespace Sagax::SCG {
             auto p = std::make_unique<SidekiqDevice>();
             p->serial = s->serial;
             p->sampleRate = s->sampleRate;
-            p->center = s->center;
-            p->gain = s->gain;
+            p->centers = s->centers;
+            p->gains = s->gains;
             {
                 auto &u = config.preinit.sidekiq;
                 auto it = u.devices.find(s->serial);

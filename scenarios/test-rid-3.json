@@ -12,16 +12,17 @@
     "radio_settings": [
         {
             "radio_id": "r0",
-            "type": "transmitter",
-            "center_frequency_hz": 434500000.0,
+            "channels": 1,
             "bandwidth_hz": 1000000.0,
-            "gain_db": 70.0
+            "center_frequencies_hz": [ 434500000.0 ],
+            "gains_db": [ 70.0 ]
         }
     ],
     "interference_sources": [
         {
             "type": "cw_jammer",
             "radio_id": "r0",
+            "channel_id": 0,
             "center_frequency_hz": 434500000.0,
             "power_dbm": 11,
             "start_time_s": 0.3,

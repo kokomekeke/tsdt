@@ -14,14 +14,14 @@ namespace Sagax::SCG {
         if(auto *s = std::get_if<RadioUsrpB200>(&variant)) {
             found = true;
             params.nChannels = 1;
-            params.centers = { s->center };
             params.sampleRate = s->sampleRate;
+            params.centers = { s->center };
         }
         if(auto *s = std::get_if<RadioSidekiq>(&variant)) {
             found = true;
-            params.nChannels = 1;
-            params.centers = { s->center };
+            params.nChannels = s->nChannels;
             params.sampleRate = s->sampleRate;
+            params.centers = s->centers;
         }
         if([[maybe_unused]] auto *s = std::get_if<Null>(&variant)){
             found = true;

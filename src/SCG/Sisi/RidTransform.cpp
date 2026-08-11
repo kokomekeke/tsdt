@@ -73,11 +73,25 @@ namespace Sagax::SCG {
                 usedRadioSettings[radioSetting.radioId] = i;
             }
 
+            if(radioSetting.nChannels < 0) {
+                res.errors.push_back(std::format("radioSettings[{}]: negative number of channels", i));
+            }
+
             if(radioSetting.bandwidth_hz <= 0.0) {
                 res.errors.push_back(std::format("radioSettings[{}]: bandwidth_hz must be positive", i));
             }
-            if(radioSetting.center_hz <= 0.0) {
-                res.errors.push_back(std::format("radioSettings[{}]: center_hz must be positive", i));
+
+            if(radioSetting.centers_hz.size() != radioSetting.nChannels) {
+                res.errors.push_back(std::format("radioSettings[{}]: centers_hz array has wrong size", i));
+            }
+            for(double center : radioSetting.centers_hz) {
+                if(center <= 0.0) {
+                    res.errors.push_back(std::format("radioSettings[{}]: center must be positive", i));
+                }
+            }
+
+            if(radioSetting.gains_db.size() != radioSetting.nChannels) {
+                res.errors.push_back(std::format("radioSettings[{}]: gains_db array has wrong size", i));
             }
         }
 
@@ -89,6 +103,13 @@ namespace Sagax::SCG {
             }
             else if(radioIds.count(source.radioId) == 0) {
                 res.errors.push_back(std::format("interferenceSources[{}]: unknown radioId: {}", i, source.radioId.c_str()));
+            }
+
+            if(source.channelId < 0) {
+                res.errors.push_back(std::format("interferenceSources[{}]: negative channel id", i));
+            }
+            else if(radioIds.count(source.radioId) > 0 && source.channelId >= rid.radioSettings[radioIds[source.radioId]].nChannels) {
+                res.errors.push_back(std::format("interferenceSources[{}]: channel id out of range: {}", i, source.channelId));
             }
 
             if(source.startTime_s < 0.0) {
@@ -120,7 +141,7 @@ namespace Sagax::SCG {
                 }
             }
             else if(std::holds_alternative<Rid::InterferenceSource::Spoofing>(source.variant)) {
-                res.errors.push_back(std::format("interferenceSources[{}]: spoofing is not supported", i));
+                res.errors.push_back(std::format("interferenceSources[{}]: spoofing is not yet supported", i));
             }
         }
 
@@ -149,18 +170,19 @@ namespace Sagax::SCG {
                 OutputVariant::RadioUsrpB200 outputV;
                 outputV.serial = v.serial;
                 outputV.subdevSpec = "A:A";
-                outputV.gain = radioSettings.gain_db;
-                outputV.center = radioSettings.center_hz;
                 outputV.sampleRate = radioSettings.bandwidth_hz;
+                outputV.gain = radioSettings.gains_db[0];
+                outputV.center = radioSettings.centers_hz[0];
                 output.variant.variant = outputV;
             }
             else if(std::holds_alternative<ServerConfig::Radio::Sidekiq>(radio.variant)) {
                 auto &v = std::get<ServerConfig::Radio::Sidekiq>(radio.variant);
                 OutputVariant::RadioSidekiq outputV;
+                // use radioSettings.nChannels here
                 outputV.serial = v.serial;
-                outputV.gain = radioSettings.gain_db;
-                outputV.center = radioSettings.center_hz;
                 outputV.sampleRate = radioSettings.bandwidth_hz;
+                outputV.centers = radioSettings.centers_hz;
+                outputV.gains = radioSettings.gains_db;
                 output.variant.variant = outputV;
             }
             else {
@@ -204,7 +226,7 @@ namespace Sagax::SCG {
             event.signalName = signal.name;
             event.outputName = source.radioId;
             event.frequency = source.center_hz;
-            event.iChannel = 0;
+            event.iChannel = source.channelId;
             event.start = source.startTime_s;
             event.end = source.endTime_s;
             event.amplitude = std::pow(10.0, source.power_dbm / 10.0); // this is flawed
