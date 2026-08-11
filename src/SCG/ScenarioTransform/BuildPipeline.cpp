@@ -144,6 +144,7 @@ namespace Sagax::SCG {
             std::vector<Resource*> resources;
         };
         OutputPipeline BuildOutputStream(const PipelineConfig &config, ScenarioCtx &scen, std::size_t iOutput) {
+            Common::Logger::Debug("BuildOutputStream Start");
             auto &output = scen.outputs[iOutput];
             SimplePipelineBuilder b;
             auto &sink = b.AddVertex<StreamSink>();
@@ -152,7 +153,7 @@ namespace Sagax::SCG {
             sink.dev = std::move(dev);
             sink.eventStart = config.events.eventStart;
             sink.eventEnd = config.events.eventEnd;
-
+            Common::Logger::Debug("BuildOutputStream End");
             return { std::move(b), &sink.inP, rsc };
         }
         OutputPipeline BuildOutputRecord(ScenarioCtx &scen, const RecordingDirectoryResource &recordingDirectory, std::size_t iOutput, std::size_t iChannel) {
@@ -232,6 +233,7 @@ namespace Sagax::SCG {
         const PipelineConfig &config,
         const std::string &recordingDirectory
     ) {
+        Common::Logger::Debug("Start");
         auto dir = std::make_unique<RecordingDirectoryResource>();
         dir->SetupRead(recordingDirectory);
 
@@ -243,9 +245,12 @@ namespace Sagax::SCG {
 
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
             auto p = BuildOutputStream(config, ctx, io);
+
             b = SimplePipelineBuilder::Merge(std::move(b), std::move(p.b));
             resources.insert(resources.end(), p.resources.begin(), p.resources.end());
             outputPipelines.push_back(std::move(p));
+
+            Common::Logger::Debug("BuildOutputStream Successfull");
         }
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
             auto &output = ctx.outputs[io];
@@ -272,6 +277,7 @@ namespace Sagax::SCG {
             }
             b.AddEdge(merger.outP, *outputPipelines[io].port);
         }
+        Common::Logger::Debug("End");
         return { std::move(b), resources, std::move(dir) };
     }
 
