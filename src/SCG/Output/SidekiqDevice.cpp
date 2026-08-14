@@ -49,9 +49,9 @@ namespace Sagax::SCG {
         }
         dev->Configure(params);
         Common::Assert(std::abs(dev->params.sampleRate - sampleRate) < 1.0, "could not set samplerate");
-        Common::Assert(std::abs(dev->params.txFreq - center[0]) < 1.0, "could not set frequency");
+        Common::Assert(std::abs(dev->params.txFreq - centers[0]) < 1.0, "could not set frequency");
         for(std::int32_t i = 0; i < nChannels; ++i) {
-            if(std::abs(dev->params.txParams[i].gain - gain) >= 1.0) {
+            if(std::abs(dev->params.txParams[i].gain - gains[i]) >= 1.0) {
                 Common::Logger::Warn("could not set gain");
             }
         }

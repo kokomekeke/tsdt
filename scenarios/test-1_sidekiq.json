@@ -4,11 +4,21 @@
         {
             "name": "r1",
             "type": "Sidekiq",
-            "serial": "B161",
-            "subdevSpec": "A1",
+            "serial": "B15Y",
+            "nChannels": 2,
+            "handlers": ["A1", "B1"],
             "samplerate": 10000000,
-            "frequency": 1575420000.0,
-            "gain": 89.75
+            "frequencies": [1575420000.0, 1000000000.0],
+            "gains": [89.75, 89.75]
+        },
+        {
+            "name": "r2",
+            "type": "Sidekiq",
+            "serial": "B15W",
+            "nChannels": 2,
+            "samplerate": 10000000,
+            "frequencies": [1575420000.0, 1111110000.0],
+            "gains": [89.75, 89.75]
         }
     ],
     "signals": [
@@ -28,6 +38,6 @@
             "amplitude": 0.8,
             "start": 0,
             "end": 120
-        },
+        }
     ]
 }

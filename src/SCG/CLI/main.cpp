@@ -73,7 +73,7 @@ struct Program {
                 Common::Logger::Info("validation successful");
             }
         }
-
+        Common::Logger::Info("scenario name: {}", scenario.name.c_str());
         return scenario;
     }
 
@@ -116,8 +116,8 @@ struct Program {
         Common::Logger::Info("SCG");
 
         Configure();
-
         ScenarioRunnerContext ctx;
+        Common::Logger::Debug("mode: {}", (params.mode == Parameters::Mode::stream ? "stream" : (params.mode == Parameters::Mode::record ? "record" : "playback")));
         try {
             switch(params.mode) {
                 case Parameters::Mode::playback: { ctx = SetupPlayback(params.recordingDirectory); } break;

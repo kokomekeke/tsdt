@@ -55,13 +55,16 @@ namespace Sagax::SCG {
         };
 
         ScenarioCtx SortScenario(const Scenario &scen) {
+            Common::Logger::Debug("Start");
             std::vector<OutputCtx> outputs;
             for(auto &o : scen.outputs) {
                 auto params = o.variant.GetCommonParams();
+                Common::Logger::Debug("Output {}: nChannels {}, sampleRate {}", o.name.c_str(), params.nChannels, params.sampleRate);
                 outputs.push_back({ o, params, std::vector<std::vector<std::size_t>>(params.nChannels) });
             }
 
             std::vector<EventCtx> events;
+            Common::Logger::Debug("sorting events");
             for(std::size_t ie = 0; ie < scen.events.size(); ++ie) {
                 auto &e = scen.events[ie];
                 std::size_t iOutput = std::find_if(scen.outputs.begin(), scen.outputs.end(), [&](const Scenario::Output &o) { return o.name == e.outputName; }) - scen.outputs.begin();
@@ -70,10 +73,12 @@ namespace Sagax::SCG {
                 Common::Assert(iOutput < scen.outputs.size(), "missing output");
                 Common::Assert(iSignal < scen.signals.size(), "missing signal");
                 Common::Assert(iChannel < scen.outputs[iOutput].variant.GetCommonParams().nChannels, "channel index out of range");
+                Common::Logger::Debug("Event {}: output {}, signal {}, channel {}", ie, iOutput, iSignal, iChannel);
                 events.push_back({ e, ie, iOutput, iSignal, iChannel });
             }
             std::sort(events.begin(), events.end(), [&](const EventCtx &e1, const EventCtx &e2) { return e1.event.start < e2.event.start; });
 
+            Common::Logger::Debug("events sorted");
             std::vector<LineCtx> lines;
             for(std::size_t ie = 0; ie < events.size(); ++ie) {
                 auto &e = events[ie];
@@ -112,7 +117,7 @@ namespace Sagax::SCG {
                     }
                 }
             }
-
+            Common::Logger::Debug("Finished");
             return { scen, outputs, events, lines };
         }
 
@@ -384,6 +389,7 @@ namespace Sagax::SCG {
             }
             b.AddEdge(merger.outP, *outputPipelines[io].port);
         }
+        Common::Logger::Debug("BuildStreamingPipeline Finished");
         return { std::move(b), resources };
     }
 
