@@ -17,6 +17,7 @@ namespace Sagax::SCG {
 
         double sampleRate;
         std::size_t nChannels;
+        std::vector<std::string> handlers;
         std::vector<double> centers;
         std::vector<double> gains;
 
