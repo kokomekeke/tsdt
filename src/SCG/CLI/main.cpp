@@ -117,7 +117,6 @@ struct Program {
 
         Configure();
         ScenarioRunnerContext ctx;
-        Common::Logger::Debug("mode: {}", (params.mode == Parameters::Mode::stream ? "stream" : (params.mode == Parameters::Mode::record ? "record" : "playback")));
         try {
             switch(params.mode) {
                 case Parameters::Mode::playback: { ctx = SetupPlayback(params.recordingDirectory); } break;

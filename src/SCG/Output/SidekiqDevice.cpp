@@ -36,10 +36,6 @@ namespace Sagax::SCG {
         // TODO handler setup should go in the config
         // also there could be more antennas and this number should be checked in the validation, not here        
         Common::Assert(nChannels >= 2, std::format("too many channels, nChannels: {}", nChannels));
-        for (int8_t chan = 0; chan < nChannels; chan++)
-        {
-            Common::Logger::Debug("nChannels: {}, sampleRate: {}, txFreq: {}, handlers: {}, gain: {}", nChannels, sampleRate, centers[chan], handlers[chan], gains[chan]);
-        }
 
         params.txParams.resize(nChannels);
         params.rxParams.resize(nChannels);
@@ -70,25 +66,16 @@ namespace Sagax::SCG {
     }
 
     void SidekiqDevice::Start() {
-        Common::Logger::Debug("Start");
         Common::Assert(dev != nullptr, "device is not set up");
         // TODO: Ezt át kell alakítani igazából a sideiq le tudja kezelni a több különálló channelt párhuzamosan.
         stream = dev->GetTxStream({ 0 });
     }
 
     void SidekiqDevice::Stop() {
-        Common::Logger::Debug("Start");
         stream.reset();
     }
 
     void SidekiqDevice::Take(SCGIQPacket &packet) {
-        static uint32_t counter = 0;
-        counter++;
-        if (counter % 10000 == 0)
-        {
-            Common::Logger::Debug("Start");
-        }
-
         Common::Assert(packet.nChannels == nChannels, "wrong number of channels");
         // assert samplerate
 
