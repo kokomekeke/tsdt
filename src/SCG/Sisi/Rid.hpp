@@ -26,7 +26,7 @@ namespace Sagax::SCG {
             std::int32_t nChannels;
             double bandwidth_hz;
             std::vector<double> centers_hz;
-            std::vector<double> gains_db;
+            double gain_db;
         };
 
         struct InterferenceSource {

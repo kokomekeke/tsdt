@@ -89,10 +89,6 @@ namespace Sagax::SCG {
                     res.errors.push_back(std::format("radioSettings[{}]: center must be positive", i));
                 }
             }
-
-            if(radioSetting.gains_db.size() != radioSetting.nChannels) {
-                res.errors.push_back(std::format("radioSettings[{}]: gains_db array has wrong size", i));
-            }
         }
 
         for(std::size_t i = 0; i < rid.interferenceSources.size(); ++i) {
@@ -171,7 +167,7 @@ namespace Sagax::SCG {
                 outputV.serial = v.serial;
                 outputV.subdevSpec = "A:A";
                 outputV.sampleRate = radioSettings.bandwidth_hz;
-                outputV.gain = radioSettings.gains_db[0];
+                outputV.gain = radioSettings.gain_db;
                 outputV.center = radioSettings.centers_hz[0];
                 output.variant.variant = outputV;
             }
@@ -182,7 +178,7 @@ namespace Sagax::SCG {
                 outputV.serial = v.serial;
                 outputV.sampleRate = radioSettings.bandwidth_hz;
                 outputV.centers = radioSettings.centers_hz;
-                outputV.gains = radioSettings.gains_db;
+                outputV.gain = radioSettings.gain_db;
                 output.variant.variant = outputV;
             }
             else {

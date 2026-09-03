@@ -1,0 +1,88 @@
+{
+    "duration": 40.0,
+    "outputs": [
+        {
+            "name": "r1",
+            "type": "Sidekiq",
+            "serial": "B15Y",
+            "nChannels": 2,
+            "samplerate": 1000000,
+	    "handlers": ["A1", "B1"],
+            "frequencies": [1200000000.0, 1200200000.0],
+            "gain": 89.75
+        },
+        {
+            "name": "r2",
+            "type": "Sidekiq",
+            "serial": "B15W",
+            "nChannels": 2,
+            "samplerate": 1000000,
+	    "handlers": ["A1", "B1"],
+            "frequencies": [1200400000.0, 1200600000.0],
+            "gain": 69.75
+        }
+    ],
+    "signals": [
+        {
+            "name": "s1",
+            "type": "Chirp",
+            "span": 1000000,
+            "rate": 10.0
+        },
+        {
+            "name": "s2",
+            "type": "Pulse",
+            "duty": 0.2,
+            "rate": 0.5
+        },
+        {
+            "name": "s3",
+            "type": "Noise",
+            "span": 400000.0
+        },
+	{
+            "name": "s4",
+            "type": "Tone"
+        }
+
+
+    ],
+    "events": [
+        {
+            "signal": "s1",
+            "output": "r1",
+            "channel": 0,
+            "frequency": 1200000000.0,
+            "amplitude": 0.8,
+            "start": 0,
+            "end": 10
+        },
+        {
+            "signal": "s2",
+            "output": "r1",
+            "channel": 1,
+            "frequency": 1200200000.0,
+            "amplitude": 0.8,
+            "start": 10,
+            "end": 20
+        },
+        {
+            "signal": "s3",
+            "output": "r2",
+            "channel": 0,
+            "frequency": 1200400000.0,
+            "amplitude": 0.8,
+            "start": 20,
+            "end": 30
+        },
+        {
+            "signal": "s4",
+            "output": "r2",
+            "channel": 1,
+            "frequency": 1200600000.0,
+            "amplitude": 0.8,
+            "start": 30,
+            "end": 40
+        }
+    ]
+}
