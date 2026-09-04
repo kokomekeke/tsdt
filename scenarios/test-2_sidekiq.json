@@ -7,9 +7,9 @@
             "serial": "B15Y",
             "nChannels": 2,
             "samplerate": 1000000,
-	    "handlers": ["A1", "B1"],
+	        "handlers": ["A1", "B1"],
             "frequencies": [1200000000.0, 1200200000.0],
-            "gain": 89.75
+            "gains": [89.75, 89.75]
         },
         {
             "name": "r2",
@@ -17,9 +17,9 @@
             "serial": "B15W",
             "nChannels": 2,
             "samplerate": 1000000,
-	    "handlers": ["A1", "B1"],
+    	    "handlers": ["A1", "B1"],
             "frequencies": [1200400000.0, 1200600000.0],
-            "gain": 69.75
+            "gains": [69.75, 69.75]
         }
     ],
     "signals": [

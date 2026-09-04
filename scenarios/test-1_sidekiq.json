@@ -9,7 +9,7 @@
             "nChannels" : 2,
             "samplerate": 10000000,
             "frequencies": [1200000000.0, 1200600000.0],
-            "gain": 89.75
+            "gains": [89.75, 89.75]
         }
     ],
     "signals": [

@@ -31,7 +31,7 @@ namespace Sagax::SCG {
             double sampleRate;
             std::vector<std::string> handlers;
             std::vector<double> centers;
-            double gain;
+            std::vector<double> gains;
         };
 
         using T = std::variant<

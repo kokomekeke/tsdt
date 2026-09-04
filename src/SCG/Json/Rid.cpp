@@ -27,10 +27,11 @@ namespace Sagax::SCG {
                 AddParam(&Rid::RadioSettings::radioId, JsonPrimitiveParser<std::string>{}, "radio_id");
                 AddParam(&Rid::RadioSettings::bandwidth_hz, JsonPrimitiveParser<double>{}, "bandwidth_hz");
                 AddParam(&Rid::RadioSettings::nChannels, JsonPrimitiveParser<std::int32_t>{}, "channels");
-                AddParam(&Rid::RadioSettings::gain_db, JsonPrimitiveParser<double>{}, "gain_db");
                 auto arrC = AddParam(&Rid::RadioSettings::centers_hz, JsonArrayParser<double>{}, "center_frequencies_hz");
+                auto arrG = AddParam(&Rid::RadioSettings::gains_db, JsonArrayParser<double>{}, "gains_db");
 
                 arrC->SetItemParser(JsonPrimitiveParser<double>{});
+                arrG->SetItemParser(JsonPrimitiveParser<double>{});
             }
         };
 

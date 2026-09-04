@@ -167,7 +167,7 @@ namespace Sagax::SCG {
                 outputV.serial = v.serial;
                 outputV.subdevSpec = "A:A";
                 outputV.sampleRate = radioSettings.bandwidth_hz;
-                outputV.gain = radioSettings.gain_db;
+                outputV.gain = radioSettings.gains_db[0];
                 outputV.center = radioSettings.centers_hz[0];
                 output.variant.variant = outputV;
             }
@@ -178,7 +178,7 @@ namespace Sagax::SCG {
                 outputV.serial = v.serial;
                 outputV.sampleRate = radioSettings.bandwidth_hz;
                 outputV.centers = radioSettings.centers_hz;
-                outputV.gain = radioSettings.gain_db;
+                outputV.gains = radioSettings.gains_db;
                 output.variant.variant = outputV;
             }
             else {

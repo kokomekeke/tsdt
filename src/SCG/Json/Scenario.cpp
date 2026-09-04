@@ -33,11 +33,12 @@ namespace Sagax::SCG {
                     AddParam(&OutputVariant::RadioSidekiq::serial, JsonPrimitiveParser<std::string>{}, "serial");
                     AddParam(&OutputVariant::RadioSidekiq::sampleRate, JsonPrimitiveParser<double>{}, "samplerate");
                     AddParam(&OutputVariant::RadioSidekiq::nChannels, JsonPrimitiveParser<std::size_t>{}, "nChannels");
-                    AddParam(&OutputVariant::RadioSidekiq::gain, JsonPrimitiveParser<double>{}, "gain");
                     auto arrC = AddParam(&OutputVariant::RadioSidekiq::centers, JsonArrayParser<double>{}, "frequencies");
                     auto arrH = AddParam(&OutputVariant::RadioSidekiq::handlers, JsonArrayParser<std::string>{}, "handlers");
+                    auto arrG = AddParam(&OutputVariant::RadioSidekiq::gains, JsonArrayParser<double>{}, "gains");
                     arrC->SetItemParser(JsonPrimitiveParser<double>{});
                     arrH->SetItemParser(JsonPrimitiveParser<std::string>{});
+                    arrG->SetItemParser(JsonPrimitiveParser<double>{});
                 }
             };
             struct OutputVariantParser : public JsonObjectParser<OutputVariant> {

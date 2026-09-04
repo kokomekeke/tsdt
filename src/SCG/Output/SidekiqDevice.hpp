@@ -19,7 +19,7 @@ namespace Sagax::SCG {
         std::size_t nChannels;
         std::vector<std::string> handlers;
         std::vector<double> centers;
-        double gain;
+        std::vector<double> gains;
 
         std::unique_ptr<SSG::Sidekiq::SidekiqManager> sidekiqManager;
         static bool sidekiqInitialized;

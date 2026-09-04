@@ -42,16 +42,17 @@ namespace Sagax::SCG {
         for(std::int32_t i = 0; i < nChannels; ++i) {
             auto &txp = params.txParams[i];
             txp.configure = true;
+            txp.gain = gains[i];
             txp.handler = handlers[i];
             txp.center = centers[i];
         }
         dev->Configure(params);
         Common::Assert(std::abs(dev->params.sampleRate - sampleRate) < 1.0, "could not set samplerate");
-        if(std::abs(dev->params.gain - gain) >= 1.0) {
-            Common::Logger::Warn("could not set gain. Desired: {}, actual: {}", gain, dev->params.gain);
-        }
 
         for(std::int32_t i = 0; i < nChannels; ++i) {
+            if(std::abs(dev->params.txParams[i].gain - gains[i]) >= 1.0) {
+                Common::Logger::Warn("could not set gain. Desired: {}, actual: {}", gains[i], dev->params.txParams[i].gain);
+            }
             if(std::abs(dev->params.txParams[i].center - centers[i]) >= 1.0) {
                 Common::Logger::Warn("could not set frequency. Desired: {}, actual: {}", centers[i], dev->params.txParams[i].center);
             }

@@ -68,7 +68,7 @@ namespace Sagax::SCG {
             p->nChannels = s->nChannels;
             p->sampleRate = s->sampleRate;
             p->centers = s->centers;
-            p->gain = s->gain;
+            p->gains = s->gains;
             p->handlers = s->handlers;
             {
                 auto &u = config.preinit.sidekiq;
