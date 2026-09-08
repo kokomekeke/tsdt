@@ -73,7 +73,7 @@ struct Program {
                 Common::Logger::Info("validation successful");
             }
         }
-
+        Common::Logger::Info("scenario name: {}", scenario.name.c_str());
         return scenario;
     }
 
@@ -116,7 +116,6 @@ struct Program {
         Common::Logger::Info("SCG");
 
         Configure();
-
         ScenarioRunnerContext ctx;
         try {
             switch(params.mode) {

@@ -15,13 +15,10 @@ namespace Sagax::SCG {
 
 
     void SidekiqDevice::Init_() {
-        static bool sidekiqInitialized = false;
-        if(sidekiqManager == nullptr || sidekiqInitialized == false) {
-            // the sidekiq api is unique you can initialize only once
-            sidekiqManager = std::make_unique<SSG::Sidekiq::SidekiqManager>();
-            sidekiqManager->Init();
-            sidekiqInitialized = true;
-        }
+        // the server brings the library up before it preinitializes the devices, this is
+        // for the runs that open the device here instead. the call does nothing after the
+        // first one
+        Common::Assert(SSG::Sidekiq::LibraryInit(), "failed to initialize the sidekiq library");
         if(dev == nullptr) {
             devOwned.reset();
             devOwned = SSG::Sidekiq::GetDevice(serial);
@@ -32,27 +29,29 @@ namespace Sagax::SCG {
         SSG::Sidekiq::DeviceParams params;
         params.nChannels = nChannels;
         params.sampleRate = sampleRate;
-        params.txFreq = centers[0]; // TODO centers should be independent
 
-        // TODO antenna setup should go in the config
-        // also there could be more antennas and this number should be checked in the validation, not here
-        constexpr char* antennas[] = { "A1", "B1" };
-        Common::Assert(nChannels <= 2, "too many channels");
+        // TODO handler setup should go in the config
+        // also there could be more antennas and this number should be checked in the validation, not here        
+        Common::Assert(nChannels >= 2, std::format("too many channels, nChannels: {}", nChannels));
 
         params.txParams.resize(nChannels);
         params.rxParams.resize(nChannels);
-        for(std::int32_t i = 0; i < nChannels; ++i) {
+        for(std::size_t i = 0; i < nChannels; ++i) {
             auto &txp = params.txParams[i];
             txp.configure = true;
             txp.gain = gains[i];
-            txp.antenna = antennas[i];
+            txp.handler = handlers[i];
+            txp.center = centers[i];
         }
         dev->Configure(params);
         Common::Assert(std::abs(dev->params.sampleRate - sampleRate) < 1.0, "could not set samplerate");
-        Common::Assert(std::abs(dev->params.txFreq - center[0]) < 1.0, "could not set frequency");
+
         for(std::int32_t i = 0; i < nChannels; ++i) {
-            if(std::abs(dev->params.txParams[i].gain - gain) >= 1.0) {
-                Common::Logger::Warn("could not set gain");
+            if(std::abs(dev->params.txParams[i].gain - gains[i]) >= 1.0) {
+                Common::Logger::Warn("could not set gain. Desired: {}, actual: {}", gains[i], dev->params.txParams[i].gain);
+            }
+            if(std::abs(dev->params.txParams[i].center - centers[i]) >= 1.0) {
+                Common::Logger::Warn("could not set frequency. Desired: {}, actual: {}", centers[i], dev->params.txParams[i].center);
             }
         }
     }
@@ -65,25 +64,16 @@ namespace Sagax::SCG {
     }
 
     void SidekiqDevice::Start() {
-        Common::Logger::Debug("Start");
         Common::Assert(dev != nullptr, "device is not set up");
         // TODO: Ezt át kell alakítani igazából a sideiq le tudja kezelni a több különálló channelt párhuzamosan.
         stream = dev->GetTxStream({ 0 });
     }
 
     void SidekiqDevice::Stop() {
-        Common::Logger::Debug("Start");
         stream.reset();
     }
 
     void SidekiqDevice::Take(SCGIQPacket &packet) {
-        static uint32_t counter = 0;
-        counter++;
-        if (counter % 10000 == 0)
-        {
-            Common::Logger::Debug("Start");
-        }
-
         Common::Assert(packet.nChannels == nChannels, "wrong number of channels");
         // assert samplerate
 

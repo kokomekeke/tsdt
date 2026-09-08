@@ -98,7 +98,6 @@ export CC=gcc-13
 export CXX=g++-13
 ~~~
 
-TODO: Az SgxExtRoot változó nálam nem működött mezonban ezt meg kell nézni miért nem működik.
 ~~~bash
 # NOTE: use your path to the largeshare
 # NOTE: ezt érdemes betenni ~/.bashrc-be így mindig meglesz
@@ -127,14 +126,20 @@ sudo apt install libcjson-dev
 ~~~
 ### 6. Build - UHD
 ```bash
-meson setup build-uhd -DSSG:have_usrp=true -DSSG:use_oneapi=true -DIntelOneAPI:oneAPIDevPath=$oneAPIpath -DUHD:SgxExtRoot=sgx_ext_path
+meson setup build-uhd -DSSG:have_usrp=true -DSSG:use_oneapi=true -DIntelOneAPI:oneAPIDevPath=$oneAPIpath -DUHD:SgxExtRoot=$sgx_ext_path
 cd build-uhd
 meson devenv
 meson compile
 ```
 ### 7. Build - Sidekiq
 ```bash
-meson setup build-sidekiq -DSSG:have_sidekiq=true -DSSG:use_oneapi=true -DIntelOneAPI:oneAPIDevPath=$oneAPIpath -DSSG:SgxExtRoot="$sgx_ext_path"
+export CC=gcc-13
+export CXX=g++-13
+
+export sgx_ext_path="/mnt/largeshare/temp/3rdparty/sgx-ext-20250120"
+export oneAPIpath="/opt/intel/oneapi"
+
+meson setup build-sidekiq -DSSG:have_sidekiq=true -DSSG:use_oneapi=true -DIntelOneAPI:oneAPIDevPath=$oneAPIpath -DSidekiq:SgxExtRoot=$sgx_ext_path
 cd build-sidekiq
 meson devenv
 meson compile

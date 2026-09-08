@@ -82,20 +82,19 @@ namespace Sagax::SCG {
                 basePtr = std::move(p);
             }
             else {
-#if HAVE_SIDEKIQ
-                Common::Logger::Debug("TEST3");
-
+#ifdef HAVE_SIDEKIQ
                 auto p = std::make_unique<SidekiqDevice>();
                 p->serial = s->serial;
-                Common::Logger::Debug("Sidekiq serial: {}", p->serial);
+                p->nChannels = s->nChannels;
                 p->sampleRate = s->sampleRate;
                 p->centers = s->centers;
                 p->gains = s->gains;
+                p->handlers = s->handlers;
                 {
                     auto &u = config.preinit.sidekiq;
                     auto it = u.devices.find(s->serial);
                     if(it == u.devices.end()) {
-                        // Common::Assert(!u.usePreinitOnly, "device was not preinitialized");
+                        Common::Assert(!u.usePreinitOnly, "device was not preinitialized");
                         p->dev = nullptr;
                     }
                     else {

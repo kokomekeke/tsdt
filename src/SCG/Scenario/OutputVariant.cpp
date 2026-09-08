@@ -1,5 +1,6 @@
 #include "Common/Assert.hpp"
 #include "OutputVariant.hpp"
+#include <iostream>
 
 namespace Sagax::SCG {
     OutputVariant::CommonParams OutputVariant::GetCommonParams() const {

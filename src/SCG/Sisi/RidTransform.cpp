@@ -109,10 +109,6 @@ namespace Sagax::SCG {
                     res.errors.push_back(std::format("radioSettings[{}]: center must be positive", i));
                 }
             }
-
-            if(radioSetting.gains_db.size() != radioSetting.nChannels) {
-                res.errors.push_back(std::format("radioSettings[{}]: gains_db array has wrong size", i));
-            }
         }
 
         for(std::size_t i = 0; i < rid.interferenceSources.size(); ++i) {

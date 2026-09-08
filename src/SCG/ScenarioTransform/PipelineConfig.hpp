@@ -20,7 +20,7 @@ namespace Sagax::SCG {
         struct PreinitConfig {
             #ifdef HAVE_USRP
             struct Usrp {
-                bool usePreinitOnly;
+                bool usePreinitOnly = false;
                 std::map<std::string, std::unique_ptr<SSG::UsrpB200::Device>> devices; // serial -> device
             };
             Usrp usrp;
@@ -28,7 +28,7 @@ namespace Sagax::SCG {
 
             #ifdef HAVE_SIDEKIQ
             struct Sidekiq {
-                bool usePreinitOnly;
+                bool usePreinitOnly = false;
                 std::map<std::string, std::unique_ptr<SSG::Sidekiq::Device>> devices; // serial -> device
             };
             Sidekiq sidekiq;

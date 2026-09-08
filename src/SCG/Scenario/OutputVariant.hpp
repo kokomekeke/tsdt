@@ -29,6 +29,7 @@ namespace Sagax::SCG {
             std::string serial;
             std::size_t nChannels;
             double sampleRate;
+            std::vector<std::string> handlers;
             std::vector<double> centers;
             std::vector<double> gains;
         };

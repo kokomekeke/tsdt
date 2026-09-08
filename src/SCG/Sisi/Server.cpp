@@ -230,8 +230,7 @@ private:
     void Configure() {
         pipelineConfig = SCG::PipelineConfig{};
         pipelineConfig.mockRadios = config.mockRadios;
-        // a mock device is built from the scenario alone and a sidekiq opens its own
-        // device in SidekiqDevice::Init_, so only the real usrp radios are opened here.
+        // a mock device is built from the scenario alone, so nothing is opened for one.
         // the radio types are checked in ValidateConfig, which runs before this
 #ifdef HAVE_USRP
         pipelineConfig.preinit.usrp.usePreinitOnly = true;
@@ -242,6 +241,22 @@ private:
                     auto dev = SSG::UsrpB200::GetDevice(w.serial);
                     Common::Assert(bool(dev), "failed to initialize radio");
                     pipelineConfig.preinit.usrp.devices[w.serial] = std::move(dev);
+                }
+            }
+        }
+#endif
+#ifdef HAVE_SIDEKIQ
+        pipelineConfig.preinit.sidekiq.usePreinitOnly = true;
+        if(!config.mockRadios) {
+            for(auto &v : config.radios) {
+                if(std::holds_alternative<SCG::ServerConfig::Radio::Sidekiq>(v.variant)) {
+                    auto &w = std::get<SCG::ServerConfig::Radio::Sidekiq>(v.variant);
+                    // libsidekiq holds the card state, so it is brought up before any
+                    // device is opened. the call does nothing after the first one
+                    Common::Assert(SSG::Sidekiq::LibraryInit(), "failed to initialize the sidekiq library");
+                    auto dev = SSG::Sidekiq::GetDevice(w.serial);
+                    Common::Assert(bool(dev), "failed to initialize radio");
+                    pipelineConfig.preinit.sidekiq.devices[w.serial] = std::move(dev);
                 }
             }
         }
@@ -656,6 +671,11 @@ private:
         StopPipeline();
         client.Stop();
         MqttClient::LibraryCleanup();
+#ifdef HAVE_SIDEKIQ
+        // the devices have to be released before the library that handed them out
+        pipelineConfig.preinit.sidekiq.devices.clear();
+        SSG::Sidekiq::LibraryCleanup();
+#endif
     }
 
 public:
