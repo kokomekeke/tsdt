@@ -195,24 +195,97 @@ struct Program {
 Program program;
 // TODO: Kell egy program.Stop() és azzal kell leállítani
 
-void SignalHandler(int signal)
+
+struct SignalHandler
 {
-    if (signal == SIGINT) {
-        Common::Logger::Info("SIGINT requested");
-        program.Stop();
+    uint8_t Init()
+    {
+        sigemptyset(&set_);
+        sigaddset(&set_, SIGINT);
+        sigaddset(&set_, SIGTERM);
+
+        if (pthread_sigmask(SIG_BLOCK, &set_, nullptr) != 0)
+        {
+            Common::Logger::Error("Failed to block signals");
+            return 1;
+        }
+
+        return 0;
     }
-    if (signal == SIGTERM){
-        Common::Logger::Info("SIGTERM requested");
-        program.Stop();
+
+    void Start()
+    {
+        thread_ = std::thread(
+            &SignalHandler::ThreadFunc,
+            this
+        );
     }
-}
+
+    void Join()
+    {
+        if (thread_.joinable())
+        {
+            thread_.join();
+        }
+    }
+
+    void Stop()
+    {
+        if (thread_.joinable())
+        {
+            // Csak a signal threadet ébresztjük fel
+            pthread_kill(thread_.native_handle(), SIGUSR1);
+        }
+    }    
+private:
+
+    void ThreadFunc()
+    {
+        while (true)
+        {
+            int signal = 0;
+
+            const int result = sigwait(&set_, &signal);
+
+            if (result != 0)
+            {
+                Common::Logger::Error("sigwait failed");
+                continue;
+            }
+
+            if (signal == SIGUSR1)
+            {
+                // A program rendesen végig futott és leáll
+                return;
+            }
+
+            if (signal == SIGINT)
+            {
+                Common::Logger::Info("SIGINT requested");
+                program.Stop();
+            }
+            else if (signal == SIGTERM)
+            {
+                Common::Logger::Info("SIGTERM requested");
+                program.Stop();
+            }
+        }
+    }
+
+    sigset_t set_{};
+    std::thread thread_;
+} signalHandler;
 
 
 int main(int argc, char **argv) {
-    std::signal(SIGTERM, SignalHandler);
-    std::signal(SIGINT, SignalHandler);
-
+    if(signalHandler.Init()){
+        return 1;
+    }
+    signalHandler.Start();
+    
     program.Main(argc, argv);
+    signalHandler.Stop();
+    signalHandler.Join();
     return 0;
 }
 
