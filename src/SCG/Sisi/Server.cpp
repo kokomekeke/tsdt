@@ -97,12 +97,99 @@ static CommandError CheckValidity(const SCG::ValidationResult &validity, const c
     return std::format("{} validation failed: {}", what, validity.errors.front());
 }
 
+// reads n digits starting at i into out and steps i past them
+static bool ReadDigits(const std::string &s, std::size_t &i, std::size_t n, int &out) {
+    if(i + n > s.size()) {
+        return false;
+    }
+    int value = 0;
+    for(std::size_t k = 0; k < n; ++k) {
+        char c = s[i + k];
+        if(c < '0' || c > '9') {
+            return false;
+        }
+        value = value * 10 + (c - '0');
+    }
+    i += n;
+    out = value;
+    return true;
+}
+
+static bool ReadLiteral(const std::string &s, std::size_t &i, char c) {
+    if(i >= s.size() || s[i] != c) {
+        return false;
+    }
+    ++i;
+    return true;
+}
+
+// the format is 2026-09-02T14:30:00+02:00. std::chrono::parse is not in every standard
+// library this builds against, so the fields are read out one at a time. the trailing
+// offset is how far the written time is ahead of utc, so it is subtracted to get the
+// instant. a Z stands for a zero offset and the colon inside the offset is optional
 static CommandError ParseStartTime(const std::string &s, std::chrono::system_clock::time_point &out) {
-    std::istringstream iss(s);
-    iss >> std::chrono::parse("%Y-%m-%dT%H:%M:%S%Ez", out);
-    if(iss.fail()) {
+    std::size_t i = 0;
+    int year = 0;
+    int month = 0;
+    int day = 0;
+    int hour = 0;
+    int minute = 0;
+    int second = 0;
+
+    bool fields =
+        ReadDigits(s, i, 4, year) && ReadLiteral(s, i, '-') &&
+        ReadDigits(s, i, 2, month) && ReadLiteral(s, i, '-') &&
+        ReadDigits(s, i, 2, day) && ReadLiteral(s, i, 'T') &&
+        ReadDigits(s, i, 2, hour) && ReadLiteral(s, i, ':') &&
+        ReadDigits(s, i, 2, minute) && ReadLiteral(s, i, ':') &&
+        ReadDigits(s, i, 2, second);
+    if(!fields) {
         return std::format("could not parse starting time: \"{}\"", s);
     }
+
+    std::chrono::minutes offset{0};
+    if(i < s.size() && (s[i] == 'Z' || s[i] == 'z')) {
+        ++i;
+    }
+    else if(i < s.size() && (s[i] == '+' || s[i] == '-')) {
+        int sign = s[i] == '-' ? -1 : 1;
+        ++i;
+        int offsetHour = 0;
+        int offsetMinute = 0;
+        if(!ReadDigits(s, i, 2, offsetHour)) {
+            return std::format("could not parse starting time: \"{}\"", s);
+        }
+        ReadLiteral(s, i, ':');
+        if(!ReadDigits(s, i, 2, offsetMinute)) {
+            return std::format("could not parse starting time: \"{}\"", s);
+        }
+        offset = sign * (std::chrono::hours(offsetHour) + std::chrono::minutes(offsetMinute));
+    }
+    else {
+        return std::format("starting time has no utc offset: \"{}\"", s);
+    }
+    if(i != s.size()) {
+        return std::format("could not parse starting time: \"{}\"", s);
+    }
+
+    std::chrono::year_month_day date{
+        std::chrono::year(year),
+        std::chrono::month(unsigned(month)),
+        std::chrono::day(unsigned(day))
+    };
+    if(!date.ok()) {
+        return std::format("starting time is not a valid date: \"{}\"", s);
+    }
+    if(hour > 23 || minute > 59 || second > 59) {
+        return std::format("starting time is not a valid time of day: \"{}\"", s);
+    }
+
+    out = std::chrono::sys_days(date)
+        + std::chrono::hours(hour)
+        + std::chrono::minutes(minute)
+        + std::chrono::seconds(second)
+        - offset;
+
     if(out <= std::chrono::system_clock::now()) {
         return std::format("starting time is in the past: \"{}\"", s);
     }
