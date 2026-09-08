@@ -9,6 +9,7 @@ project(
     meson_version: '>=1.1'
 )
 isWindows = host_machine.system() in [ 'windows' ]
+fs = import('fs')
 
 
 compiler = meson.get_compiler('cpp')
@@ -59,6 +60,27 @@ coreLibDep = ssgSub.get_variable('coreLibDep')
 ssgLibDep = ssgSub.get_variable('ssgLibDep')
 ssg_defines = ssgSub.get_variable('ssg_defines')
 
+# UHDDlls holds the uhd and the libusb dlls as [ source, name ] pairs, it is not
+# defined at all when the ssg subproject is built without usrp. the copies land in
+# this build directory next to the executables, which the loader searches before
+# it walks PATH
+foreach t : ssgSub.get_variable('UHDDlls', [])
+    fs.copyfile(t[0], t[1])
+endforeach
+
+# beast is header only, so this carries an include directory and the sockets
+# the asio layer under it calls into. the boost subproject sits inside ssg,
+# meson resolves it by name once the ssg subproject above has been configured
+if isWindows
+    beastDeps = [
+        subproject('Boost').get_variable('BoostHeaderDep'),
+        compiler.find_library('ws2_32'),
+        compiler.find_library('mswsock'),
+    ]
+else
+    beastDeps = [ dependency('boost') ]
+endif
+
 
 scgLib = static_library(
     'scg_core',
@@ -72,6 +94,7 @@ scgLib = static_library(
         'src/SCG/Modules/Tuner.cpp',
         # 'src/SCG/Output/OutputDevice.cpp',
         'src/SCG/Output/FileOutputDevice.cpp',
+        'src/SCG/Output/MockOutputDevice.cpp',
         'src/SCG/Output/UsrpB200Device.cpp',
         'src/SCG/Output/SidekiqDevice.cpp',
         'src/SCG/Scenario/OutputVariant.cpp',
@@ -86,7 +109,8 @@ scgLib = static_library(
         commonLibDep,
         jsonLibDep,
         coreLibDep,
-        ssgLibDep
+        ssgLibDep,
+        beastDeps
     ],
     cpp_args: cpp_args + ssg_defines,
     link_args: link_args,
@@ -94,7 +118,7 @@ scgLib = static_library(
 scgLibDep = declare_dependency(
     link_with: scgLib,
     include_directories: [],
-    dependencies: []
+    dependencies: beastDeps
 )
 
 

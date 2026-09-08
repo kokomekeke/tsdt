@@ -35,6 +35,26 @@ namespace Sagax::SCG {
             else {
                 radioIds[radio.id] = i;
             }
+
+            // a mocked radio is built from the scenario alone, so the libraries the type
+            // needs are only required when the radios are real
+            if(std::holds_alternative<ServerConfig::Radio::UsrpB200>(radio.variant)) {
+#ifndef HAVE_USRP
+                if(!cfg.mockRadios) {
+                    res.errors.push_back(std::format("radios[{}]: usrp radio, but this build has no usrp support", i));
+                }
+#endif
+            }
+            else if(std::holds_alternative<ServerConfig::Radio::Sidekiq>(radio.variant)) {
+#ifndef HAVE_SIDEKIQ
+                if(!cfg.mockRadios) {
+                    res.errors.push_back(std::format("radios[{}]: sidekiq radio, but this build has no sidekiq support", i));
+                }
+#endif
+            }
+            else {
+                res.errors.push_back(std::format("radios[{}]: unknown radio type", i));
+            }
         }
 
         return res;

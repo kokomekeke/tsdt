@@ -30,8 +30,13 @@ namespace Sagax::SCG {
             std::int32_t brokerPort;
             std::string commandTopic;
             std::string logTopic;
+            std::string errorTopic;
         };
 
+        std::string recordingDir;
+        bool mockRadios; // every radio is replaced with a device that only paces the pipeline
+        double statusUpdatePeriod_s;
+        double startAhead_s; // pipeline starts before the specified time, but the output is stalled until the precise moment
         std::vector<Radio> radios;
         Mqtt mqtt;
     };

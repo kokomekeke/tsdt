@@ -48,7 +48,7 @@ namespace {
         return buffer.str();
     }
 
-    // Prints warnings/errors from a ValidateScenarioResult/ValidationResult-shaped struct.
+    // Prints warnings/errors from a ValidationResult-shaped struct.
     // Returns true iff there were no errors.
     template<typename Result>
     bool Report(const std::string &label, const Result &res) {

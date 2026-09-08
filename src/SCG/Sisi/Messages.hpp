@@ -3,46 +3,34 @@
 #include <string>
 #include <cstdint>
 #include <vector>
+#include "Rid.hpp"
 
 namespace Sagax::SCG {
     struct CommandMessage {
-        struct TestStart {
+        struct TestSetup {
             std::string scenario;
-            std::string vehicle;
-            std::string customer;
+            std::string time;
+            std::string testId;
         };
 
-        struct TestEnd {
-        };
-
-        struct TestUpdate {
-            // this has things but we dont care
-        };
-
-        struct IntStart {
-            std::string profile;
-        };
-
-        struct IntStop {
+        struct TestCancel {
+            std::string testId;
         };
 
         using Variant = std::variant<
-            TestStart,
-            TestEnd,
-            TestUpdate,
-            IntStart,
-            IntStop
+            TestSetup,
+            TestCancel
         >;
 
         Variant variant;
     };
 
-    struct LogMessage {
-        enum struct Type { spoofing, jamming, none };
-        enum struct Status { active, inactive };
-        Type type;
-        Status status;
+    struct StatusMessage {
+        std::vector<Rid::InterferenceSource> active;
+    };
+
+    struct ErrorMessage {
+        std::string message;
     };
 
 }
-

@@ -7,6 +7,7 @@
 #include "Common/Assert.hpp"
 #include "Common/Logger.hpp"
 #include "SCG/Output/FileOutputDevice.hpp"
+#include "SCG/Output/MockOutputDevice.hpp"
 #include "SCG/Output/UsrpB200Device.hpp"
 #include "SCG/Output/SidekiqDevice.hpp"
 #include "Transform.hpp"
@@ -18,7 +19,7 @@ namespace Sagax::SCG {
         std::vector<Resource*>
     >
     GetOutputDevice(
-        [[maybe_unused]] const PipelineConfig &config,
+        const PipelineConfig &config,
         const OutputVariant &v
     ) {
         std::unique_ptr<OutputDevice> basePtr;
@@ -35,58 +36,78 @@ namespace Sagax::SCG {
             basePtr = std::move(p);
         }
 
-        if([[maybe_unused]] auto *s = std::get_if<OutputVariant::RadioUsrpB200>(&v.variant)) {
+        if(auto *s = std::get_if<OutputVariant::RadioUsrpB200>(&v.variant)) {
+            if(config.mockRadios) {
+                auto p = std::make_unique<MockOutputDevice>();
+                p->serial = s->serial;
+                p->sampleRate = s->sampleRate;
+                p->nChannels = 1;
+                p->centers = { s->center };
+                basePtr = std::move(p);
+            }
+            else {
 #ifdef HAVE_USRP
-            auto p = std::make_unique<UsrpB200Device>();
-            Common::Logger::Debug("s->serial:{}",s->serial);
-            p->serial = s->serial;
-            p->subdevSpec = s->subdevSpec;
-            p->sampleRate = s->sampleRate;
-            p->center = s->center;
-            p->gain = s->gain;
-            {
-                auto &u = config.preinit.usrp;
-                auto it = u.devices.find(s->serial);
-                if(it == u.devices.end()) {
-                    Common::Assert(!u.usePreinitOnly, "device was not preinitialized");
-                    p->dev = nullptr;
+                auto p = std::make_unique<UsrpB200Device>();
+                Common::Logger::Debug("s->serial:{}",s->serial);
+                p->serial = s->serial;
+                p->subdevSpec = s->subdevSpec;
+                p->sampleRate = s->sampleRate;
+                p->center = s->center;
+                p->gain = s->gain;
+                {
+                    auto &u = config.preinit.usrp;
+                    auto it = u.devices.find(s->serial);
+                    if(it == u.devices.end()) {
+                        Common::Assert(!u.usePreinitOnly, "device was not preinitialized");
+                        p->dev = nullptr;
+                    }
+                    else {
+                        p->dev = it->second.get();
+                    }
                 }
-                else {
-                    p->dev = it->second.get();
-                }
-            }
-            resources.push_back((Resource*)(p.get()));
-            basePtr = std::move(p);
+                resources.push_back((Resource*)(p.get()));
+                basePtr = std::move(p);
 #else
-            Common::Assert(false, "usrp output device not available");
+                Common::Assert(false, "usrp output device not available");
 #endif
+            }
         }
-        if([[maybe_unused]] auto *s = std::get_if<OutputVariant::RadioSidekiq>(&v.variant)) {
-#if HAVE_SIDEKIQ
-            Common::Logger::Debug("TEST3");
-
-            auto p = std::make_unique<SidekiqDevice>();
-            p->serial = s->serial;
-            Common::Logger::Debug("Sidekiq serial: {}", p->serial);
-            p->sampleRate = s->sampleRate;
-            p->centers = s->centers;
-            p->gains = s->gains;
-            {
-                auto &u = config.preinit.sidekiq;
-                auto it = u.devices.find(s->serial);
-                if(it == u.devices.end()) {
-                    // Common::Assert(!u.usePreinitOnly, "device was not preinitialized");
-                    p->dev = nullptr;
-                }
-                else {
-                    p->dev = it->second.get();
-                }
+        if(auto *s = std::get_if<OutputVariant::RadioSidekiq>(&v.variant)) {
+            if(config.mockRadios) {
+                auto p = std::make_unique<MockOutputDevice>();
+                p->serial = s->serial;
+                p->sampleRate = s->sampleRate;
+                p->nChannels = s->nChannels;
+                p->centers = s->centers;
+                basePtr = std::move(p);
             }
-            resources.push_back((Resource*)(p.get()));
-            basePtr = std::move(p);
+            else {
+#if HAVE_SIDEKIQ
+                Common::Logger::Debug("TEST3");
+
+                auto p = std::make_unique<SidekiqDevice>();
+                p->serial = s->serial;
+                Common::Logger::Debug("Sidekiq serial: {}", p->serial);
+                p->sampleRate = s->sampleRate;
+                p->centers = s->centers;
+                p->gains = s->gains;
+                {
+                    auto &u = config.preinit.sidekiq;
+                    auto it = u.devices.find(s->serial);
+                    if(it == u.devices.end()) {
+                        // Common::Assert(!u.usePreinitOnly, "device was not preinitialized");
+                        p->dev = nullptr;
+                    }
+                    else {
+                        p->dev = it->second.get();
+                    }
+                }
+                resources.push_back((Resource*)(p.get()));
+                basePtr = std::move(p);
 #else
-            Common::Assert(false, "sidekiq output device not available");
+                Common::Assert(false, "sidekiq output device not available");
 #endif
+            }
         }
         Common::Assert(bool(basePtr), "failed to create output device");
         return { std::move(basePtr), resources };

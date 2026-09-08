@@ -153,6 +153,7 @@ namespace Sagax::SCG {
             sink.dev = std::move(dev);
             sink.eventStart = config.events.eventStart;
             sink.eventEnd = config.events.eventEnd;
+            sink.startTime = config.events.startTime;
             Common::Logger::Debug("BuildOutputStream End");
             return { std::move(b), &sink.inP, rsc };
         }

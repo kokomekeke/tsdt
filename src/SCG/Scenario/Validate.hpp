@@ -5,11 +5,11 @@
 
 namespace Sagax::SCG {
 
-    struct ValidateScenarioResult {
+    struct ValidationResult {
         std::vector<std::string> errors;
         std::vector<std::string> warnings;
     };
-    ValidateScenarioResult ValidateScenario(Scenario &scen);
+    ValidationResult ValidateScenario(Scenario &scen);
 
 }
 

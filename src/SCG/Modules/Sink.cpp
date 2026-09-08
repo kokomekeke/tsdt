@@ -52,6 +52,7 @@ namespace Sagax::SCG {
 
     void StreamSink::Reset() {
         lastEvents.clear();
+        firstPacket = true;
     }
 
     void StreamSink::Start() {
@@ -68,6 +69,16 @@ namespace Sagax::SCG {
             return;
         }
         auto &input = inP.Pop();
+
+        // the first packet is held back until the starting time, the packets behind it
+        // collect in the pipeline queues while this waits. the controller notifies cvMdl
+        // and flips cbReturn when it stops, which releases the wait early
+        if(firstPacket && startTime.has_value()) {
+            cvMdl.wait_until(*lckMdl, startTime.value(), [this](){
+                return this->cbReturn();
+            });
+        }
+        firstPacket = false;
 
         std::vector<std::int32_t> newEvents;
         if(auto p = input.meta.GetEntry<MEventTag>()) {

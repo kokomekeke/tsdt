@@ -124,40 +124,25 @@ namespace Sagax::SCG {
 
 
         struct CommandMessageJsonParser : Json::JsonObjectParser<CommandMessage> {
-            struct TestStartParser : Json::JsonObjectParser<CommandMessage::TestStart> {
-                TestStartParser() {
-                    AddParam(&CommandMessage::TestStart::scenario, Json::JsonPrimitiveParser<std::string>{}, "scenario");
-                    AddParam(&CommandMessage::TestStart::vehicle, Json::JsonPrimitiveParser<std::string>{}, "vehicle");
-                    AddParam(&CommandMessage::TestStart::customer, Json::JsonPrimitiveParser<std::string>{}, "customer");
+            struct TestSetupParser : Json::JsonObjectParser<CommandMessage::TestSetup> {
+                TestSetupParser() {
+                    AddParam(&CommandMessage::TestSetup::scenario, Json::JsonPrimitiveParser<std::string>{}, "scenario");
+                    AddParam(&CommandMessage::TestSetup::time, Json::JsonPrimitiveParser<std::string>{}, "time");
+                    AddParam(&CommandMessage::TestSetup::testId, Json::JsonPrimitiveParser<std::string>{}, "test_id");
                 }
             };
 
-            struct TestEndParser : Json::JsonObjectParser<CommandMessage::TestEnd> {
-                TestEndParser() {}
-            };
-
-            struct TestUpdateParser : Json::JsonObjectParser<CommandMessage::TestUpdate> {
-                TestUpdateParser() {}
-            };
-
-            struct IntStartParser : Json::JsonObjectParser<CommandMessage::IntStart> {
-                IntStartParser() {
-                    AddParam(&CommandMessage::IntStart::profile, Json::JsonPrimitiveParser<std::string>{}, "profile");
+            struct TestCancelParser : Json::JsonObjectParser<CommandMessage::TestCancel> {
+                TestCancelParser() {
+                    AddParam(&CommandMessage::TestCancel::testId, Json::JsonPrimitiveParser<std::string>{}, "test_id");
                 }
-            };
-
-            struct IntStopParser : Json::JsonObjectParser<CommandMessage::IntStop> {
-                IntStopParser() {}
             };
 
             struct CommandMessageVariantParser : Json::JsonVariantParser<CommandMessage::Variant> {
                 CommandMessageVariantParser() {
                     typeTagKey = "command";
-                    AddAlt<CommandMessage::TestStart>("TestStart", "extras", TestStartParser{});
-                    AddAlt<CommandMessage::TestEnd>("TestEnd", "extras", TestEndParser{});
-                    AddAlt<CommandMessage::TestUpdate>("TestUpdate", "extras", TestUpdateParser{});
-                    AddAlt<CommandMessage::IntStart>("IntStart", "extras", IntStartParser{});
-                    AddAlt<CommandMessage::IntStop>("IntStop", "extras", IntStopParser{});
+                    AddAlt<CommandMessage::TestSetup>("TestSetup", "extras", TestSetupParser{});
+                    AddAlt<CommandMessage::TestCancel>("TestCancel", "extras", TestCancelParser{});
                 }
             };
 
@@ -168,33 +153,25 @@ namespace Sagax::SCG {
             }
         };
 
-        struct LogMessageJsonParser : Json::JsonObjectParser<LogMessage> {
-            struct LogTypeParser : Json::JsonEnumParser<LogMessage::Type> {
-                LogTypeParser() {
-                    AddEnumerator(LogMessage::Type::spoofing, "spoofing");
-                    AddEnumerator(LogMessage::Type::jamming, "jamming");
-                    AddEnumerator(LogMessage::Type::none, "none");
-                }
-            };
-
-            struct LogStatusParser : Json::JsonEnumParser<LogMessage::Status> {
-                LogStatusParser() {
-                    AddEnumerator(LogMessage::Status::active, "active");
-                    AddEnumerator(LogMessage::Status::inactive, "inactive");
-                }
-            };
-
-            LogMessageJsonParser() {
-                AddParam(&LogMessage::type, LogTypeParser{}, "type");
-                AddParam(&LogMessage::status, LogStatusParser{}, "status");
+        struct StatusMessageJsonParser : Json::JsonObjectParser<StatusMessage> {
+            StatusMessageJsonParser() {
+                auto p0 = AddParam(&StatusMessage::active, JsonArrayParser<Rid::InterferenceSource>{}, "active");
+                p0->SetItemParser(InterferenceSourceParser{});
             }
         };
 
-        CommandMessageJsonParser commandMessageParser;
-        LogMessageJsonParser logMessageParser;
+        struct ErrorMessageJsonParser : Json::JsonObjectParser<ErrorMessage> {
+            ErrorMessageJsonParser() {
+                AddParam(&ErrorMessage::message, Json::JsonPrimitiveParser<std::string>{}, "message");
+            }
+        };
 
         InterferenceSourceParser interferenceSourceParser;
         RidParser ridParser;
+        CommandMessageJsonParser commandMessageParser;
+        StatusMessageJsonParser statusMessageParser;
+        ErrorMessageJsonParser errorMessageParser;
+
     }
 
 
@@ -232,16 +209,29 @@ namespace Sagax::SCG {
         return Json::DumpJson(j, false);
     }
 
-    LogMessage ParseLogMessage(const std::string &s) {
+    StatusMessage ParseStatusMessage(const std::string &s) {
         Json::JsonHandle j = Json::ParseJson(s);
-        LogMessage m;
-        logMessageParser.Parse(j, m);
-        return m;
+        StatusMessage msg;
+        statusMessageParser.Parse(j, msg);
+        return msg;
     }
 
-    std::string SerializeLogMessage(const LogMessage &t) {
+    std::string SerializeStatusMessage(const StatusMessage &t) {
         Json::JsonHandle j;
-        logMessageParser.Serialize(t, j);
+        statusMessageParser.Serialize(t, j);
+        return Json::DumpJson(j, false);
+    }
+
+    ErrorMessage ParseErrorMessage(const std::string &s) {
+        Json::JsonHandle j = Json::ParseJson(s);
+        ErrorMessage msg;
+        errorMessageParser.Parse(j, msg);
+        return msg;
+    }
+
+    std::string SerializeErrorMessage(const ErrorMessage &t) {
+        Json::JsonHandle j;
+        errorMessageParser.Serialize(t, j);
         return Json::DumpJson(j, false);
     }
 

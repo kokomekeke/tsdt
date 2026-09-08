@@ -17,8 +17,12 @@ namespace Sagax::SCG {
     CommandMessage ParseCommandMessage(const std::string &s);
     std::string SerializeCommandMessage(const CommandMessage &t);
 
-    LogMessage ParseLogMessage(const std::string &s);
-    std::string SerializeLogMessage(const LogMessage &t);
+    StatusMessage ParseStatusMessage(const std::string &s);
+    std::string SerializeStatusMessage(const StatusMessage &s);
+
+    ErrorMessage ParseErrorMessage(const std::string &s);
+    std::string SerializeErrorMessage(const ErrorMessage &s);
+
 }
 
 

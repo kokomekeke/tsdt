@@ -38,11 +38,16 @@ namespace Sagax::SCG {
                 AddParam(&ServerConfig::Mqtt::brokerPort, JsonPrimitiveParser<std::int32_t>{}, "broker_port");
                 AddParam(&ServerConfig::Mqtt::commandTopic, JsonPrimitiveParser<std::string>{}, "command_topic");
                 AddParam(&ServerConfig::Mqtt::logTopic, JsonPrimitiveParser<std::string>{}, "log_topic");
+                AddParam(&ServerConfig::Mqtt::errorTopic, JsonPrimitiveParser<std::string>{}, "error_topic");
             }
         };
 
         struct ServerConfigParser : JsonObjectParser<ServerConfig> {
             ServerConfigParser() {
+                AddParam(&ServerConfig::recordingDir, JsonPrimitiveParser<std::string>{}, "recording_directory");
+                AddParam(&ServerConfig::mockRadios, JsonPrimitiveParser<bool>{}, "mock_radios");
+                AddParam(&ServerConfig::statusUpdatePeriod_s, JsonPrimitiveParser<double>{}, "status_update_period_s");
+                AddParam(&ServerConfig::startAhead_s, JsonPrimitiveParser<double>{}, "start_ahead_s");
                 auto p0 = AddParam(&ServerConfig::radios, JsonArrayParser<ServerConfig::Radio>{}, "radios");
                 AddParam(&ServerConfig::mqtt, MqttParser{}, "mqtt");
 

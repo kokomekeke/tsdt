@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <vector>
 #include <functional>
+#include <optional>
+#include <chrono>
 #include "Pipeline/Pipeline.hpp"
 #include "SSG/IO/IQFileOut.hpp"
 #include "SCG/Output/OutputDevice.hpp"
@@ -14,9 +16,11 @@ namespace Sagax::SCG {
         Pipeline::InPort<SCGIQPacket> inP = AddInPort(&inP);
         std::unique_ptr<OutputDevice> dev;
         std::vector<std::int32_t> lastEvents;
+        bool firstPacket = true;
 
         std::function<void(std::int32_t)> eventStart;
         std::function<void(std::int32_t)> eventEnd;
+        std::optional<std::chrono::system_clock::time_point> startTime;
 
         void Reset() override;
         void Start() override;

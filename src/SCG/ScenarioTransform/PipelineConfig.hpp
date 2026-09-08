@@ -3,6 +3,8 @@
 #include <string>
 #include <memory>
 #include <functional>
+#include <optional>
+#include <chrono>
 
 #ifdef HAVE_USRP
 #include "SSG/Radio/Usrp/UsrpB200.hpp"
@@ -36,10 +38,15 @@ namespace Sagax::SCG {
         struct EventLogConfig {
             std::function<void(std::int32_t)> eventStart;
             std::function<void(std::int32_t)> eventEnd;
+            std::optional<std::chrono::system_clock::time_point> startTime;
         };
 
         PreinitConfig preinit;
         EventLogConfig events;
+
+        // every radio output is built as a MockOutputDevice instead of the real device,
+        // the preinitialized devices are not looked up
+        bool mockRadios = false;
     };
 
 }

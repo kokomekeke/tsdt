@@ -1,4 +1,8 @@
 {
+    "recording_directory": "recordings",
+    "mock_radios": true,
+    "status_update_period_s": 10.0,
+    "start_ahead_s": 1.0,
     "radios": [
         {
             "id": "r0",
@@ -7,18 +11,19 @@
                 "serial": "8002051"
             }
         },
-        // {
-        //     "id": "r1",
-        //     "type": "UsrpB200",
-        //     "parameters": {
-        //         "serial": "8002512"
-        //     }
-        // }
+        {
+            "id": "r1",
+            "type": "UsrpB200",
+            "parameters": {
+                "serial": "8002512"
+            }
+        }
     ],
     "mqtt": {
         "broker_host": "localhost",
         "broker_port": 1883,
         "command_topic": "cmd/tms",
-        "log_topic": "tm/sg"
+        "log_topic": "tm/sg",
+        "error_topic": "tm/sg"
     }
 }

@@ -9,7 +9,7 @@ namespace Sagax::SCG {
 
 
     namespace {
-        void ValidateSignal(ValidateScenarioResult &res, Scenario &scen, std::size_t i) {
+        void ValidateSignal(ValidationResult &res, Scenario &scen, std::size_t i) {
             auto &sig = scen.signals[i];
             if(std::holds_alternative<SignalVariant::Null>(sig.variant.variant)) {
                 res.errors.push_back(std::format("signal[{}]: null signal variant", i));
@@ -17,7 +17,7 @@ namespace Sagax::SCG {
             // else if(std::holds_alternative<) ...
         }
 
-        void ValidateOutput(ValidateScenarioResult &res, Scenario &scen, std::size_t i) {
+        void ValidateOutput(ValidationResult &res, Scenario &scen, std::size_t i) {
             auto &out = scen.outputs[i];
             if(std::holds_alternative<OutputVariant::Null>(out.variant.variant)) {
                 res.errors.push_back(std::format("output[{}]: null output variant", i));
@@ -26,8 +26,8 @@ namespace Sagax::SCG {
     }
 
 
-    ValidateScenarioResult ValidateScenario(Scenario &scen) {
-        ValidateScenarioResult res;
+    ValidationResult ValidateScenario(Scenario &scen) {
+        ValidationResult res;
 
         bool doCheckEvents = true;
 
