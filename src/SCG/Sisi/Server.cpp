@@ -29,6 +29,7 @@
 #include "SCG/ScenarioTransform/Transform.hpp"
 #include "SCG/Json/Rid.hpp"
 #include "SCG/Json/ServerConfig.hpp"
+#include "SCG/Utility/SignalHandler.hpp"
 #include "MqttClient.hpp"
 #include "RidTransform.hpp"
 
@@ -252,12 +253,6 @@ static CommandError ReadCommand(const std::string &payload, CommandMessage &out)
 // bound on how late a step runs, the status period is layered on top of it
 constexpr std::chrono::milliseconds scheduleTick{50};
 
-// a signal handler may only write a flag of this type. the handler runs on one of the
-// existing threads, so locking a mutex or notifying a condition variable from it would
-// deadlock against the thread it interrupted. the main loop already wakes on every tick,
-// so it polls this instead of being notified
-volatile std::sig_atomic_t g_stopRequested = 0;
-
 struct ScheduledTest {
     // pending: accepted, waiting for the recording pipeline
     // recording: the recording pipeline is running for it
@@ -286,6 +281,9 @@ struct Program {
 private:
     static Program instance;
 
+    // cleared by the signal callback, which runs on an ordinary thread and can take mtx.
+    // it starts true so that a signal arriving before the loop is entered still stops it
+    bool programRunning = true;
     std::mutex mtx;
     std::condition_variable cv;
 
@@ -729,9 +727,6 @@ private:
             client.Start();
         }
 
-        std::signal(SIGINT, [](int){
-            g_stopRequested = 1;
-        });
         Common::Logger::Info("server running.. ctrl+c to stop");
 
         statusPeriod = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
@@ -741,13 +736,13 @@ private:
         while(true) {
             // mtx is held for the wait only, the steps below reach the module mutexes
             // through the controller and must not hold it. the wait also returns early
-            // when the mqtt client or an event callback notifies
+            // when the mqtt client, an event callback or the signal handler notifies
             {
                 std::unique_lock lck(mtx);
                 cv.wait_for(lck, scheduleTick);
-            }
-            if(g_stopRequested != 0) {
-                break;
+                if(!programRunning) {
+                    break;
+                }
             }
 
             HandleCommands();
@@ -800,6 +795,19 @@ public:
         if(!logFile.is_open()) {
             Common::Logger::Warn("could not open scgserver.log, logging to the console only");
         }
+
+        // constructed after the streams it logs to, so the destructor takes it down
+        // before them, and before the mqtt client or a pipeline starts a thread, on linux
+        // a thread inherits the signal mask and the blocking has to be in place by then.
+        // the callback runs on an ordinary thread, so it can take mtx and notify cv
+        SCG::SignalHandler signalHandler({ SIGINT, SIGTERM }, [this](int sig){
+            Common::Logger::Info("signal {} received, stopping", sig);
+            {
+                std::unique_lock lck(mtx);
+                programRunning = false;
+            }
+            cv.notify_all();
+        });
 
         Parameters params{};
         try {
