@@ -24,6 +24,7 @@
 #include "SCG/ScenarioTransform/Transform.hpp"
 #include "SCG/Json/Rid.hpp"
 #include "SCG/Json/ServerConfig.hpp"
+#include "SCG/Utility/SignalHandler.hpp"
 #include "MqttClient.hpp"
 #include "RidTransform.hpp"
 
@@ -68,8 +69,10 @@ struct Program {
 private:
     static Program instance;
 
-    bool programRunning = false;
-    std::mutex mtx; // only used for signal handler
+    // cleared by the signal callback, which runs on an ordinary thread and can take mtx.
+    // it starts true so that a signal arriving before the wait below still stops it
+    bool programRunning = true;
+    std::mutex mtx;
     std::condition_variable cv;
 
     ProgramParser parser;
@@ -330,15 +333,6 @@ private:
 
         {
             Common::Logger::Info("server running.. ctrl+c to stop");
-            programRunning = true;
-            std::signal(SIGINT, [](int){
-                auto &program = Program::instance;
-                {
-                    std::unique_lock lck(program.mtx);
-                    program.programRunning = false;
-                }
-                program.cv.notify_all();
-            });
             std::unique_lock lck(mtx);
             cv.wait(lck, [this]() {
                 return !(this->programRunning);
@@ -363,6 +357,18 @@ public:
         Common::Logger::AddStream(&logStream);
         Common::Defer disposeLogger([&](){
             Common::Logger::RemoveStream(&logStream);
+        });
+
+        // constructed before the mqtt client or a pipeline starts a thread, on linux a
+        // thread inherits the signal mask and the blocking has to be in place by then.
+        // the callback runs on an ordinary thread, so it can take mtx and notify cv
+        SCG::SignalHandler signalHandler({ SIGINT, SIGTERM }, [this](int sig){
+            Common::Logger::Info("signal {} received, stopping", sig);
+            {
+                std::unique_lock lck(mtx);
+                programRunning = false;
+            }
+            cv.notify_all();
         });
 
         try {

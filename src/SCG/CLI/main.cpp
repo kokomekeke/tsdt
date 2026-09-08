@@ -5,6 +5,7 @@
 #include <numbers>
 #include <utility>
 #include <csignal>
+#include <mutex>
 
 #include "Wrappers/JsonSane.hpp"
 #include "Common/Logger.hpp"
@@ -25,6 +26,7 @@
 #include "SCG/ScenarioTransform/Transform.hpp"
 #include "SCG/ScenarioTransform/BuildPipeline.hpp"
 #include "SCG/ScenarioTransform/PipelineConfig.hpp"
+#include "SCG/Utility/SignalHandler.hpp"
 
 #include "ProgramParser.hpp"
 
@@ -38,6 +40,12 @@ struct Program {
     ProgramParser parser;
     PipelineConfig pipelineConfig;
     ScenarioRunnerContext ctx;
+
+    // Stop() runs on the signal thread while Run() is still putting ctx together, so the
+    // controller pointer is only read and written under this. stopRequested carries a
+    // signal that arrived before there was a controller to hand it to
+    std::mutex mtxStop;
+    bool stopRequested = false;
 
     Scenario ParseFile(std::string jsonPath) {
         Scenario scenario;
@@ -81,32 +89,32 @@ struct Program {
     }
 
     ScenarioRunnerContext SetupRecording(std::string jsonPath, std::string dirPath) {
-        ScenarioRunnerContext ctx;
-        ctx.scenario = ParseFile(jsonPath);
-        auto b = BuildRecordingPipeline(pipelineConfig, ctx.scenario, dirPath);
-        ctx.pipeline = b.builder.Build();
-        ctx.resources = b.resources;
-        ctx.ownedResources.emplace_back(std::move(b.dir));
-        return ctx;
+        ScenarioRunnerContext res;
+        res.scenario = ParseFile(jsonPath);
+        auto b = BuildRecordingPipeline(pipelineConfig, res.scenario, dirPath);
+        res.pipeline = b.builder.Build();
+        res.resources = b.resources;
+        res.ownedResources.emplace_back(std::move(b.dir));
+        return res;
     }
 
     ScenarioRunnerContext SetupPlayback(std::string dirPath) {
-        ScenarioRunnerContext ctx;
+        ScenarioRunnerContext res;
         auto b = BuildPlaybackPipeline(pipelineConfig, dirPath);
-        ctx.pipeline = b.builder.Build();
-        ctx.resources = b.resources;
-        ctx.scenario = b.dir->GetScenario();
-        ctx.ownedResources.emplace_back(std::move(b.dir));
-        return ctx;
+        res.pipeline = b.builder.Build();
+        res.resources = b.resources;
+        res.scenario = b.dir->GetScenario();
+        res.ownedResources.emplace_back(std::move(b.dir));
+        return res;
     }
 
     ScenarioRunnerContext SetupStreaming(std::string jsonPath) {
-        ScenarioRunnerContext ctx;
-        ctx.scenario = ParseFile(jsonPath);
-        auto b = BuildStreamingPipeline(pipelineConfig, ctx.scenario);
-        ctx.pipeline = b.builder.Build();
-        ctx.resources = b.resources;
-        return ctx;
+        ScenarioRunnerContext res;
+        res.scenario = ParseFile(jsonPath);
+        auto b = BuildStreamingPipeline(pipelineConfig, res.scenario);
+        res.pipeline = b.builder.Build();
+        res.resources = b.resources;
+        return res;
     }
 
     void Configure() {
@@ -138,7 +146,13 @@ struct Program {
         auto controller = std::make_unique<Pipeline::PpController>();
         controller->Setup(ctx.pipeline, 32);
         controller->Reset();
-        ctx.controller = std::move(controller);
+        {
+            std::unique_lock lck(mtxStop);
+            ctx.controller = std::move(controller);
+            if(stopRequested) {
+                ctx.controller->Stop(false);
+            }
+        }
 
         try {
             ctx.Init();
@@ -165,7 +179,11 @@ struct Program {
     }
 
     void Stop(){
-        ctx.controller.get()->Stop(false);
+        std::unique_lock lck(mtxStop);
+        stopRequested = true;
+        if(ctx.controller) {
+            ctx.controller->Stop(false);
+        }
     }
 
     void Main(int argc, char **argv) {
@@ -193,99 +211,16 @@ struct Program {
 };
 
 Program program;
-// TODO: Kell egy program.Stop() és azzal kell leállítani
-
-
-struct SignalHandler
-{
-    uint8_t Init()
-    {
-        sigemptyset(&set_);
-        sigaddset(&set_, SIGINT);
-        sigaddset(&set_, SIGTERM);
-
-        if (pthread_sigmask(SIG_BLOCK, &set_, nullptr) != 0)
-        {
-            Common::Logger::Error("Failed to block signals");
-            return 1;
-        }
-
-        return 0;
-    }
-
-    void Start()
-    {
-        thread_ = std::thread(
-            &SignalHandler::ThreadFunc,
-            this
-        );
-    }
-
-    void Join()
-    {
-        if (thread_.joinable())
-        {
-            thread_.join();
-        }
-    }
-
-    void Stop()
-    {
-        if (thread_.joinable())
-        {
-            // Csak a signal threadet ébresztjük fel
-            pthread_kill(thread_.native_handle(), SIGUSR1);
-        }
-    }    
-private:
-
-    void ThreadFunc()
-    {
-        while (true)
-        {
-            int signal = 0;
-
-            const int result = sigwait(&set_, &signal);
-
-            if (result != 0)
-            {
-                Common::Logger::Error("sigwait failed");
-                continue;
-            }
-
-            if (signal == SIGUSR1)
-            {
-                // A program rendesen végig futott és leáll
-                return;
-            }
-
-            if (signal == SIGINT)
-            {
-                Common::Logger::Info("SIGINT requested");
-                program.Stop();
-            }
-            else if (signal == SIGTERM)
-            {
-                Common::Logger::Info("SIGTERM requested");
-                program.Stop();
-            }
-        }
-    }
-
-    sigset_t set_{};
-    std::thread thread_;
-} signalHandler;
-
 
 int main(int argc, char **argv) {
-    if(signalHandler.Init()){
-        return 1;
-    }
-    signalHandler.Start();
-    
+    // constructed before anything else starts a thread, on linux a thread inherits the
+    // signal mask and the blocking has to be in place by then
+    SignalHandler signalHandler({ SIGINT, SIGTERM }, [](int sig){
+        Common::Logger::Info("signal {} received, stopping", sig);
+        program.Stop();
+    });
+
     program.Main(argc, argv);
-    signalHandler.Stop();
-    signalHandler.Join();
     return 0;
 }
 

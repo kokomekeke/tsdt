@@ -80,6 +80,7 @@ scgLib = static_library(
         'src/SCG/ScenarioTransform/Transform.cpp',
         'src/SCG/Signal/SignalGenerator.cpp',
         'src/SCG/Sisi/RidTransform.cpp',
+        'src/SCG/Utility/SignalHandler.cpp',
     ],
     include_directories: [ 'src/' ],
     dependencies: [
