@@ -4,6 +4,7 @@
 #include <iostream>
 #include <numbers>
 #include <utility>
+#include <csignal>
 
 #include "Wrappers/JsonSane.hpp"
 #include "Common/Logger.hpp"
@@ -31,10 +32,12 @@ using namespace Sagax;
 using namespace Sagax::SCG;
 
 
+
 struct Program {
 
     ProgramParser parser;
     PipelineConfig pipelineConfig;
+    ScenarioRunnerContext ctx;
 
     Scenario ParseFile(std::string jsonPath) {
         Scenario scenario;
@@ -116,7 +119,6 @@ struct Program {
         Common::Logger::Info("SCG");
 
         Configure();
-        ScenarioRunnerContext ctx;
         try {
             switch(params.mode) {
                 case Parameters::Mode::playback: { ctx = SetupPlayback(params.recordingDirectory); } break;
@@ -158,9 +160,12 @@ struct Program {
         catch(const std::exception &e) {
             Common::Logger::Error("\nerror running pipeline:\n{}", e.what());
         }
-
         Common::Logger::Info("time: {} ms", time_ms);
         ctx.Dispose();
+    }
+
+    void Stop(){
+        ctx.controller.get()->Stop(false);
     }
 
     void Main(int argc, char **argv) {
@@ -187,8 +192,28 @@ struct Program {
 
 };
 
+Program program;
+// TODO: Kell egy program.Stop() és azzal kell leállítani
+
+void SignalHandler(int signal)
+{
+    if (signal == SIGINT) {
+        Common::Logger::Info("SIGINT requested");
+        program.Stop();
+    }
+    if (signal == SIGTERM){
+        Common::Logger::Info("SIGTERM requested");
+        program.Stop();
+    }
+}
+
+
 int main(int argc, char **argv) {
-    Program program;
+    std::signal(SIGTERM, SignalHandler);
+    std::signal(SIGINT, SignalHandler);
+
     program.Main(argc, argv);
     return 0;
 }
+
+
