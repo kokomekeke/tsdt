@@ -16,6 +16,8 @@ namespace Sagax::SCG {
                 struct SidekiqParser : public JsonObjectParser<ServerConfig::Radio::Sidekiq> {
                     SidekiqParser() {
                         AddParam(&ServerConfig::Radio::Sidekiq::serial, JsonPrimitiveParser<std::string>{}, "serial");
+                        auto arrH = AddParam(&ServerConfig::Radio::Sidekiq::handlers, JsonArrayParser<std::string>{}, "handlers");
+                        arrH->SetItemParser(JsonPrimitiveParser<std::string>{});
                     }
                 };
 

@@ -34,6 +34,11 @@ namespace Sagax::SCG {
         // also there could be more antennas and this number should be checked in the validation, not here        
         Common::Assert(nChannels >= 2, std::format("too many channels, nChannels: {}", nChannels));
 
+        Common::Assert(
+            handlers.size() == nChannels && centers.size() == nChannels && gains.size() == nChannels,
+            "handler, center or gain count does not match the number of channels"
+        );
+
         params.txParams.resize(nChannels);
         params.rxParams.resize(nChannels);
         for(std::size_t i = 0; i < nChannels; ++i) {

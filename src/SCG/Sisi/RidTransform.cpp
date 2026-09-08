@@ -1,6 +1,10 @@
 #include <format>
 #include <map>
 #include <cmath>
+#include <string>
+#include <vector>
+#include <variant>
+#include <algorithm>
 #include "Common/Assert.hpp"
 #include "RidTransform.hpp"
 
@@ -55,6 +59,28 @@ namespace Sagax::SCG {
             else {
                 res.errors.push_back(std::format("radios[{}]: unknown radio type", i));
             }
+
+            if(auto *sk = std::get_if<ServerConfig::Radio::Sidekiq>(&radio.variant)) {
+                // str_to_tx_hdl maps these four names, anything else lands on
+                // skiq_tx_hdl_end and the card is handed a port that does not exist
+                static const std::vector<std::string> knownHandlers = { "A1", "A2", "B1", "B2" };
+                if(sk->handlers.empty()) {
+                    res.errors.push_back(std::format("radios[{}]: handlers must not be empty", i));
+                }
+                std::map<std::string, std::size_t> usedHandlers;
+                for(std::size_t h = 0; h < sk->handlers.size(); ++h) {
+                    const std::string &handler = sk->handlers[h];
+                    if(std::find(knownHandlers.begin(), knownHandlers.end(), handler) == knownHandlers.end()) {
+                        res.errors.push_back(std::format("radios[{}]: unknown handler: {}", i, handler.c_str()));
+                    }
+                    else if(usedHandlers.count(handler)) {
+                        res.errors.push_back(std::format("radios[{}]: duplicate handler: {}", i, handler.c_str()));
+                    }
+                    else {
+                        usedHandlers[handler] = h;
+                    }
+                }
+            }
         }
 
         return res;
@@ -101,8 +127,21 @@ namespace Sagax::SCG {
                 res.errors.push_back(std::format("radioSettings[{}]: bandwidth_hz must be positive", i));
             }
 
-            if(radioSetting.centers_hz.size() != radioSetting.nChannels) {
+            if(radioSetting.centers_hz.size() != std::size_t(radioSetting.nChannels)) {
                 res.errors.push_back(std::format("radioSettings[{}]: centers_hz array has wrong size", i));
+            }
+
+            // a sidekiq transmits through the ports named in the config, so the scenario
+            // has to ask for exactly as many channels as that radio has handlers
+            if(radioIds.count(radioSetting.radioId) > 0) {
+                const auto &radio = cfg.radios[radioIds[radioSetting.radioId]];
+                if(auto *sk = std::get_if<ServerConfig::Radio::Sidekiq>(&radio.variant)) {
+                    if(std::size_t(radioSetting.nChannels) != sk->handlers.size()) {
+                        res.errors.push_back(std::format(
+                            "radioSettings[{}]: radio {} has {} handlers configured, but {} channels are requested",
+                            i, radioSetting.radioId.c_str(), sk->handlers.size(), radioSetting.nChannels));
+                    }
+                }
             }
             for(double center : radioSetting.centers_hz) {
                 if(center <= 0.0) {
@@ -196,6 +235,7 @@ namespace Sagax::SCG {
                 OutputVariant::RadioSidekiq outputV;
                 outputV.serial = v.serial;
                 outputV.nChannels = std::size_t(radioSettings.nChannels);
+                outputV.handlers = v.handlers;
                 outputV.sampleRate = radioSettings.bandwidth_hz;
                 outputV.centers = radioSettings.centers_hz;
                 outputV.gains = radioSettings.gains_db;

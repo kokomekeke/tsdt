@@ -8,14 +8,16 @@
             "id": "r0",
             "type": "Sidekiq",
             "parameters": {
-                "serial": "B15Y"
+                "serial": "B15Y",
+                "handlers": [ "A1", "B1" ]
             }
         },
         {
             "id": "r1",
             "type": "Sidekiq",
             "parameters": {
-                "serial": "B15W"
+                "serial": "B15W",
+                "handlers": [ "A1", "B1" ]
             }
         }
     ],

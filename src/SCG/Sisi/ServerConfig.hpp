@@ -14,6 +14,8 @@ namespace Sagax::SCG {
 
             struct Sidekiq {
                 std::string serial;
+                // one transmit port per channel, the sidekiq api names them A1, A2, B1, B2
+                std::vector<std::string> handlers;
             };
 
             using Variant = std::variant<
