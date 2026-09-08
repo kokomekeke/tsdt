@@ -1,0 +1,50 @@
+{
+    // one card, both channels. channel 0 sits on GPS L1 and channel 1 on L2.
+    // bandwidth_hz becomes the sidekiq sample rate, and the card only accepts rates from
+    // a fixed list, 1920000 is the lowest one on it
+    "metadata": {
+        "version": "1.0.0",
+        "scenario_name": "sisi-stage-1",
+        "created_utc": "2026-09-08T00:00:00Z",
+        "author": "sagax",
+        "description": "single card dual channel, one jammer per channel"
+    },
+    "global_settings": {
+        "duration_s": 10.0
+    },
+    "radio_settings": [
+        {
+            "radio_id": "r0",
+            "channels": 2,
+            "bandwidth_hz": 1920000,
+            "center_frequencies_hz": [ 1575420000, 1227600000 ],
+            "gains_db": [ 10.0, 10.0 ]
+        }
+    ],
+    "interference_sources": [
+        {
+            // dead on the channel 0 centre
+            "type": "cw_jammer",
+            "radio_id": "r0",
+            "channel_id": 0,
+            "center_frequency_hz": 1575420000,
+            "power_dbm": -10.0,
+            "start_time_s": 2.0,
+            "end_time_s": 8.0,
+            "parameters": {}
+        },
+        {
+            // 300 kHz above the channel 1 centre, inside the 1.92 MHz band
+            "type": "noise_jammer",
+            "radio_id": "r0",
+            "channel_id": 1,
+            "center_frequency_hz": 1227900000,
+            "power_dbm": -12.0,
+            "start_time_s": 3.0,
+            "end_time_s": 9.0,
+            "parameters": {
+                "span_hz": 200000
+            }
+        }
+    ]
+}
