@@ -277,6 +277,12 @@ static CommandError ReadCommand(const std::string &payload, CommandMessage &out)
     return {};
 }
 
+static std::chrono::system_clock::duration Seconds(double seconds) {
+    return std::chrono::duration_cast<std::chrono::system_clock::duration>(
+        std::chrono::duration<double>(seconds)
+    );
+}
+
 // the incoming commands and the schedule are checked at this rate. it is the upper
 // bound on how late a step runs, the status period is layered on top of it
 constexpr std::chrono::milliseconds scheduleTick{50};
@@ -480,6 +486,65 @@ private:
         Publish(config.mqtt.logTopic, payload);
     }
 
+    // a playback holds the pipeline from start_ahead before its time until the scenario
+    // has run out, and only one pipeline runs at a time. the tests that are over stay in
+    // the list until UpdateSchedule erases them, so those are skipped
+    CommandError CheckOverlap(const std::string &testId, std::chrono::system_clock::time_point time, double duration) {
+        auto startAhead = Seconds(config.startAhead_s);
+
+        auto begin = time - startAhead;
+        auto end = time + Seconds(duration);
+        for(auto &t : tests) {
+            if(t->state == ScheduledTest::State::done || t->state == ScheduledTest::State::failed) {
+                continue;
+            }
+            auto otherBegin = t->time - startAhead;
+            auto otherEnd = t->time + Seconds(t->scenario.duration);
+            if(begin < otherEnd && otherBegin < end) {
+                double overlap_s = std::chrono::duration<double>(
+                    std::min(end, otherEnd) - std::max(begin, otherBegin)
+                ).count();
+                return std::format(
+                    "test \"{}\" overlaps test \"{}\" by {:.1f} s",
+                    testId, t->testId, overlap_s
+                );
+            }
+        }
+        return {};
+    }
+
+    // the recordings run on the same pipeline the playbacks use, one at a time, and a
+    // recording takes about as long as the playback it produces. they all have to be done
+    // before the earliest playback opens its window, or that playback finds the pipeline
+    // busy. a recording that is already under way is counted whole, its progress is not
+    // tracked
+    CommandError CheckRecordingQueue(const std::string &testId, std::chrono::system_clock::time_point time, double duration) {
+        auto startAhead = Seconds(config.startAhead_s);
+
+        double work = duration;
+        auto earliest = time - startAhead;
+        for(auto &t : tests) {
+            if(t->state == ScheduledTest::State::done || t->state == ScheduledTest::State::failed) {
+                continue;
+            }
+            if(t->state == ScheduledTest::State::pending || t->state == ScheduledTest::State::recording) {
+                work += t->scenario.duration;
+            }
+            earliest = std::min(earliest, t->time - startAhead);
+        }
+
+        auto queueEnd = std::chrono::system_clock::now() + Seconds(work);
+        if(queueEnd > earliest) {
+            double late_s = std::chrono::duration<double>(queueEnd - earliest).count();
+            return std::format(
+                "test \"{}\" cannot be recorded in time, the recording queue would still be running "
+                "{:.1f} s after the first playback starts",
+                testId, late_s
+            );
+        }
+        return {};
+    }
+
     CommandError ScheduleTest(const CommandMessage::TestSetup &command) {
         std::chrono::system_clock::time_point time;
         SCG_CHECK(ParseStartTime(command.time, time));
@@ -508,6 +573,9 @@ private:
         SCG_CHECK(CheckValidity(SCG::ValidateScenario(scenario), "scenario"));
         Common::Logger::Info("validation successful");
 
+        SCG_CHECK(CheckOverlap(command.testId, time, scenario.duration));
+        SCG_CHECK(CheckRecordingQueue(command.testId, time, scenario.duration));
+
         auto test = std::make_unique<ScheduledTest>();
         test->testId = command.testId;
         test->time = time;
@@ -517,7 +585,6 @@ private:
         test->scenarioMap = std::move(scenarioMap);
         test->state = ScheduledTest::State::pending;
 
-        // TODO handle problems with time overlaps
         tests.push_back(std::move(test));
         Common::Logger::Info("test scheduled: {}", command.testId);
         return {};
@@ -643,9 +710,7 @@ private:
 
     void UpdateSchedule() {
         auto now = std::chrono::system_clock::now();
-        auto startAhead = std::chrono::duration_cast<std::chrono::system_clock::duration>(
-            std::chrono::duration<double>(config.startAhead_s)
-        );
+        auto startAhead = Seconds(config.startAhead_s);
 
         if(testRunning != nullptr) {
             if(ctx.controller->GetState() != Sagax::Pipeline::Controller::RunState::running) {
