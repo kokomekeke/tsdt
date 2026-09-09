@@ -5,6 +5,7 @@ namespace Sagax::SCG {
 
     // implementatins should hold their own parameters to use for Init_()
     // Init_() and Dispose_() should be idempotent
+    // Dispose_() should not throw, it is called from teardown paths and destructors
     // i reject any allegations claiming similiarity between this interface and StartStop from spire
     struct Resource {
     private:

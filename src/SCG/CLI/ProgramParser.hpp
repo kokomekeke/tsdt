@@ -11,6 +11,8 @@ struct Parameters {
 
     // could use variants but why
     bool success;
+    // --help and --version write their text and end the run, there is nothing else to do
+    bool helpRequested;
     std::string error;
     Mode mode;
     std::string jsonPath;
@@ -22,7 +24,9 @@ struct ProgramParser {
     Parameters params;
     argparse::ArgumentParser program;
 
-    ProgramParser() : program("scg.exe", "1.0", argparse::default_arguments::all) {
+    // exit_on_default_arguments is off so that --help and --version come back here
+    // instead of calling std::exit, which would skip every destructor on the way out
+    ProgramParser() : program("scg.exe", "1.0", argparse::default_arguments::all, false) {
         auto &mode = program.add_mutually_exclusive_group(false);
         mode.add_argument("-r", "--record")
             .help("record mode: -r <jsonPath> <recordingDirectory>")
@@ -42,12 +46,26 @@ struct ProgramParser {
     }
 
     void Parse(int argc, char **argv) {
+        params.helpRequested = false;
+
+        std::string parseError;
         try {
             program.parse_args(argc, argv);
         }
         catch(const std::exception &e) {
+            parseError = e.what();
+        }
+
+        // the help text is written while the arguments are read and the missing ones are
+        // only reported after that, so the request is answered before the error is looked at
+        if(program.is_used("--help") || program.is_used("--version")) {
+            params.helpRequested = true;
+            params.success = true;
+            return;
+        }
+        if(!parseError.empty()) {
             params.success = false;
-            params.error = e.what();
+            params.error = parseError;
             return;
         }
 

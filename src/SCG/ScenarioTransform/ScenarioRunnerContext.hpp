@@ -16,11 +16,20 @@ namespace Sagax::SCG {
         std::vector<std::unique_ptr<Resource>> ownedResources;
 
         void Init_() {
-            for(auto &p : ownedResources) {
-                p->Init();
+            // Init() marks the resource valid only once Init_() returns, so a throw here
+            // would leave the ones that already came up initialized with no way left to
+            // reach them. they are taken down before the exception leaves
+            try {
+                for(auto &p : ownedResources) {
+                    p->Init();
+                }
+                for(auto p : resources) {
+                    p->Init();
+                }
             }
-            for(auto p : resources) {
-                p->Init();
+            catch(...) {
+                Dispose_();
+                throw;
             }
         }
 

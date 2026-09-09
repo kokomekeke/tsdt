@@ -255,17 +255,29 @@ namespace Sagax::SCG {
             const char *clientId = config.clientId.empty() ? nullptr : config.clientId.c_str();
             mosq = mosquitto_new(clientId, true, this);
             if(mosq == nullptr) {
+                Common::Logger::Error("failed to create the mosquitto client");
                 Cleanup();
                 return;
             }
             mosquitto_message_callback_set(mosq, &Impl::OnMessage_dispatch);
 
             running.store(true);
-            loopThread = std::thread([this]() { RunLoop(); });
+            // the loop is the whole body of the thread, an exception leaving it would end
+            // the process. the client stops instead and IsRunning() reports it
+            loopThread = std::thread([this]() {
+                try {
+                    RunLoop();
+                }
+                catch(const std::exception &e) {
+                    Common::Logger::Error("mqtt loop stopped: {}", e.what());
+                }
+                running.store(false);
+            });
         }
 
+        // a client that never started and one whose loop stopped on its own both end up
+        // here, so this does not require the client to be running
         void Stop() {
-            Common::Assert(running.load(), "MqttClient::Stop called while client is not running");
             Cleanup();
         }
 

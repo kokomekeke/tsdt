@@ -25,6 +25,9 @@ namespace Sagax::SCG {
         if(cfg.mqtt.logTopic.empty()) {
             res.errors.push_back("mqtt.log_topic must not be empty");
         }
+        if(cfg.mqtt.errorTopic.empty()) {
+            res.errors.push_back("mqtt.error_topic must not be empty");
+        }
 
         std::map<std::string, std::size_t> radioIds;
         for(std::size_t i = 0; i < cfg.radios.size(); ++i) {
@@ -129,6 +132,10 @@ namespace Sagax::SCG {
 
             if(radioSetting.centers_hz.size() != std::size_t(radioSetting.nChannels)) {
                 res.errors.push_back(std::format("radioSettings[{}]: centers_hz array has wrong size", i));
+            }
+
+            if(radioSetting.gains_db.size() != std::size_t(radioSetting.nChannels)) {
+                res.errors.push_back(std::format("radioSettings[{}]: gains_db array has wrong size", i));
             }
 
             // a sidekiq transmits through the ports named in the config, so the scenario

@@ -123,23 +123,43 @@ struct Program {
         #endif
     }
 
-    void Run(Parameters params) {
+    // the pipeline owns the devices, so it goes first. uhd keeps dispatching log records
+    // on a thread of its own after that, and libsidekiq outlives the devices it handed
+    // out. mtxStop is held because clearing ctx destroys the controller Stop() reads
+    void ReleaseResources() {
+        std::unique_lock lck(mtxStop);
+        ctx.Dispose();
+        ctx = ScenarioRunnerContext{};
+        #ifdef HAVE_USRP
+            SSG::UsrpB200::DisposeLogging();
+        #endif
+        #ifdef HAVE_SIDEKIQ
+            SSG::Sidekiq::LibraryCleanup();
+        #endif
+    }
+
+    bool Run(Parameters params) {
         Common::Logger::Info("SCG");
 
         Configure();
         try {
+            ScenarioRunnerContext res;
             switch(params.mode) {
-                case Parameters::Mode::playback: { ctx = SetupPlayback(params.recordingDirectory); } break;
-                case Parameters::Mode::record: { ctx = SetupRecording(params.jsonPath, params.recordingDirectory); } break;
-                case Parameters::Mode::stream: { ctx = SetupStreaming(params.jsonPath); } break;
+                case Parameters::Mode::playback: { res = SetupPlayback(params.recordingDirectory); } break;
+                case Parameters::Mode::record: { res = SetupRecording(params.jsonPath, params.recordingDirectory); } break;
+                case Parameters::Mode::stream: { res = SetupStreaming(params.jsonPath); } break;
                 default: {
                     Common::Assert(false, "wrong mode");
                 }
             }
+            {
+                std::unique_lock lck(mtxStop);
+                ctx = std::move(res);
+            }
         }
         catch(const std::exception &e) {
             Common::Logger::Error("\ncould not set up pipeline:\n{}", e.what());
-            return;
+            return false;
         }
 
         // this could maybe be controlled individually for each mode
@@ -159,7 +179,7 @@ struct Program {
         }
         catch(const std::exception &e) {
             Common::Logger::Error("\ncould not initialize resources:\n{}", e.what());
-            return;
+            return false;
         }
 
         Common::Timer timer;
@@ -168,14 +188,16 @@ struct Program {
         ctx.controller->Join();
         auto time_ms = timer.Get_ms();
 
+        bool ok = true;
         try {
             ctx.controller->Throw();
         }
         catch(const std::exception &e) {
             Common::Logger::Error("\nerror running pipeline:\n{}", e.what());
+            ok = false;
         }
         Common::Logger::Info("time: {} ms", time_ms);
-        ctx.Dispose();
+        return ok;
     }
 
     void Stop(){
@@ -186,7 +208,7 @@ struct Program {
         }
     }
 
-    void Main(int argc, char **argv) {
+    int Main(int argc, char **argv) {
         // SetCurrentThreadName("main");
         Common::StdLogStream logStream(std::cerr, Common::Logger::Level::Trace, Common::StdLogStream::TagOptions{
             .file = true,
@@ -197,15 +219,31 @@ struct Program {
             Common::Logger::RemoveStream(&logStream);
         });
 
+        // declared after the log stream, so it runs before the stream is taken away, on
+        // every path out of Run including the early returns and a throw
+        Common::Defer releaseResources([this]() {
+            ReleaseResources();
+        });
+
         parser.Parse(argc, argv);
         Parameters params = parser.params;
         if(!params.success) {
             Common::Logger::Error("\ncould not parse parameters:\n{}", params.error.c_str());
             Common::Logger::Info("\n{}", parser.Help().c_str());
-            return;
+            return 1;
+        }
+        if(params.helpRequested) {
+            return 0;
         }
 
-        Run(params);
+        bool ok = false;
+        try {
+            ok = Run(params);
+        }
+        catch(const std::exception &e) {
+            Common::Logger::Error("\nerror during run:\n{}", e.what());
+        }
+        return ok ? 0 : 1;
     }
 
 };
@@ -220,8 +258,7 @@ int main(int argc, char **argv) {
         program.Stop();
     });
 
-    program.Main(argc, argv);
-    return 0;
+    return program.Main(argc, argv);
 }
 
 

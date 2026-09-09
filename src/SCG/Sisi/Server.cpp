@@ -38,6 +38,8 @@ using namespace Sagax::SCG;
 
 struct Parameters {
     bool success;
+    // --help and --version write their text and end the run, there is nothing else to do
+    bool helpRequested;
     std::string error;
     std::string configPath;
 };
@@ -46,7 +48,9 @@ struct ProgramParser {
     Parameters params;
     argparse::ArgumentParser program;
 
-    ProgramParser() : program("scgserver.exe", "1.0", argparse::default_arguments::all) {
+    // exit_on_default_arguments is off so that --help and --version come back here
+    // instead of calling std::exit, which would skip every destructor on the way out
+    ProgramParser() : program("scgserver.exe", "1.0", argparse::default_arguments::all, false) {
         program.add_argument("config_path")
             .help("path to configuration .json");
     }
@@ -56,16 +60,30 @@ struct ProgramParser {
     }
 
     void Parse(int argc, char **argv) {
+        params.helpRequested = false;
+
+        std::string parseError;
         try {
             program.parse_args(argc, argv);
+            params.configPath = program.get<std::string>("config_path");
         }
         catch(const std::exception &e) {
+            parseError = e.what();
+        }
+
+        // the help text is written while the arguments are read and the missing ones are
+        // only reported after that, so the request is answered before the error is looked at
+        if(program.is_used("--help") || program.is_used("--version")) {
+            params.helpRequested = true;
+            params.success = true;
+            return;
+        }
+        if(!parseError.empty()) {
             params.success = false;
-            params.error = e.what();
+            params.error = parseError;
             return;
         }
 
-        params.configPath = program.get<std::string>("config_path");
         params.success = true;
     }
 };
@@ -239,6 +257,16 @@ static CommandError ReadRid(const std::string &json, SCG::Rid &out) {
     return {};
 }
 
+static CommandError MapRid(const SCG::ServerConfig &cfg, const SCG::Rid &rid, SCG::ScenarioRidMap &out) {
+    try {
+        out = SCG::MapRidToScenario(cfg, rid);
+    }
+    catch(const std::exception &e) {
+        return std::format("failed to build a scenario from the RID: {}", e.what());
+    }
+    return {};
+}
+
 static CommandError ReadCommand(const std::string &payload, CommandMessage &out) {
     try {
         out = SCG::ParseCommandMessage(payload);
@@ -321,6 +349,9 @@ private:
         pipelineConfig.preinit.usrp.usePreinitOnly = true;
         if(!config.mockRadios) {
             for(auto &v : config.radios) {
+                if(StopRequested()) {
+                    return;
+                }
                 if(std::holds_alternative<SCG::ServerConfig::Radio::UsrpB200>(v.variant)) {
                     auto &w = std::get<SCG::ServerConfig::Radio::UsrpB200>(v.variant);
                     auto dev = SSG::UsrpB200::GetDevice(w.serial);
@@ -334,6 +365,9 @@ private:
         pipelineConfig.preinit.sidekiq.usePreinitOnly = true;
         if(!config.mockRadios) {
             for(auto &v : config.radios) {
+                if(StopRequested()) {
+                    return;
+                }
                 if(std::holds_alternative<SCG::ServerConfig::Radio::Sidekiq>(v.variant)) {
                     auto &w = std::get<SCG::ServerConfig::Radio::Sidekiq>(v.variant);
                     // libsidekiq holds the card state, so it is brought up before any
@@ -353,6 +387,26 @@ private:
         pipelineConfig.events.eventEnd = [this](std::int32_t eventId) {
             this->SetEventActive(eventId, false);
         };
+    }
+
+    // the pipeline holds the preinitialized devices while it runs, so this is only
+    // reached once it is down
+    void ReleaseRadios() {
+#ifdef HAVE_USRP
+        pipelineConfig.preinit.usrp.devices.clear();
+        // uhd keeps dispatching log records on its own thread after the devices are gone
+        SSG::UsrpB200::DisposeLogging();
+#endif
+#ifdef HAVE_SIDEKIQ
+        // the devices have to be released before the library that handed them out
+        pipelineConfig.preinit.sidekiq.devices.clear();
+        SSG::Sidekiq::LibraryCleanup();
+#endif
+    }
+
+    bool StopRequested() {
+        std::unique_lock lck(mtx);
+        return !programRunning;
     }
 
     void SetEventActive(std::int32_t eventId, bool active) {
@@ -446,7 +500,8 @@ private:
         SCG_CHECK(CheckValidity(SCG::ValidateRid(config, rid), "RID"));
         Common::Logger::Info("validation successful");
 
-        auto scenarioMap = SCG::MapRidToScenario(config, rid);
+        SCG::ScenarioRidMap scenarioMap;
+        SCG_CHECK(MapRid(config, rid, scenarioMap));
         auto scenario = scenarioMap.scen;
 
         Common::Logger::Info("validating scenario..");
@@ -507,7 +562,7 @@ private:
             }
         }
         catch(const std::exception &e) {
-            PublishError(std::format("could not build pipeline for \"{}\": {}", test.testId, e.what()));
+            PublishError(std::format("could not build pipeline for test \"{}\": {}", test.testId, e.what()));
             test.state = ScheduledTest::State::failed;
             return;
         }
@@ -522,7 +577,7 @@ private:
             ctx.Init();
         }
         catch(const std::exception &e) {
-            PublishError(std::format("could not initialize resources for \"{}\": {}", test.testId, e.what()));
+            PublishError(std::format("could not initialize resources for test \"{}\": {}", test.testId, e.what()));
             ctx.Dispose();
             ctx.controller.reset();
             test.state = ScheduledTest::State::failed;
@@ -546,14 +601,9 @@ private:
         if(testRunning == nullptr) {
             return;
         }
-        try {
-            ctx.controller->Stop(true);
-            ctx.controller->Join();
-            ctx.Dispose();
-        }
-        catch(const std::exception &e) {
-            Common::Logger::Error("\nerror while stopping pipeline:\n{}", e.what());
-        }
+        ctx.controller->Stop(true);
+        ctx.controller->Join();
+        ctx.Dispose();
         ctx.controller.reset();
         testRunning = nullptr;
         ClearStatusSource();
@@ -570,15 +620,10 @@ private:
             ctx.controller->Throw();
         }
         catch(const std::exception &e) {
-            PublishError(std::format("error running pipeline for \"{}\": {}", test.testId, e.what()));
+            PublishError(std::format("error running pipeline for test \"{}\": {}", test.testId, e.what()));
             failed = true;
         }
-        try {
-            ctx.Dispose();
-        }
-        catch(const std::exception &e) {
-            Common::Logger::Error("\nerror while disposing resources:\n{}", e.what());
-        }
+        ctx.Dispose();
         ctx.controller.reset();
         testRunning = nullptr;
         ClearStatusSource();
@@ -654,7 +699,7 @@ private:
             CommandMessage cm;
             CommandError error = ReadCommand(payload, cm);
             if(!error.empty()) {
-                Common::Logger::Error("received [{}]: bad payload: \"{}\"", msg.topic, payload);
+                error = std::format("received [{}]: bad payload: \"{}\": {}", msg.topic, payload, error);
             }
             else if(std::holds_alternative<CommandMessage::TestSetup>(cm.variant)) {
                 auto &v = std::get<CommandMessage::TestSetup>(cm.variant);
@@ -665,6 +710,9 @@ private:
                 auto &v = std::get<CommandMessage::TestCancel>(cm.variant);
                 Common::Logger::Info("received [{}] TestCancel: test_id={}", msg.topic, v.testId);
                 error = CancelTest(v);
+            }
+            else {
+                error = std::format("received [{}]: unknown command", msg.topic);
             }
 
             if(!error.empty()) {
@@ -710,8 +758,18 @@ private:
     }
 
     void Run() {
+        MqttClient::LibraryInit();
+        Common::Defer disposeMqttLibrary([](){
+            MqttClient::LibraryCleanup();
+        });
+        Common::Defer disposeClient([this](){
+            client.Stop();
+        });
+        Common::Defer disposePipeline([this](){
+            StopPipeline();
+        });
+
         {
-            MqttClient::LibraryInit();
             MqttClient::Configuration mqttConfig;
             mqttConfig.host = config.mqtt.brokerHost;
             mqttConfig.port = config.mqtt.brokerPort;
@@ -725,6 +783,10 @@ private:
             };
             client.Configure(std::move(mqttConfig));
             client.Start();
+        }
+        if(!client.IsRunning()) {
+            Common::Logger::Error("could not start the mqtt client, stopping");
+            return;
         }
 
         Common::Logger::Info("server running.. ctrl+c to stop");
@@ -749,15 +811,6 @@ private:
             UpdateSchedule();
             PublishStatus();
         }
-
-        StopPipeline();
-        client.Stop();
-        MqttClient::LibraryCleanup();
-#ifdef HAVE_SIDEKIQ
-        // the devices have to be released before the library that handed them out
-        pipelineConfig.preinit.sidekiq.devices.clear();
-        SSG::Sidekiq::LibraryCleanup();
-#endif
     }
 
 public:
@@ -766,9 +819,10 @@ public:
         return instance;
     }
 
-    void Main(int argc, char **argv) {
+    int Main(int argc, char **argv) {
         Common::StdLogStream logStream(std::cerr, Common::Logger::Level::Trace, Common::StdLogStream::TagOptions{
-            .file = true,
+            .colors = true,
+            .file = false,
             .function = false
         });
         Common::Logger::AddStream(&logStream);
@@ -809,40 +863,57 @@ public:
             cv.notify_all();
         });
 
+        // the radios are opened by the setup and handed to the pipelines, so they are
+        // released after Run has left, whether it returned or threw
+        Common::Defer releaseRadios([this](){
+            ReleaseRadios();
+        });
+
         Parameters params{};
-        try {
-            parser.Parse(argc, argv);
-            params = parser.params;
-        }
-        catch(const std::exception &e) {
-            Common::Logger::Error("\nfailed to parse parameters:\n{}", e.what());
-            return;
-        }
+        parser.Parse(argc, argv);
+        params = parser.params;
         if(!params.success) {
             Common::Logger::Error("\nfailed to parse parameters:\n{}", params.error.c_str());
             Common::Logger::Info("\n{}", parser.Help().c_str());
-            return;
+            return 1;
+        }
+        if(params.helpRequested) {
+            return 0;
+        }
+
+        bool setupSuccess = false;
+        try {
+            setupSuccess = Setup(params);
+        }
+        catch(const std::exception &e) {
+            Common::Logger::Error("\nerror during setup:\n{}", e.what());
+        }
+
+        if(!setupSuccess) {
+            Common::Logger::Info("unsuccessful setup, stopping");
+            return 1;
+        }
+
+        // a signal that arrived while the radios were opened is acted on here, the run
+        // loop is never entered
+        if(StopRequested()) {
+            Common::Logger::Info("stopped before the server started");
+            return 0;
         }
 
         try {
-            if(Setup(params)) {
-                Run();
-            }
+            Run();
         }
         catch(const std::exception &e) {
             Common::Logger::Error("\nerror during run:\n{}", e.what());
+            return 1;
         }
+        return 0;
     }
 
 };
 Program Program::instance;
 
 int main(int argc, char **argv) {
-    try {
-        Program::GetInstance().Main(argc, argv);
-    }
-    catch(const std::exception &) {
-        // cant even log here, so just forget about it
-    }
-    return 0;
+    return Program::GetInstance().Main(argc, argv);
 }
