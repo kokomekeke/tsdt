@@ -2,6 +2,7 @@
 #include <atomic>
 #include <chrono>
 #include <cctype>
+#include <cerrno>
 #include <csignal>
 #include <fstream>
 #include <iostream>
@@ -13,7 +14,7 @@
 #ifdef _WIN32
 #include <conio.h>
 #else
-#include <signal.h>
+#include <poll.h>
 #include <termios.h>
 #include <unistd.h>
 #endif
@@ -25,6 +26,7 @@
 #include "MqttClient.hpp"
 #include "SCG/Json/Rid.hpp"
 #include "SCG/Json/ServerConfig.hpp"
+#include "SCG/Utility/SignalHandler.hpp"
 
 using namespace Sagax;
 using namespace Sagax::SCG;
@@ -189,29 +191,16 @@ struct TerminalRawMode {
     TerminalRawMode &operator=(const TerminalRawMode &) = delete;
 };
 
-// a signal handler may only write a flag of this type
-static volatile std::sig_atomic_t g_stopRequested = 0;
-
-// the terminal has to be put back the way it was before the process leaves, and that only
-// happens if the loop returns and runs the destructor of TerminalRawMode. the handler is
-// installed without SA_RESTART so that the read blocking on the keyboard fails with EINTR
-// instead of being resumed. on windows there is no raw mode to restore and _getch would
-// keep blocking after the handler returned, so the default action is left in place there
-static void InstallStopHandler() {
-#ifndef _WIN32
-    struct sigaction sa{};
-    sa.sa_handler = [](int){
-        g_stopRequested = 1;
-    };
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sigaction(SIGINT, &sa, nullptr);
-#endif
-}
-
-// returns the character, -1 at the end of the input and -2 for a key that is dropped
+// returns the character, -1 at the end of the input, -2 for a key that is dropped and
+// -3 when nothing arrived before the wait ran out. the signals are taken by a thread of
+// their own and are blocked everywhere else, so a read is never interrupted and the wait
+// is what brings the loop back to the running flag
 static int ReadChar() {
 #ifdef _WIN32
+    if(!_kbhit()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        return -3;
+    }
     int c = _getch();
     if(c == 0 || c == 0xE0) {
         _getch(); // the second byte of an arrow or function key
@@ -222,6 +211,17 @@ static int ReadChar() {
     }
     return c;
 #else
+    pollfd pfd{};
+    pfd.fd = STDIN_FILENO;
+    pfd.events = POLLIN;
+    int ready = poll(&pfd, 1, 50);
+    if(ready < 0) {
+        // a signal that is not blocked here lands as EINTR, a terminal resize for one
+        return errno == EINTR ? -3 : -1;
+    }
+    if(ready == 0) {
+        return -3;
+    }
     char c = 0;
     if(read(STDIN_FILENO, &c, 1) != 1) {
         return -1;
@@ -311,6 +311,19 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    // watched by the input loop and by the thread draining the incoming messages. it is
+    // declared before the handler so that the callback cannot outlive it
+    std::atomic<bool> running{true};
+
+    // constructed before the mqtt client and the log thread start, on linux a thread
+    // inherits the signal mask and the blocking has to be in place by then. the callback
+    // runs on an ordinary thread and only clears the flag, so the loop returns on its own
+    // and the destructor of TerminalRawMode puts the terminal back
+    SignalHandler signalHandler({ SIGINT, SIGTERM }, [&running](int sig){
+        Common::Logger::Info("signal {} received, stopping", sig);
+        running.store(false);
+    });
+
     MqttClient::LibraryInit();
     MqttClient client;
 
@@ -335,7 +348,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    std::atomic<bool> running{true};
     std::thread logThread([&]() {
         DrainIncomingMessages(client, running);
     });
@@ -346,7 +358,6 @@ int main(int argc, char **argv) {
     Common::Logger::Info("listening error topic: {}", config.mqtt.errorTopic);
 
     [[maybe_unused]] TerminalRawMode rawMode;
-    InstallStopHandler();
     editor.Start();
     Common::Defer stopEditor([&](){
         editor.Stop();
@@ -355,11 +366,7 @@ int main(int argc, char **argv) {
     std::string line;
     while(running.load()) {
         int c = ReadChar();
-        if(g_stopRequested != 0) {
-            running.store(false);
-            break;
-        }
-        if(c == -2) {
+        if(c == -2 || c == -3) { // a dropped key, or nothing to read yet
             continue;
         }
         if(c == -1 || c == 3 || c == 4) { // end of input, ctrl+c, ctrl+d
