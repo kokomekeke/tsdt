@@ -2,10 +2,6 @@
 #include <stdexcept>
 #include <string>
 #include "Json/JsonParser.hpp"
-#include "SSG/Modules/IQSink.hpp"
-#include "SSG/Modules/PacketSource.hpp"
-#include "SSG/Modules/IQFileSink.hpp"
-#include "SSG/Modules/IQFileSource.hpp"
 #include "Scenario.hpp"
 
 using namespace Sagax::Json;
@@ -32,12 +28,26 @@ namespace Sagax::SCG {
                     AddParam(&OutputVariant::RadioUsrpB200::gain, JsonPrimitiveParser<double>{}, "gain");
                 }
             };
+            struct RadioSidekiqParser : public JsonObjectParser<OutputVariant::RadioSidekiq> {
+                RadioSidekiqParser() {
+                    AddParam(&OutputVariant::RadioSidekiq::serial, JsonPrimitiveParser<std::string>{}, "serial");
+                    AddParam(&OutputVariant::RadioSidekiq::sampleRate, JsonPrimitiveParser<double>{}, "samplerate");
+                    AddParam(&OutputVariant::RadioSidekiq::nChannels, JsonPrimitiveParser<std::size_t>{}, "nChannels");
+                    auto arrC = AddParam(&OutputVariant::RadioSidekiq::centers, JsonArrayParser<double>{}, "frequencies");
+                    auto arrH = AddParam(&OutputVariant::RadioSidekiq::handlers, JsonArrayParser<std::string>{}, "handlers");
+                    auto arrG = AddParam(&OutputVariant::RadioSidekiq::gains, JsonArrayParser<double>{}, "gains");
+                    arrC->SetItemParser(JsonPrimitiveParser<double>{});
+                    arrH->SetItemParser(JsonPrimitiveParser<std::string>{});
+                    arrG->SetItemParser(JsonPrimitiveParser<double>{});
+                }
+            };
             struct OutputVariantParser : public JsonObjectParser<OutputVariant> {
                 struct VariantParser : public JsonVariantParser<OutputVariant::T> {
                     VariantParser() {
                         typeTagKey = "type";
                         AddAlt<OutputVariant::FileIQ>("File", std::nullopt, FileIQParser{});
                         AddAlt<OutputVariant::RadioUsrpB200>("UsrpB200", std::nullopt, RadioUsrpB200Parser{});
+                        AddAlt<OutputVariant::RadioSidekiq>("Sidekiq", std::nullopt, RadioSidekiqParser{});
                     }
                 };
                 OutputVariantParser() {

@@ -11,9 +11,9 @@
             "request": "launch",
             "program": "${workspaceFolder}/build-msvc/scg.exe",
             "args": [
-                "-s",
-                "../scenarios/test-3.json",
-                // "recording_test1"
+                "-r",
+                "../scenarios/test-1.json",
+                "recording_test1"
             ],
             // "envFile": "${workspaceFolder}/build-msvc/.env",
             "stopAtEntry": false,
@@ -35,6 +35,30 @@
             "environment": [],
             "envFile": "${workspaceFolder}/build-msvc/subprojects/SSG/.env",
             "console": "internalConsole",
+        },
+        {
+            "name": "Remote Debug scg (GDB)",
+            "type": "cppdbg",
+            "request": "launch",
+
+            "program": "${workspaceFolder}/build-sidekiq/scg",
+            "cwd": "${workspaceFolder}/build-sidekiq/",
+
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+
+            "miDebuggerServerAddress": "10.1.1.57:12345",
+
+            "stopAtEntry": true,
+            "externalConsole": false,
+
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
         },
         {
             "name": "Attach (MSVC)",

@@ -49,6 +49,7 @@ endif
 buildScg = get_option('build_scg')
 buildScgServer = get_option('build_scgserver')
 buildMqttExamples = get_option('build_mqtt_examples')
+buildScgLint = get_option('build_scg_lint')
 
 
 ssgSub = subproject('SSG')
@@ -63,6 +64,8 @@ scgLib = static_library(
     'scg_core',
     sources: [
         'src/SCG/Json/Scenario.cpp',
+        'src/SCG/Json/Rid.cpp',
+        'src/SCG/Json/ServerConfig.cpp',
         'src/SCG/Modules/Merger.cpp',
         'src/SCG/Modules/Sink.cpp',
         'src/SCG/Modules/Source.cpp',
@@ -70,11 +73,14 @@ scgLib = static_library(
         # 'src/SCG/Output/OutputDevice.cpp',
         'src/SCG/Output/FileOutputDevice.cpp',
         'src/SCG/Output/UsrpB200Device.cpp',
+        'src/SCG/Output/SidekiqDevice.cpp',
         'src/SCG/Scenario/OutputVariant.cpp',
         'src/SCG/Scenario/Validate.cpp',
         'src/SCG/ScenarioTransform/BuildPipeline.cpp',
         'src/SCG/ScenarioTransform/Transform.cpp',
-        'src/SCG/Signal/SignalGenerator.cpp'
+        'src/SCG/Signal/SignalGenerator.cpp',
+        'src/SCG/Sisi/RidTransform.cpp',
+        'src/SCG/Utility/SignalHandler.cpp',
     ],
     include_directories: [ 'src/' ],
     dependencies: [
@@ -112,6 +118,25 @@ if buildScg
     )
 endif
 
+if buildScgLint
+    executable(
+        'scglint',
+        sources: [
+            'src/SCG/Lint/main.cpp'
+        ],
+        include_directories: [ 'src/' ],
+        dependencies: [
+            commonLibDep,
+            jsonLibDep,
+            coreLibDep,
+            ssgLibDep,
+            scgLibDep
+        ],
+        cpp_args: cpp_args + ssg_defines,
+        link_args: link_args,
+    )
+endif
+
 if buildScgServer or buildMqttExamples
     if isWindows
         mosquittoDep = dependency('mosquitto')
@@ -129,9 +154,6 @@ if buildScgServer or buildMqttExamples
     executable(
         'scgserver',
         sources: [
-            'src/SCG/Json/Rid.cpp',
-            'src/SCG/Json/ServerConfig.cpp',
-            'src/SCG/Sisi/RidTransform.cpp',
             'src/SCG/Sisi/MqttClient.cpp',
             'src/SCG/Sisi/Server.cpp',
         ],
@@ -150,8 +172,6 @@ if buildScgServer or buildMqttExamples
     executable(
         'scgcommander',
         sources: [
-            'src/SCG/Json/Rid.cpp',
-            'src/SCG/Json/ServerConfig.cpp',
             'src/SCG/Sisi/MqttClient.cpp',
             'src/SCG/Sisi/Commander.cpp',
         ],

@@ -74,6 +74,7 @@ sudo apt update
 sudo apt install intel-oneapi-toolkit
 
 # create oneAPI path variable (NOTE: use youre path default on ubuntu: /opt/intel/oneapi)
+# NOTE: ezt érdemes betenni ~/.bashrc-be így mindig meglesz
 export oneAPIpath="/opt/intel/oneapi"
 ~~~
 
@@ -97,9 +98,9 @@ export CC=gcc-13
 export CXX=g++-13
 ~~~
 
-TODO: Az SgxExtRoot változó nálam nem működött mezonban ezt meg kell nézni miért nem működik.
 ~~~bash
 # NOTE: use your path to the largeshare
+# NOTE: ezt érdemes betenni ~/.bashrc-be így mindig meglesz
 export sgx_ext_path="/mnt/largeshare/temp/3rdparty/sgx-ext-20250120"
 ~~~
 
@@ -123,10 +124,23 @@ sudo apt install cmake
 # Ubuntu:
 sudo apt install libcjson-dev
 ~~~
-### 6. Build
+### 6. Build - UHD
 ```bash
-meson setup build -DSSG:have_usrp=true -DSSG:use_oneapi=true -DIntelOneAPI:oneAPIDevPath=$oneAPIpath -DUHD:SgxExtRoot=sgx_ext_path
-cd build
+meson setup build-uhd -DSSG:have_usrp=true -DSSG:use_oneapi=true -DIntelOneAPI:oneAPIDevPath=$oneAPIpath -DUHD:SgxExtRoot=$sgx_ext_path
+cd build-uhd
+meson devenv
+meson compile
+```
+### 7. Build - Sidekiq
+```bash
+export CC=gcc-13
+export CXX=g++-13
+
+export sgx_ext_path="/mnt/largeshare/temp/3rdparty/sgx-ext-20250120"
+export oneAPIpath="/opt/intel/oneapi"
+
+meson setup build-sidekiq -DSSG:have_sidekiq=true -DSSG:use_oneapi=true -DIntelOneAPI:oneAPIDevPath=$oneAPIpath -DSidekiq:SgxExtRoot=$sgx_ext_path
+cd build-sidekiq
 meson devenv
 meson compile
 ```

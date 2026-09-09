@@ -22,12 +22,11 @@ namespace Sagax::SCG {
         };
 
         struct RadioSettings {
-            enum struct Type { transmitter, receiver };
             std::string radioId;
-            Type type;
-            double center_hz;
+            std::int32_t nChannels;
             double bandwidth_hz;
-            double gain_db;
+            std::vector<double> centers_hz;
+            std::vector<double> gains_db;
         };
 
         struct InterferenceSource {
@@ -61,6 +60,7 @@ namespace Sagax::SCG {
             >;
 
             std::string radioId;
+            std::int32_t channelId;
             double center_hz;
             double power_dbm;
             double startTime_s;

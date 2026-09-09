@@ -1,0 +1,48 @@
+{
+    "duration": 120,
+    "outputs": [
+        {
+            "name": "r1",
+            "type": "Sidekiq",
+            "serial": "B15Y",
+            "handlers": ["A1", "B1"],
+            "nChannels" : 2,
+            "samplerate": 10000000,
+            "frequencies": [1200000000.0, 1200600000.0],
+            "gains": [89.75, 89.75]
+        }
+    ],
+    "signals": [
+        {
+            "name": "s1",
+            "type": "Chirp",
+            "span": 10000,
+            "rate": 1.0
+        },
+        {
+            "name": "s2",
+            "type": "Tone"
+        }
+    ],
+    "events": [
+        {
+            "signal": "s1",
+            "output": "r1",
+            "channel": 0,
+            "frequency": 1200000000.0,
+            "amplitude": 0.8,
+            "start": 0,
+            "end": 120
+        },
+        {
+            "signal": "s1",
+            "output": "r1",
+            "channel": 1,
+            "frequency": 1200600000.0,
+            "amplitude": 0.8,
+            "start": 0,
+            "end": 120
+        }
+    ]
+}
+

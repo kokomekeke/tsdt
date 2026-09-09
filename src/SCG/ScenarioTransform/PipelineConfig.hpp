@@ -5,7 +5,11 @@
 #include <functional>
 
 #ifdef HAVE_USRP
-#include "SSG/Usrp/UsrpB200.hpp"
+#include "SSG/Radio/Usrp/UsrpB200.hpp"
+#endif
+
+#ifdef HAVE_SIDEKIQ
+#include "SSG/Radio/Sidekiq/Sidekiq.hpp"
 #endif
 
 namespace Sagax::SCG {
@@ -18,6 +22,14 @@ namespace Sagax::SCG {
                 std::map<std::string, std::unique_ptr<SSG::UsrpB200::Device>> devices; // serial -> device
             };
             Usrp usrp;
+            #endif
+
+            #ifdef HAVE_SIDEKIQ
+            struct Sidekiq {
+                bool usePreinitOnly;
+                std::map<std::string, std::unique_ptr<SSG::Sidekiq::Device>> devices; // serial -> device
+            };
+            Sidekiq sidekiq;
             #endif
         };
 

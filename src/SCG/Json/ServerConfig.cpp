@@ -13,10 +13,16 @@ namespace Sagax::SCG {
                         AddParam(&ServerConfig::Radio::UsrpB200::serial, JsonPrimitiveParser<std::string>{}, "serial");
                     }
                 };
+                struct SidekiqParser : public JsonObjectParser<ServerConfig::Radio::Sidekiq> {
+                    SidekiqParser() {
+                        AddParam(&ServerConfig::Radio::Sidekiq::serial, JsonPrimitiveParser<std::string>{}, "serial");
+                    }
+                };
 
                 RadioVariantParser() {
                     this->typeTagKey = "type";
                     AddAlt<ServerConfig::Radio::UsrpB200>("UsrpB200", "parameters", UsrpB200Parser{});
+                    AddAlt<ServerConfig::Radio::Sidekiq>("Sidekiq", "parameters", SidekiqParser{});
                 }
             };
 

@@ -4,6 +4,8 @@
 #include <iostream>
 #include <numbers>
 #include <utility>
+#include <csignal>
+#include <mutex>
 
 #include "Wrappers/JsonSane.hpp"
 #include "Common/Logger.hpp"
@@ -24,6 +26,7 @@
 #include "SCG/ScenarioTransform/Transform.hpp"
 #include "SCG/ScenarioTransform/BuildPipeline.hpp"
 #include "SCG/ScenarioTransform/PipelineConfig.hpp"
+#include "SCG/Utility/SignalHandler.hpp"
 
 #include "ProgramParser.hpp"
 
@@ -31,10 +34,18 @@ using namespace Sagax;
 using namespace Sagax::SCG;
 
 
+
 struct Program {
 
     ProgramParser parser;
     PipelineConfig pipelineConfig;
+    ScenarioRunnerContext ctx;
+
+    // Stop() runs on the signal thread while Run() is still putting ctx together, so the
+    // controller pointer is only read and written under this. stopRequested carries a
+    // signal that arrived before there was a controller to hand it to
+    std::mutex mtxStop;
+    bool stopRequested = false;
 
     Scenario ParseFile(std::string jsonPath) {
         Scenario scenario;
@@ -73,37 +84,37 @@ struct Program {
                 Common::Logger::Info("validation successful");
             }
         }
-
+        Common::Logger::Info("scenario name: {}", scenario.name.c_str());
         return scenario;
     }
 
     ScenarioRunnerContext SetupRecording(std::string jsonPath, std::string dirPath) {
-        ScenarioRunnerContext ctx;
-        ctx.scenario = ParseFile(jsonPath);
-        auto b = BuildRecordingPipeline(pipelineConfig, ctx.scenario, dirPath);
-        ctx.pipeline = b.builder.Build();
-        ctx.resources = b.resources;
-        ctx.ownedResources.emplace_back(std::move(b.dir));
-        return ctx;
+        ScenarioRunnerContext res;
+        res.scenario = ParseFile(jsonPath);
+        auto b = BuildRecordingPipeline(pipelineConfig, res.scenario, dirPath);
+        res.pipeline = b.builder.Build();
+        res.resources = b.resources;
+        res.ownedResources.emplace_back(std::move(b.dir));
+        return res;
     }
 
     ScenarioRunnerContext SetupPlayback(std::string dirPath) {
-        ScenarioRunnerContext ctx;
+        ScenarioRunnerContext res;
         auto b = BuildPlaybackPipeline(pipelineConfig, dirPath);
-        ctx.pipeline = b.builder.Build();
-        ctx.resources = b.resources;
-        ctx.scenario = b.dir->GetScenario();
-        ctx.ownedResources.emplace_back(std::move(b.dir));
-        return ctx;
+        res.pipeline = b.builder.Build();
+        res.resources = b.resources;
+        res.scenario = b.dir->GetScenario();
+        res.ownedResources.emplace_back(std::move(b.dir));
+        return res;
     }
 
     ScenarioRunnerContext SetupStreaming(std::string jsonPath) {
-        ScenarioRunnerContext ctx;
-        ctx.scenario = ParseFile(jsonPath);
-        auto b = BuildStreamingPipeline(pipelineConfig, ctx.scenario);
-        ctx.pipeline = b.builder.Build();
-        ctx.resources = b.resources;
-        return ctx;
+        ScenarioRunnerContext res;
+        res.scenario = ParseFile(jsonPath);
+        auto b = BuildStreamingPipeline(pipelineConfig, res.scenario);
+        res.pipeline = b.builder.Build();
+        res.resources = b.resources;
+        return res;
     }
 
     void Configure() {
@@ -116,8 +127,6 @@ struct Program {
         Common::Logger::Info("SCG");
 
         Configure();
-
-        ScenarioRunnerContext ctx;
         try {
             switch(params.mode) {
                 case Parameters::Mode::playback: { ctx = SetupPlayback(params.recordingDirectory); } break;
@@ -137,7 +146,13 @@ struct Program {
         auto controller = std::make_unique<Pipeline::PpController>();
         controller->Setup(ctx.pipeline, 32);
         controller->Reset();
-        ctx.controller = std::move(controller);
+        {
+            std::unique_lock lck(mtxStop);
+            ctx.controller = std::move(controller);
+            if(stopRequested) {
+                ctx.controller->Stop(false);
+            }
+        }
 
         try {
             ctx.Init();
@@ -159,14 +174,24 @@ struct Program {
         catch(const std::exception &e) {
             Common::Logger::Error("\nerror running pipeline:\n{}", e.what());
         }
-
         Common::Logger::Info("time: {} ms", time_ms);
         ctx.Dispose();
     }
 
+    void Stop(){
+        std::unique_lock lck(mtxStop);
+        stopRequested = true;
+        if(ctx.controller) {
+            ctx.controller->Stop(false);
+        }
+    }
+
     void Main(int argc, char **argv) {
         // SetCurrentThreadName("main");
-        Common::StdLogStream logStream(std::cerr, Common::Logger::Level::Trace, {});
+        Common::StdLogStream logStream(std::cerr, Common::Logger::Level::Trace, Common::StdLogStream::TagOptions{
+            .file = true,
+            .function = true
+        });
         Common::Logger::AddStream(&logStream);
         Common::Defer disposeLogger([&]() {
             Common::Logger::RemoveStream(&logStream);
@@ -185,8 +210,18 @@ struct Program {
 
 };
 
+Program program;
+
 int main(int argc, char **argv) {
-    Program program;
+    // constructed before anything else starts a thread, on linux a thread inherits the
+    // signal mask and the blocking has to be in place by then
+    SignalHandler signalHandler({ SIGINT, SIGTERM }, [](int sig){
+        Common::Logger::Info("signal {} received, stopping", sig);
+        program.Stop();
+    });
+
     program.Main(argc, argv);
     return 0;
 }
+
+

@@ -5,7 +5,7 @@
 #include <memory>
 #include <complex>
 #include <string>
-#include "SSG/Usrp/UsrpB200.hpp"
+#include "SSG/Radio/Usrp/UsrpB200.hpp"
 #include "SCG/Utility/Resource.hpp"
 #include "SCG/Modules/Packets.hpp"
 #include "OutputDevice.hpp"

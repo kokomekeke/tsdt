@@ -57,7 +57,7 @@ namespace Sagax::SCG {
             nPackets = nPackets_;
             worker.start = [this](){
                 this->fileAdapter.Reset();
-                this->fileAdapter.Start();
+                this->fileAdapter.Open();
             };
             worker.stop = [](){}; // dont close here, the file is managed from the outside
             worker.update = [this](){

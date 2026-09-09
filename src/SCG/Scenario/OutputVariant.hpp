@@ -25,10 +25,20 @@ namespace Sagax::SCG {
             double gain;
         };
 
+        struct RadioSidekiq {
+            std::string serial;
+            std::size_t nChannels;
+            double sampleRate;
+            std::vector<std::string> handlers;
+            std::vector<double> centers;
+            std::vector<double> gains;
+        };
+
         using T = std::variant<
             Null,
+            FileIQ,
             RadioUsrpB200,
-            FileIQ
+            RadioSidekiq
         >;
 
         struct CommonParams {

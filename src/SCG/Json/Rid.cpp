@@ -23,19 +23,15 @@ namespace Sagax::SCG {
         };
 
         struct RadioSettingsParser : public JsonObjectParser<Rid::RadioSettings> {
-            struct TypeParser : public JsonEnumParser<Rid::RadioSettings::Type> {
-                TypeParser() {
-                    AddEnumerator(Rid::RadioSettings::Type::transmitter, "transmitter");
-                    AddEnumerator(Rid::RadioSettings::Type::receiver, "receiver");
-                }
-            };
-
             RadioSettingsParser() {
-                AddParam(&Rid::RadioSettings::type, TypeParser{}, "type");
                 AddParam(&Rid::RadioSettings::radioId, JsonPrimitiveParser<std::string>{}, "radio_id");
-                AddParam(&Rid::RadioSettings::center_hz, JsonPrimitiveParser<double>{}, "center_frequency_hz");
                 AddParam(&Rid::RadioSettings::bandwidth_hz, JsonPrimitiveParser<double>{}, "bandwidth_hz");
-                AddParam(&Rid::RadioSettings::gain_db, JsonPrimitiveParser<double>{}, "gain_db");
+                AddParam(&Rid::RadioSettings::nChannels, JsonPrimitiveParser<std::int32_t>{}, "channels");
+                auto arrC = AddParam(&Rid::RadioSettings::centers_hz, JsonArrayParser<double>{}, "center_frequencies_hz");
+                auto arrG = AddParam(&Rid::RadioSettings::gains_db, JsonArrayParser<double>{}, "gains_db");
+
+                arrC->SetItemParser(JsonPrimitiveParser<double>{});
+                arrG->SetItemParser(JsonPrimitiveParser<double>{});
             }
         };
 
@@ -101,6 +97,7 @@ namespace Sagax::SCG {
 
             InterferenceSourceParser() {
                 AddParam(&Rid::InterferenceSource::radioId, JsonPrimitiveParser<std::string>{}, "radio_id");
+                AddParam(&Rid::InterferenceSource::channelId, JsonPrimitiveParser<std::int32_t>{}, "channel_id");
                 AddParam(&Rid::InterferenceSource::center_hz, JsonPrimitiveParser<double>{}, "center_frequency_hz");
                 AddParam(&Rid::InterferenceSource::startTime_s, JsonPrimitiveParser<double>{}, "start_time_s");
                 AddParam(&Rid::InterferenceSource::endTime_s, JsonPrimitiveParser<double>{}, "end_time_s");

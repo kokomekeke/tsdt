@@ -112,7 +112,6 @@ namespace Sagax::SCG {
                     }
                 }
             }
-
             return { scen, outputs, events, lines };
         }
 
@@ -152,7 +151,6 @@ namespace Sagax::SCG {
             sink.dev = std::move(dev);
             sink.eventStart = config.events.eventStart;
             sink.eventEnd = config.events.eventEnd;
-
             return { std::move(b), &sink.inP, rsc };
         }
         OutputPipeline BuildOutputRecord(ScenarioCtx &scen, const RecordingDirectoryResource &recordingDirectory, std::size_t iOutput, std::size_t iChannel) {
@@ -243,9 +241,11 @@ namespace Sagax::SCG {
 
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
             auto p = BuildOutputStream(config, ctx, io);
+
             b = SimplePipelineBuilder::Merge(std::move(b), std::move(p.b));
             resources.insert(resources.end(), p.resources.begin(), p.resources.end());
             outputPipelines.push_back(std::move(p));
+
         }
         for(std::size_t io = 0; io < ctx.outputs.size(); ++io) {
             auto &output = ctx.outputs[io];
