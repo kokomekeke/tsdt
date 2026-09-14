@@ -50,6 +50,7 @@ namespace Sagax::SCG {
                 AddParam(&ServerConfig::mockRadios, JsonPrimitiveParser<bool>{}, "mock_radios");
                 AddParam(&ServerConfig::statusUpdatePeriod_s, JsonPrimitiveParser<double>{}, "status_update_period_s");
                 AddParam(&ServerConfig::startAhead_s, JsonPrimitiveParser<double>{}, "start_ahead_s");
+                AddParamDef(&ServerConfig::scenarioFetchTimeout_s, JsonPrimitiveParser<double>{}, 2.0, "scenario_fetch_timeout_s");
                 auto p0 = AddParam(&ServerConfig::radios, JsonArrayParser<ServerConfig::Radio>{}, "radios");
                 AddParam(&ServerConfig::mqtt, MqttParser{}, "mqtt");
 

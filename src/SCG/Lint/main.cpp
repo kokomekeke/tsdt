@@ -19,6 +19,7 @@
 #include "SCG/Sisi/Rid.hpp"
 #include "SCG/Json/Rid.hpp"
 #include "SCG/Sisi/RidTransform.hpp"
+#include "SCG/Utility/Fetch.hpp"
 
 using namespace Sagax;
 using namespace Sagax::SCG;
@@ -118,9 +119,17 @@ namespace {
             }
         }
 
+        std::string jsonStr;
+        {
+            std::string error = Fetch(ridPath, config.scenarioFetchTimeout_s, jsonStr);
+            if(!error.empty()) {
+                Common::Logger::Error("failed to read the rid:\n{}", error.c_str());
+                return EXIT_ERROR;
+            }
+        }
+
         Rid rid;
         try {
-            std::string jsonStr = ReadFile(ridPath);
             rid = ParseRid(jsonStr);
         }
         catch(const std::exception &e) {
@@ -161,7 +170,7 @@ int main(int argc, char **argv) {
     argparse::ArgumentParser ridCmd("rid");
     ridCmd.add_description("parse and validate a rid json file against a server config json");
     ridCmd.add_argument("config_path").help("path to server config .json");
-    ridCmd.add_argument("rid_path").help("path to rid .json");
+    ridCmd.add_argument("rid_path").help("url of the rid .json, file:// or http://");
 
     program.add_subparser(scenarioCmd);
     program.add_subparser(configCmd);

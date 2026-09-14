@@ -19,6 +19,7 @@
         },
         {
             "radio_id": "r1",
+            "channels": 1,
             "bandwidth_hz": 110,
             "center_frequencies_hz": [ 200 ],
             "gains_db": [ 100.0 ]
@@ -59,33 +60,35 @@
                 "span_hz": 20,
                 "sweep_time_s": 0.1
             }
-        },
-        {
-            "type": "gnss_spoofer",
-            "radio_id": "r0",
-            "channel_id": 0,
-            "center_frequency_hz": 201,
-            "power_dbm": 5,
-            "start_time_s": 0.8,
-            "end_time_s": 0.9,
-            "parameters": {
-                "constellation": "BEIDOU",
-                "pnr_list": [1, 2, 3],
-                "trajectory": [
-                    {
-                        "t": 2.0,
-                        "longitude": 1.0,
-                        "latitude": 2.0,
-                        "altitude": 3.0
-                    },
-                    {
-                        "t": 2.1,
-                        "longitude": 1.0,
-                        "latitude": 2.0,
-                        "altitude": 3.0
-                    }
-                ]
-            }
         }
+        // ValidateRid rejects every rid that carries a spoofing source, so this one is
+        // kept as a sample of the shape and not as a source of the scenario
+        // {
+        //     "type": "gnss_spoofer",
+        //     "radio_id": "r0",
+        //     "channel_id": 0,
+        //     "center_frequency_hz": 201,
+        //     "power_dbm": 5,
+        //     "start_time_s": 0.8,
+        //     "end_time_s": 0.9,
+        //     "parameters": {
+        //         "constellation": "BEIDOU",
+        //         "pnr_list": [1, 2, 3],
+        //         "trajectory": [
+        //             {
+        //                 "t": 2.0,
+        //                 "longitude": 1.0,
+        //                 "latitude": 2.0,
+        //                 "altitude": 3.0
+        //             },
+        //             {
+        //                 "t": 2.1,
+        //                 "longitude": 1.0,
+        //                 "latitude": 2.0,
+        //                 "altitude": 3.0
+        //             }
+        //         ]
+        //     }
+        // }
     ]
 }

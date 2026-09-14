@@ -123,7 +123,7 @@ namespace Sagax::SCG {
         fileAdapter.file = &file;
         fileAdapter.nSamples = scgPacketSize;
         fileAdapter.doLog = false;
-        fileAdapter.filename = fileName;
+        fileAdapter.file->SetFile(fileName);
         fileAdapter.mode = SSG::IO::FilePlaybackMode::File{};
         fileAdapter.Open();
     }

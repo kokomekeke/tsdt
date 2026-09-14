@@ -1,0 +1,30 @@
+{
+    "duration": 1.0,
+    "outputs": [
+        {
+            "name": "out0",
+            "type": "File",
+            "fileName": "out0.iq",
+            "nChannels": 1,
+            "samplerate": 192000,
+            "center": 1575420000.0
+        }
+    ],
+    "signals": [
+        {
+            "name": "tone0",
+            "type": "Tone"
+        }
+    ],
+    "events": [
+        {
+            "signal": "tone0",
+            "output": "out0",
+            "channel": 0,
+            "frequency": 1575420000.0,
+            "amplitude": 0.5,
+            "start": 0.0,
+            "end": 1.0
+        }
+    ]
+}

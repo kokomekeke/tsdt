@@ -50,7 +50,6 @@ namespace Sagax::SCG {
     public:
         void Setup(SSG::IO::SampleFileIn<T> *file_, SSG::IO::FilePlaybackMode::Variant mode_, std::size_t nPackets_, std::size_t nSamples_, bool doLog_) {
             fileAdapter.file = file_;
-            fileAdapter.filename = file_->GetMeta().fileName;
             fileAdapter.mode = mode_;
             fileAdapter.nSamples = nSamples_;
             fileAdapter.doLog = doLog_;

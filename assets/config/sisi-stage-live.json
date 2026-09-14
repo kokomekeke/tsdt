@@ -3,6 +3,7 @@
     "mock_radios": false,
     "status_update_period_s": 10.0,
     "start_ahead_s": 15.0,
+    "scenario_fetch_timeout_s": 2.0,
     "radios": [
         {
             "id": "r0",

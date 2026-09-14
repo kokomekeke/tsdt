@@ -234,7 +234,8 @@ namespace Sagax::SCG {
     AudioFileGenerator::~AudioFileGenerator() = default;
 
     void AudioFileGenerator::Start() {
-        impl->file.Open(fileName);
+        impl->file.SetFile(fileName);
+        impl->file.Open();
         Common::Assert(impl->file.IsOpen(), "failed to open file");
         impl->meta = impl->file.GetMeta();
         impl->file.Close();
@@ -302,7 +303,8 @@ namespace Sagax::SCG {
     IQFileGenerator::~IQFileGenerator() = default;
 
     void IQFileGenerator::Start() {
-        impl->file.Open(fileName);
+        impl->file.SetFile(fileName);
+        impl->file.Open();
         Common::Assert(impl->file.IsOpen(), "failed to open file");
         impl->meta = impl->file.GetMeta();
         impl->file.Close();

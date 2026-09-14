@@ -39,6 +39,7 @@ namespace Sagax::SCG {
         bool mockRadios; // every radio is replaced with a device that only paces the pipeline
         double statusUpdatePeriod_s;
         double startAhead_s; // pipeline starts before the specified time, but the output is stalled until the precise moment
+        double scenarioFetchTimeout_s; // the whole exchange with the machine the scenario is read from, not each step of it
         std::vector<Radio> radios;
         Mqtt mqtt;
     };

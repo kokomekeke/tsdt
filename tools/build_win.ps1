@@ -23,7 +23,7 @@ if (!(Test-Path $vsDevCmd)) {
 
 & "$vsDevCmd"
 
-python scripts\package.py `
+python tools\package.py `
   --type=release `
   --platform=windows `
   --outdir="$Env:LOCAL_ARTIFACTS"

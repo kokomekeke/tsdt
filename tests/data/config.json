@@ -1,0 +1,38 @@
+{
+    "recording_directory": "recordings",
+    "mock_radios": true,
+    "status_update_period_s": 60.0,
+    "start_ahead_s": 2.0,
+    "scenario_fetch_timeout_s": 2.0,
+    "radios": [
+        {
+            "id": "r0",
+            "type": "Sidekiq",
+            "parameters": {
+                "serial": "TEST0",
+                "handlers": [
+                    "A1",
+                    "B1"
+                ]
+            }
+        },
+        {
+            "id": "r1",
+            "type": "Sidekiq",
+            "parameters": {
+                "serial": "TEST1",
+                "handlers": [
+                    "A1",
+                    "B1"
+                ]
+            }
+        }
+    ],
+    "mqtt": {
+        "broker_host": "127.0.0.1",
+        "broker_port": 1883,
+        "command_topic": "cmd/test",
+        "log_topic": "tm/test",
+        "error_topic": "tm/test"
+    }
+}

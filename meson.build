@@ -42,7 +42,14 @@ elif compiler.get_id() == 'clang'
 
 elif compiler.get_id() == 'msvc'
     message('Compiler: MSVC')
-    cpp_args = ['/D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING', '/DNOMINMAX']
+    # asio picks the windows api it calls by this version and prints a message when it
+    # is not set. 0x0601 is the one it assumes on its own, so naming it changes nothing
+    # but the message
+    cpp_args = [
+        '/D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING',
+        '/DNOMINMAX',
+        '/D_WIN32_WINNT=0x0601',
+    ]
     link_args = []
 endif
 
@@ -103,6 +110,7 @@ scgLib = static_library(
         'src/SCG/ScenarioTransform/Transform.cpp',
         'src/SCG/Signal/SignalGenerator.cpp',
         'src/SCG/Sisi/RidTransform.cpp',
+        'src/SCG/Utility/Fetch.cpp',
         'src/SCG/Utility/SignalHandler.cpp',
     ],
     include_directories: [ 'src/' ],

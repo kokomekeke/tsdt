@@ -29,6 +29,10 @@ namespace Sagax::SCG {
             res.errors.push_back("mqtt.error_topic must not be empty");
         }
 
+        if(cfg.scenarioFetchTimeout_s <= 0.0) {
+            res.errors.push_back("scenario_fetch_timeout_s must be positive");
+        }
+
         std::map<std::string, std::size_t> radioIds;
         for(std::size_t i = 0; i < cfg.radios.size(); ++i) {
             const auto &radio = cfg.radios[i];

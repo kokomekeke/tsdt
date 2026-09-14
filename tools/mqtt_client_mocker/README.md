@@ -10,9 +10,9 @@ pip install paho-mqtt
 pip install jsonschema
 ~~~
 
-## Run mosquito broker
+## Run mosquitto broker
 ~~~bash
-cd mosquito-broker
+cd mosquitto-broker
 docker compose up
 ~~~
 

@@ -38,7 +38,7 @@ cd vcpkg
 - From the project root directory:
 
 ```
-meson setup build-msvc -DSSG:have_usrp=true -DSSG:use_oneapi=true -Dcmake_prefix_path=%cd%\vcpkg_installed\x64-windows -Ddevenv_paths=%cd%/vcpkg_installed/x64-windows/bin
+meson setup build-msvc -DSSG:have_usrp=true -DSSG:use_oneapi=true -Dcmake_prefix_path=%cd%\vcpkg_installed\x64-windows -Ddevenv_paths=%cd%/vcpkg_installed/x64-windows/debug/bin
 cd build-msvc
 meson devenv
 meson compile
@@ -150,9 +150,9 @@ meson compile
 
 some examples of commands that should work with scg.exe
 
-create a recording of the scenario described by `test3.json`, into the `recording_test` directory
+create a recording of the scenario described by `test-3.json`, into the `recording_test` directory
 ```
-scg.exe -r ..\scenarios\test3.json recording_test
+scg.exe -r ..\assets\scenario\test-3.json recording_test
 ```
 
 play back the recorded scenario
@@ -162,5 +162,5 @@ scg.exe -p recording_test
 
 stream the scenario (generate and transmit without saving)
 ```
-scg.exe -s ..\scenarios\test3.json
+scg.exe -s ..\assets\scenario\test-3.json
 ```

@@ -29,6 +29,7 @@
 #include "SCG/ScenarioTransform/Transform.hpp"
 #include "SCG/Json/Rid.hpp"
 #include "SCG/Json/ServerConfig.hpp"
+#include "SCG/Utility/Fetch.hpp"
 #include "SCG/Utility/SignalHandler.hpp"
 #include "MqttClient.hpp"
 #include "RidTransform.hpp"
@@ -224,25 +225,6 @@ static CommandError CheckTestId(const std::string &testId) {
     ) {
         return std::format("test id cannot be used as a directory name: \"{}\"", testId);
     }
-    return {};
-}
-
-// the scenario is read from a local file, this becomes an http request later
-static CommandError FetchScenario(const std::string &location, std::string &out) {
-    std::filesystem::path path;
-    try {
-        path = std::filesystem::absolute(std::filesystem::path(location));
-    }
-    catch(const std::exception &e) {
-        return std::format("invalid scenario file path: \"{}\": {}", location, e.what());
-    }
-    std::ifstream file(path);
-    if(!file.is_open()) {
-        return std::format("failed to open scenario file: {}", path.string());
-    }
-    std::stringstream buf;
-    buf << file.rdbuf();
-    out = buf.str();
     return {};
 }
 
@@ -556,7 +538,7 @@ private:
         }
 
         std::string json;
-        SCG_CHECK(FetchScenario(command.scenario, json));
+        SCG_CHECK(SCG::Fetch(command.scenario, config.scenarioFetchTimeout_s, json));
 
         SCG::Rid rid;
         SCG_CHECK(ReadRid(json, rid));
@@ -757,31 +739,42 @@ private:
         });
     }
 
+    void HandleCommand(const MqttClient::Message &msg) {
+        std::string payload(msg.bytes.begin(), msg.bytes.end());
+        CommandMessage cm;
+        CommandError error = ReadCommand(payload, cm);
+        if(!error.empty()) {
+            error = std::format("received [{}]: bad payload: \"{}\": {}", msg.topic, payload, error);
+        }
+        else if(std::holds_alternative<CommandMessage::TestSetup>(cm.variant)) {
+            auto &v = std::get<CommandMessage::TestSetup>(cm.variant);
+            Common::Logger::Info("received [{}] TestSetup: scenario={} time={} test_id={}", msg.topic, v.scenario, v.time, v.testId);
+            error = ScheduleTest(v);
+        }
+        else if(std::holds_alternative<CommandMessage::TestCancel>(cm.variant)) {
+            auto &v = std::get<CommandMessage::TestCancel>(cm.variant);
+            Common::Logger::Info("received [{}] TestCancel: test_id={}", msg.topic, v.testId);
+            error = CancelTest(v);
+        }
+        else {
+            error = std::format("received [{}]: unknown command", msg.topic);
+        }
+
+        if(!error.empty()) {
+            PublishError(error);
+        }
+    }
+
     void HandleCommands() {
         MqttClient::Message msg;
         while(client.Pop(msg)) {
-            std::string payload(msg.bytes.begin(), msg.bytes.end());
-            CommandMessage cm;
-            CommandError error = ReadCommand(payload, cm);
-            if(!error.empty()) {
-                error = std::format("received [{}]: bad payload: \"{}\": {}", msg.topic, payload, error);
+            // a message that cannot be handled at all costs that one message. the loop
+            // and the pipeline behind it stay up
+            try {
+                HandleCommand(msg);
             }
-            else if(std::holds_alternative<CommandMessage::TestSetup>(cm.variant)) {
-                auto &v = std::get<CommandMessage::TestSetup>(cm.variant);
-                Common::Logger::Info("received [{}] TestSetup: scenario={} time={} test_id={}", msg.topic, v.scenario, v.time, v.testId);
-                error = ScheduleTest(v);
-            }
-            else if(std::holds_alternative<CommandMessage::TestCancel>(cm.variant)) {
-                auto &v = std::get<CommandMessage::TestCancel>(cm.variant);
-                Common::Logger::Info("received [{}] TestCancel: test_id={}", msg.topic, v.testId);
-                error = CancelTest(v);
-            }
-            else {
-                error = std::format("received [{}]: unknown command", msg.topic);
-            }
-
-            if(!error.empty()) {
-                PublishError(error);
+            catch(const std::exception &e) {
+                Common::Logger::Error("failed to handle the message on [{}]: {}", msg.topic, e.what());
             }
         }
     }
