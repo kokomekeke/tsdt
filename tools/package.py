@@ -94,7 +94,12 @@ class WindowsPlatform(Platform):
             f"-Ddevenv_paths={vcpkg_dir}/bin",
             # these paths are container specific. TODO: get them from env
             "-DIntelOneAPI:oneAPIDevPath=S:/temp/3rdparty/Intel oneAPI",
-            "-DUHD:SgxExtRoot=S:/temp/3rdparty/sgx-ext-20240726",
+            # uhd and boost were rebuilt into a newer root, libusb was not. every one of
+            # these is named here rather than left to the subproject, so a default that
+            # moves cannot change what the pipeline builds against
+            "-DUHD:SgxExtRoot=S:/temp/3rdparty/sgx-ext-20260901",
+            "-DBoost:SgxExtRoot=S:/temp/3rdparty/sgx-ext-20260901",
+            "-DLibUSB:SgxExtRoot=S:/temp/3rdparty/sgx-ext-20240726",
         ]
 
     def executables(self):
