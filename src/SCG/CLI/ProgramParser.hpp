@@ -4,7 +4,7 @@
 #include <optional>
 
 #include "Wrappers/JsonSane.hpp"
-#include "SSG/argparse/argparse.hpp"
+#include "Vendored/argparse/argparse.hpp"
 
 struct Parameters {
     enum struct Mode { stream, record, playback };

@@ -5,7 +5,7 @@
 #include <format>
 #include <string>
 
-#include "SSG/argparse/argparse.hpp"
+#include "Vendored/argparse/argparse.hpp"
 #include "Common/Logger.hpp"
 #include "Common/Defer.hpp"
 

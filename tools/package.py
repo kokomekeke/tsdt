@@ -67,6 +67,7 @@ class LinuxPlatform(Platform):
             "-Db_lto=true",
             "-DSSG:use_oneapi=true",
             "-DSSG:have_usrp=true",
+            "-DSSG:build_tests=false",
             # these paths are container specific. TODO: get them from env
             "-DIntelOneAPI:oneAPIDevPath=/opt/intel/oneapi",
         ]
@@ -90,6 +91,7 @@ class WindowsPlatform(Platform):
             "-Db_vscrt=static_from_buildtype",
             "-DSSG:use_oneapi=true",
             "-DSSG:have_usrp=true",
+            "-DSSG:build_tests=false",
             f"-Dcmake_prefix_path={vcpkg_dir}",
             f"-Ddevenv_paths={vcpkg_dir}/bin",
             # these paths are container specific. TODO: get them from env
@@ -119,6 +121,7 @@ class MacOSPlatform(Platform):
     def meson_flags(self):
         return [
             "-DSSG:use_oneapi=false",
+            "-DSSG:build_tests=false",
         ]
     def executables(self):
         return [

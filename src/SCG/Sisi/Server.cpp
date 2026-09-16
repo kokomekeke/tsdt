@@ -16,9 +16,10 @@
 #include <mutex>
 #include <condition_variable>
 #include <variant>
-#include "SSG/argparse/argparse.hpp"
+#include "Vendored/argparse/argparse.hpp"
 #include "Common/Logger.hpp"
 #include "Common/Defer.hpp"
+#include "Common/ThreadPool.hpp"
 #include "Pipeline/PpController.hpp"
 #include "Pipeline/RtcController.hpp"
 #include "SCG/Scenario/Scenario.hpp"
@@ -312,6 +313,11 @@ private:
     // inserted into and erased from
     std::vector<std::unique_ptr<ScheduledTest>> tests;
     ScheduledTest *testRunning = nullptr;
+
+    // the controller dispatches its workers here. it is declared before ctx so that it
+    // is still alive when the controller ctx holds goes away. the pool grows on demand,
+    // the count is only the number of threads it keeps around
+    Common::ThreadPool threadPool{4};
     SCG::ScenarioRunnerContext ctx;
 
     // the event callbacks run on the sink module thread while it holds its own mutex.
@@ -618,6 +624,7 @@ private:
 
         {
             auto controller = std::make_unique<Sagax::Pipeline::PpController>();
+            controller->SetThreadPool(threadPool);
             controller->Setup(ctx.pipeline, 32);
             ctx.controller = std::move(controller);
         }

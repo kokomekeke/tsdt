@@ -60,7 +60,7 @@ buildMqttExamples = get_option('build_mqtt_examples')
 buildScgLint = get_option('build_scg_lint')
 
 
-ssgSub = subproject('SSG')
+ssgSub = subproject('SSG', default_options: ['build_tests=false'])
 commonLibDep = ssgSub.get_variable('commonLibDep')
 jsonLibDep = ssgSub.get_variable('jsonLibDep')
 coreLibDep = ssgSub.get_variable('coreLibDep')

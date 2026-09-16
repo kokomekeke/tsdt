@@ -19,7 +19,7 @@
 #include <unistd.h>
 #endif
 
-#include "SSG/argparse/argparse.hpp"
+#include "Vendored/argparse/argparse.hpp"
 #include "Common/Defer.hpp"
 #include "Common/Logger.hpp"
 #include "Messages.hpp"

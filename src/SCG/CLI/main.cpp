@@ -12,11 +12,12 @@
 #include "Common/Assert.hpp"
 #include "Common/Defer.hpp"
 #include "Common/Timer.hpp"
+#include "Common/ThreadPool.hpp"
 #include "Pipeline/Pipeline.hpp"
 #include "Pipeline/Controller.hpp"
 #include "Pipeline/PpController.hpp"
 #include "Pipeline/RtcController.hpp"
-#include "SSG/argparse/argparse.hpp"
+#include "Vendored/argparse/argparse.hpp"
 #include "SSG/Packets/Packets.hpp"
 
 #include "SCG/Scenario/Scenario.hpp"
@@ -39,6 +40,11 @@ struct Program {
 
     ProgramParser parser;
     PipelineConfig pipelineConfig;
+
+    // the controller dispatches its workers here. it is declared before ctx so that it
+    // is still alive when the controller ctx holds goes away. the pool grows on demand,
+    // the count is only the number of threads it keeps around
+    Common::ThreadPool threadPool{4};
     ScenarioRunnerContext ctx;
 
     // Stop() runs on the signal thread while Run() is still putting ctx together, so the
@@ -164,6 +170,7 @@ struct Program {
 
         // this could maybe be controlled individually for each mode
         auto controller = std::make_unique<Pipeline::PpController>();
+        controller->SetThreadPool(threadPool);
         controller->Setup(ctx.pipeline, 32);
         controller->Reset();
         {
