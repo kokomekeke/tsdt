@@ -177,6 +177,9 @@ mezőt a saját ip-címedre amin a mosquitto-broker fut.
 # Terminal 1
 cd build-sidekiq
 ./scgcommander ../assets/config/sisi-stage-mock.json 
+## commanderen belül
+> testsetup file:///home/sagax/sgx/scg/assets/rid/test-rid-sisi-stage-1.json 2026-09-21T16:10:00+02:00 1
+
 # Terminal 2
 cd build-sidekiq
 ./scgserver ../assets/config/sisi-stage-mock.json 
