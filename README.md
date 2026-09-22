@@ -164,3 +164,23 @@ stream the scenario (generate and transmit without saving)
 ```
 scg.exe -s ..\assets\scenario\test-3.json
 ```
+
+## scgserver example - Linux
+
+A megfelelő config fileban pl *sisi-stage-mock.json*-ban át kell írni a  
+~~~json
+        "broker_host": "10.1.2.40",
+~~~
+mezőt a saját ip-címedre amin a mosquitto-broker fut.
+
+~~~bash
+# Terminal 1
+cd build-sidekiq
+./scgcommander ../assets/config/sisi-stage-mock.json 
+# Terminal 2
+cd build-sidekiq
+./scgserver ../assets/config/sisi-stage-mock.json 
+# Terminal 3 - ez lehet a saját gépeden is ennek a gépnek az ip-je számít ide csatlakoznak a cliensek.
+cd /git/scg/tools/mosquitto-broker
+docker compose up
+~~~
