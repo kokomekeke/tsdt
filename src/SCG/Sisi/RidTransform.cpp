@@ -171,10 +171,26 @@ namespace Sagax::SCG {
                 res.errors.push_back(std::format("interferenceSources[{}]: unknown radioId: {}", i, source.radioId.c_str()));
             }
 
+            // a source may only name a radio this rid also gave settings to. the config can
+            // know about radios this rid leaves alone, and those carry no channel count,
+            // no bandwidth and no center for the source to sit in
+            if(!source.radioId.empty()
+                && radioIds.count(source.radioId) > 0
+                && usedRadioSettings.count(source.radioId) == 0
+            ) {
+                res.errors.push_back(std::format(
+                    "interferenceSources[{}]: radio {} has no radio_settings entry", i, source.radioId.c_str()));
+            }
+
             if(source.channelId < 0) {
                 res.errors.push_back(std::format("interferenceSources[{}]: negative channel id", i));
             }
-            else if(radioIds.count(source.radioId) > 0 && source.channelId >= rid.radioSettings[radioIds[source.radioId]].nChannels) {
+            // indexed through usedRadioSettings and not radioIds: the latter counts the
+            // radios of the config, which is a different array from rid.radioSettings and
+            // only lines up with it when the rid happens to list them all, in order
+            else if(usedRadioSettings.count(source.radioId) > 0
+                && source.channelId >= rid.radioSettings[usedRadioSettings[source.radioId]].nChannels
+            ) {
                 res.errors.push_back(std::format("interferenceSources[{}]: channel id out of range: {}", i, source.channelId));
             }
 
