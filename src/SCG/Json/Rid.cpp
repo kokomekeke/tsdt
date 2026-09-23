@@ -180,6 +180,7 @@ namespace Sagax::SCG {
             };
 
             StatusMessageJsonParser() {
+                AddParam(&StatusMessage::timestamp, Json::JsonPrimitiveParser<std::string>{}, "timestamp");
                 auto p0 = AddParam(&StatusMessage::tests, JsonArrayParser<StatusMessage::TestInfo>{}, "tests");
                 p0->SetItemParser(TestInfoParser{});
                 AddParam(&StatusMessage::details, DetailsParser{}, "details");

@@ -216,6 +216,27 @@ static CommandError ParseStartTime(const std::string &s, std::chrono::system_clo
     return {};
 }
 
+// the other direction, in utc and to the second: 2026-09-02T12:30:00Z. the calendar types
+// do the arithmetic, std::format over a time_point is not in every standard library this
+// builds against, the same reason ParseStartTime reads its fields one at a time. what
+// comes out of here is accepted by ParseStartTime
+static std::string FormatIsoTime(std::chrono::system_clock::time_point t) {
+    auto seconds = std::chrono::floor<std::chrono::seconds>(t);
+    auto days = std::chrono::floor<std::chrono::days>(seconds);
+    std::chrono::year_month_day date{days};
+    std::chrono::hh_mm_ss<std::chrono::seconds> timeOfDay{seconds - days};
+
+    return std::format(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        int(date.year()),
+        unsigned(date.month()),
+        unsigned(date.day()),
+        timeOfDay.hours().count(),
+        timeOfDay.minutes().count(),
+        timeOfDay.seconds().count()
+    );
+}
+
 // the id names a directory under the configured recording directory
 static CommandError CheckTestId(const std::string &testId) {
     if(testId.empty()
@@ -436,7 +457,9 @@ private:
 
         // the payload is compared instead of flagging every place that changes the
         // status. a completed mqtt publish does not change it, which is what stops the
-        // client wakeups from feeding back into another publish
+        // client wakeups from feeding back into another publish. the timestamp is left
+        // out of what is compared and filled in below, otherwise no two payloads would
+        // ever be equal and every tick would publish
         std::string payload = SerializeStatusMessage(message);
         auto now = std::chrono::steady_clock::now();
         if(payload == lastStatusPayload && now < nextStatus) {
@@ -444,7 +467,9 @@ private:
         }
         lastStatusPayload = payload;
         nextStatus = now + statusPeriod;
-        Publish(config.mqtt.logTopic, payload);
+
+        message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
+        Publish(config.mqtt.logTopic, SerializeStatusMessage(message));
     }
 
     // a playback holds the pipeline from start_ahead before its time until the scenario

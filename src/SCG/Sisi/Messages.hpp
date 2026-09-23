@@ -42,6 +42,7 @@ namespace Sagax::SCG {
         struct Details {
             // anything we might need later
         };
+        std::string timestamp; // when the status was published, see FormatIsoTime
         std::vector<TestInfo> tests;
         Details details;
     };
