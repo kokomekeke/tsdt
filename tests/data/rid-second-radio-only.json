@@ -1,0 +1,36 @@
+// Valid, and the shape that used to read past the end of radio_settings: the config
+// knows r0 and r1, this rid gives settings to r1 alone. Looking the source's radio up in
+// the config's array lands on index 1 of a one element array.
+{
+    "metadata": {
+        "version": "1.0.0",
+        "scenario_name": "lint-rid-second-radio",
+        "created_utc": "2026-01-01T00:00:00Z",
+        "author": "tests",
+        "description": "settings for the second radio of the config only"
+    },
+    "global_settings": {
+        "duration_s": 0.5
+    },
+    "radio_settings": [
+        {
+            "radio_id": "r1",
+            "channels": 2,
+            "bandwidth_hz": 192000,
+            "center_frequencies_hz": [ 1575420000, 1227600000 ],
+            "gains_db": [ 10.0, 10.0 ]
+        }
+    ],
+    "interference_sources": [
+        {
+            "type": "cw_jammer",
+            "radio_id": "r1",
+            "channel_id": 1,
+            "center_frequency_hz": 1227600000,
+            "power_dbm": -10.0,
+            "start_time_s": 0.0,
+            "end_time_s": 0.5,
+            "parameters": {}
+        }
+    ]
+}

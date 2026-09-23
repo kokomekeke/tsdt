@@ -6,12 +6,17 @@ which is a different question: that one asks whether the data is good, this one 
 whether the program can tell.
 """
 
+import json
+
 import pytest
 
 from helpers.binaries import ROOT
+from helpers.rid import make_permuted_rid
 
 DATA = ROOT / "tests" / "data"
 CONFIG = DATA / "config.json"
+# two radios of different channel counts, for the permutation test below
+CONFIG_TWO_RADIOS = DATA / "config-two-radios.json"
 
 EXIT_OK = 0
 EXIT_INVALID = 1
@@ -53,6 +58,7 @@ BAD_RIDS = [
     ("rid-unknown-radio.json", "radioSettings[0]: unknown radioId: nosuchradio"),
     ("rid-negative-duration.json", "globalSettings.duration_s must be positive"),
     ("rid-channel-out-of-range.json", "interferenceSources[0]: channel id out of range: 7"),
+    ("rid-source-without-settings.json", "interferenceSources[0]: radio r1 has no radio_settings entry"),
 ]
 
 UNREADABLE = [
@@ -60,6 +66,37 @@ UNREADABLE = [
     ("rid", "rid-missing-channels.json", "radio_settings"),
     ("rid", "not-json.json", "failed to parse rid file"),
 ]
+
+
+# every way a rid may name the radios of config-two-radios.json: both, both the other way
+# round, and each on its own. the verdict is the same for all of them
+RADIO_ORDERS = [("r0", "r1"), ("r1", "r0"), ("r0",), ("r1",)]
+
+
+@pytest.mark.parametrize("order", RADIO_ORDERS, ids=["+".join(o) for o in RADIO_ORDERS])
+def test_the_order_of_radio_settings_does_not_change_the_verdict(build, tmp_path, order):
+    """A rid is free to name the radios in any order, and to leave some of them out.
+
+    Whoever reads a source's radio has to look it up in the rid's own radio_settings.
+    Reaching for the config's radio array instead happens to agree when a rid lists every
+    radio in the same order, and stops agreeing here.
+    """
+    path = tmp_path / ("rid-" + "-".join(order) + ".json")
+    path.write_text(json.dumps(make_permuted_rid(order), indent=4), encoding="utf-8")
+
+    code, output = lint(build, ["rid", CONFIG_TWO_RADIOS, path.as_uri()])
+    assert code == EXIT_OK, output
+
+
+def test_a_rid_that_configures_only_the_second_radio_is_accepted(build):
+    """The channel count was looked up in the config's radio array rather than the rid's.
+
+    They are different arrays, and they only line up when the rid lists every radio the
+    config has, in the same order. This file lists one of two, so the lookup ran off the
+    end of radio_settings.
+    """
+    code, output = lint(build, ["rid", CONFIG, (DATA / "rid-second-radio-only.json").as_uri()])
+    assert code == EXIT_OK, output
 
 
 @pytest.mark.parametrize("name,expected", BAD_CONFIGS, ids=[c[0] for c in BAD_CONFIGS])
