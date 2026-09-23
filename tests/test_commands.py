@@ -21,7 +21,7 @@ def test_an_unknown_command_is_reported(scgserver):
 
 def test_a_missing_field_is_reported(scgserver, rid_path):
     payload = json.dumps({
-        "command": "TestSetup",
+        "command": "TEST_SETUP",
         "extras": {"scenario": rid_path.as_uri(), "time": utc_string(3600)},
     })
     mark = scgserver.send(payload)
@@ -37,7 +37,7 @@ def test_a_time_in_the_past_is_reported(scgserver, rid_path):
 
 def test_a_time_without_an_offset_is_reported(scgserver, rid_path):
     payload = json.dumps({
-        "command": "TestSetup",
+        "command": "TEST_SETUP",
         "extras": {
             "scenario": rid_path.as_uri(),
             "time": utc_string(3600).rstrip("Z"),
@@ -51,7 +51,7 @@ def test_a_time_without_an_offset_is_reported(scgserver, rid_path):
 
 def test_a_time_that_does_not_parse_is_reported(scgserver, rid_path):
     payload = json.dumps({
-        "command": "TestSetup",
+        "command": "TEST_SETUP",
         "extras": {"scenario": rid_path.as_uri(), "time": "tomorrow", "test_id": "badtime"},
     })
     mark = scgserver.send(payload)

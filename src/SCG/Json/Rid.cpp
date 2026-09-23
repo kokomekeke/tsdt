@@ -141,8 +141,8 @@ namespace Sagax::SCG {
             struct CommandMessageVariantParser : Json::JsonVariantParser<CommandMessage::Variant> {
                 CommandMessageVariantParser() {
                     typeTagKey = "command";
-                    AddAlt<CommandMessage::TestSetup>("TestSetup", "extras", TestSetupParser{});
-                    AddAlt<CommandMessage::TestCancel>("TestCancel", "extras", TestCancelParser{});
+                    AddAlt<CommandMessage::TestSetup>("TEST_SETUP", "extras", TestSetupParser{});
+                    AddAlt<CommandMessage::TestCancel>("TEST_CANCEL", "extras", TestCancelParser{});
                 }
             };
 
@@ -154,9 +154,35 @@ namespace Sagax::SCG {
         };
 
         struct StatusMessageJsonParser : Json::JsonObjectParser<StatusMessage> {
+            struct TestStatusParser : Json::JsonEnumParser<StatusMessage::TestStatus> {
+                TestStatusParser() {
+                    AddEnumerator(StatusMessage::TestStatus::TEST_INIT, "TEST_INIT");
+                    AddEnumerator(StatusMessage::TestStatus::TEST_PREPARE, "TEST_PREPARE");
+                    AddEnumerator(StatusMessage::TestStatus::TEST_READY, "TEST_READY");
+                    AddEnumerator(StatusMessage::TestStatus::TEST_RUNNING, "TEST_RUNNING");
+                    AddEnumerator(StatusMessage::TestStatus::TEST_COMPLETED, "TEST_COMPLETED");
+                    AddEnumerator(StatusMessage::TestStatus::TEST_FAILED, "TEST_FAILED");
+                }
+            };
+
+            struct TestInfoParser : Json::JsonObjectParser<StatusMessage::TestInfo> {
+                TestInfoParser() {
+                    AddParam(&StatusMessage::TestInfo::testId, Json::JsonPrimitiveParser<std::string>{}, "test_id");
+                    AddParam(&StatusMessage::TestInfo::status, TestStatusParser{}, "status");
+                }
+            };
+
+            // no members yet, it serializes as an empty object and accepts whatever
+            // arrives in its place
+            struct DetailsParser : Json::JsonObjectParser<StatusMessage::Details> {
+                DetailsParser() {
+                }
+            };
+
             StatusMessageJsonParser() {
-                auto p0 = AddParam(&StatusMessage::active, JsonArrayParser<Rid::InterferenceSource>{}, "active");
-                p0->SetItemParser(InterferenceSourceParser{});
+                auto p0 = AddParam(&StatusMessage::tests, JsonArrayParser<StatusMessage::TestInfo>{}, "tests");
+                p0->SetItemParser(TestInfoParser{});
+                AddParam(&StatusMessage::details, DetailsParser{}, "details");
             }
         };
 

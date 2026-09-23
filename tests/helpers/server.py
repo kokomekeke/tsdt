@@ -25,7 +25,7 @@ def utc_string(seconds_ahead):
 
 def setup_command(scenario, test_id, seconds_ahead):
     return json.dumps({
-        "command": "TestSetup",
+        "command": "TEST_SETUP",
         "extras": {
             "scenario": scenario,
             "time": utc_string(seconds_ahead),
@@ -36,7 +36,7 @@ def setup_command(scenario, test_id, seconds_ahead):
 
 def cancel_command(test_id):
     return json.dumps({
-        "command": "TestCancel",
+        "command": "TEST_CANCEL",
         "extras": {"test_id": test_id},
     })
 
