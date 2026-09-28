@@ -52,6 +52,7 @@ namespace Sagax::SCG {
                 AddParam(&ServerConfig::statusUpdatePeriod_s, JsonPrimitiveParser<double>{}, "status_update_period_s");
                 AddParam(&ServerConfig::startAhead_s, JsonPrimitiveParser<double>{}, "start_ahead_s");
                 AddParamDef(&ServerConfig::scenarioFetchTimeout_s, JsonPrimitiveParser<double>{}, 2.0, "scenario_fetch_timeout_s");
+                AddParamDef(&ServerConfig::gnssEphemerisFile, JsonPrimitiveParser<std::string>{}, std::string(""), "gnss_ephemeris_file");
                 auto p0 = AddParam(&ServerConfig::radios, JsonArrayParser<ServerConfig::Radio>{}, "radios");
                 AddParam(&ServerConfig::mqtt, MqttParser{}, "mqtt");
 

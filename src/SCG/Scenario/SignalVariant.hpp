@@ -35,6 +35,8 @@ namespace Sagax::SCG {
 
         struct IQFile {
             std::string fileName;
+            // when false the file plays once and silence follows
+            bool loop = true;
         };
 
         using T = std::variant<

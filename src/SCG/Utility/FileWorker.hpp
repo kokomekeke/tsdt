@@ -22,11 +22,17 @@ namespace Sagax::SCG {
 
         bool headValid = false;
         SSG::Packets::SamplePacket<T> head;
+        bool finished = false;
 
         void Update() {
             if(!headValid) {
                 auto plan = fileAdapter.GetReadPlan();
                 if(!plan.doRead) {
+                    std::unique_lock lck(mtx);
+                    finished = true;
+                    cv.wait(lck, [&](){
+                        return worker.doStop.load();
+                    });
                     return;
                 }
                 head.data.clear();
@@ -65,6 +71,7 @@ namespace Sagax::SCG {
         }
 
         void Start() {
+            finished = false;
             worker.Start();
             buf.Resize(std::int32_t(nPackets));
         }
@@ -94,6 +101,12 @@ namespace Sagax::SCG {
             lck.unlock();
             cv.notify_all();
             return true;
+        }
+
+        // true once the playback mode has nothing more to read and every packet was taken
+        bool Finished() {
+            std::unique_lock lck(mtx);
+            return finished && buf.Count() == 0;
         }
 
     };

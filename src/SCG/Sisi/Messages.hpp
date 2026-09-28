@@ -26,7 +26,6 @@ namespace Sagax::SCG {
         Variant variant;
     };
 
-    // one test changed its status. only the change is sent, on test_log_topic
     struct TestStatusMessage {
         enum class TestStatus {
             TEST_INIT,
@@ -36,20 +35,18 @@ namespace Sagax::SCG {
             TEST_COMPLETED,
             TEST_FAILED
         };
-        std::string timestamp; // when the status was published, see FormatIsoTime
+        std::string timestamp; // iso 8601, utc
         std::string testId;
         TestStatus status;
     };
 
-    // what is on the air right now, on signal_log_topic. sent on a change and again every
-    // status_update_period_s
     struct SignalStatusMessage {
         enum class SignalStatus {
             none,
             jamming,
-            spoofing // wins over jamming when both are active
+            spoofing
         };
-        std::string timestamp; // when the status was published, see FormatIsoTime
+        std::string timestamp; // iso 8601, utc
         SignalStatus status;
     };
 

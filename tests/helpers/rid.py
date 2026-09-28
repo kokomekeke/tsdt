@@ -131,3 +131,61 @@ def make_permuted_rid(order, duration_s=0.5):
         "radio_settings": [PERMUTED_RADIOS[r] for r in order],
         "interference_sources": [PERMUTED_SOURCES[r] for r in order],
     }
+
+
+# ---------------------------------------------------------------------------------------
+# A rid with a gnss spoofer on it
+#
+# 192 kHz is narrower than a real L1 signal needs, and is chosen to keep the recording
+# small. The band still holds the center, so the engine keeps L1 rather than filtering it
+# away; what comes out is spectrally cut, which is fine for asking whether the pipeline
+# runs at all.
+# ---------------------------------------------------------------------------------------
+
+def make_gnss_rid(duration_s=0.5, radio_id="r0", bandwidth_hz=192000):
+    return {
+        "metadata": {
+            "version": "1.0.0",
+            "scenario_name": "gnss",
+            "created_utc": "2026-01-01T00:00:00Z",
+            "author": "tests",
+            "description": "one gnss spoofer, written by the test suite",
+        },
+        "global_settings": {
+            "duration_s": duration_s,
+        },
+        "radio_settings": [
+            {
+                "radio_id": radio_id,
+                "channels": 2,
+                "bandwidth_hz": bandwidth_hz,
+                "center_frequencies_hz": [1575420000, 1227600000],
+                "gains_db": [10.0, 10.0],
+            }
+        ],
+        "interference_sources": [
+            {
+                "type": "gnss_spoofer",
+                "radio_id": radio_id,
+                "channel_id": 0,
+                "center_frequency_hz": 1575420000,
+                "power_dbm": -10.0,
+                "start_time_s": 0.0,
+                "end_time_s": duration_s,
+                "parameters": {
+                    "constellation": "GPS",
+                    "pnr_list": [1, 2, 3],
+                    "trajectory": [
+                        {"t": 0.0, "longitude": 19.015773, "latitude": 47.492721, "altitude": 120.0},
+                        {"t": duration_s, "longitude": 19.015800, "latitude": 47.492740, "altitude": 120.0},
+                    ],
+                },
+            }
+        ],
+    }
+
+
+def write_gnss_rid(path, duration_s=0.5, radio_id="r0", bandwidth_hz=192000):
+    rid = make_gnss_rid(duration_s, radio_id, bandwidth_hz)
+    path.write_text(json.dumps(rid, indent=4), encoding="utf-8")
+    return path

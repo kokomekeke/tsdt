@@ -109,6 +109,7 @@ scgLib = static_library(
         'src/SCG/ScenarioTransform/BuildPipeline.cpp',
         'src/SCG/ScenarioTransform/Transform.cpp',
         'src/SCG/Signal/SignalGenerator.cpp',
+        'src/SCG/Sisi/GnssRecording.cpp',
         'src/SCG/Sisi/RidTransform.cpp',
         'src/SCG/Utility/Fetch.cpp',
         'src/SCG/Utility/SignalHandler.cpp',

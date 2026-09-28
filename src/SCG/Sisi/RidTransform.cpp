@@ -1,4 +1,5 @@
 #include <format>
+#include <filesystem>
 #include <map>
 #include <cmath>
 #include <string>
@@ -6,6 +7,7 @@
 #include <variant>
 #include <algorithm>
 #include "Common/Assert.hpp"
+#include "GnssRecording.hpp"
 #include "RidTransform.hpp"
 
 namespace Sagax::SCG {
@@ -226,16 +228,64 @@ namespace Sagax::SCG {
                 }
             }
             else if(std::holds_alternative<Rid::InterferenceSource::Spoofing>(source.variant)) {
-                res.errors.push_back(std::format("interferenceSources[{}]: spoofing is not yet supported", i));
+                const auto &v = std::get<Rid::InterferenceSource::Spoofing>(source.variant);
+
+                res.warnings.push_back(std::format(
+                    "interferenceSources[{}]: gnss generation is not integrated yet, the spoofer is recorded as silence", i));
+
+                if(cfg.gnssEphemerisFile.empty()) {
+                    res.errors.push_back(std::format(
+                        "interferenceSources[{}]: the source is a gnss spoofer, but no gnss_ephemeris_file is configured", i));
+                }
+
+                // the gnss engine needs a sample rate of whole khz
+                if(usedRadioSettings.count(source.radioId) > 0) {
+                    double bandwidth_hz = rid.radioSettings[usedRadioSettings[source.radioId]].bandwidth_hz;
+                    if(bandwidth_hz <= 0.0 || std::fmod(bandwidth_hz, 1000.0) != 0.0) {
+                        res.errors.push_back(std::format(
+                            "interferenceSources[{}]: a gnss spoofer needs a bandwidth_hz of whole khz, radio {} has {}",
+                            i, source.radioId.c_str(), bandwidth_hz));
+                    }
+                }
+
+                if(v.trajectory.empty()) {
+                    res.errors.push_back(std::format("interferenceSources[{}]: gnss spoofer without a trajectory", i));
+                }
+                for(std::size_t iw = 0; iw < v.trajectory.size(); ++iw) {
+                    const auto &w = v.trajectory[iw];
+                    if(w.latitude < -90.0 || w.latitude > 90.0) {
+                        res.errors.push_back(std::format("interferenceSources[{}]: trajectory[{}]: latitude out of range", i, iw));
+                    }
+                    if(w.longitude < -180.0 || w.longitude > 180.0) {
+                        res.errors.push_back(std::format("interferenceSources[{}]: trajectory[{}]: longitude out of range", i, iw));
+                    }
+                    if(iw > 0 && w.t <= v.trajectory[iw - 1].t) {
+                        res.errors.push_back(std::format("interferenceSources[{}]: trajectory[{}]: time does not advance", i, iw));
+                    }
+                }
+
+                double duration_s = source.endTime_s - source.startTime_s;
+                if(!v.trajectory.empty() && v.trajectory.back().t < duration_s) {
+                    res.warnings.push_back(std::format(
+                        "interferenceSources[{}]: the trajectory ends at {} s but the source runs for {} s, "
+                        "the position holds at the last waypoint",
+                        i, v.trajectory.back().t, duration_s));
+                }
             }
         }
 
         return res;
     }
 
-    ScenarioRidMap MapRidToScenario(const ServerConfig &cfg, const Rid &rid) {
+    ScenarioRidMap MapRidToScenario(
+        const ServerConfig &cfg,
+        const Rid &rid,
+        std::chrono::system_clock::time_point startTime,
+        const std::string &directory
+    ) {
         Scenario scen;
         std::vector<std::int32_t> eventMap;
+        std::vector<std::unique_ptr<Job>> jobs;
 
         scen.duration = rid.globalSettings.duration_s;
         scen.name = rid.metadata.name;
@@ -243,6 +293,11 @@ namespace Sagax::SCG {
         std::map<std::string, std::int32_t> radioMap;
         for(std::int32_t i = 0; i < std::int32_t(cfg.radios.size()); ++i) {
             radioMap[cfg.radios[i].id] = i;
+        }
+
+        std::map<std::string, double> radioRates;
+        for(auto &radioSettings : rid.radioSettings) {
+            radioRates[radioSettings.radioId] = radioSettings.bandwidth_hz;
         }
 
         for(std::int32_t i = 0; i < std::int32_t(rid.radioSettings.size()); ++i) {
@@ -302,7 +357,27 @@ namespace Sagax::SCG {
                 signal.variant.variant = signalV;
             }
             else if(std::holds_alternative<Rid::InterferenceSource::Spoofing>(source.variant)) {
-                Common::Assert(false, "unimplemented");
+                auto &v = std::get<Rid::InterferenceSource::Spoofing>(source.variant);
+                auto job = std::make_unique<GnssRecordingJob>();
+                job->constellation = v.constellation;
+                job->prnList = v.pnrList;
+                job->waypoints = v.trajectory;
+                job->startTime = startTime + std::chrono::duration_cast<std::chrono::system_clock::duration>(
+                    std::chrono::duration<double>(source.startTime_s)
+                );
+
+                job->center_hz = source.center_hz;
+                job->sampleRate_hz = radioRates[source.radioId];
+                job->duration_s = source.endTime_s - source.startTime_s;
+                job->ephemerisFile = cfg.gnssEphemerisFile;
+                job->fileName = (std::filesystem::path(directory) / std::format("gnss_{:03}.wav", i)).string();
+
+                SignalVariant::IQFile signalV;
+                signalV.fileName = job->fileName;
+                signalV.loop = false;
+                signal.variant.variant = signalV;
+
+                jobs.push_back(std::move(job));
             }
             else {
                 Common::Assert(false, "unknown interference source type");
@@ -323,7 +398,7 @@ namespace Sagax::SCG {
         }
 
 
-        return { std::move(scen), std::move(eventMap) };
+        return { std::move(scen), std::move(eventMap), std::move(jobs) };
     }
 
 }

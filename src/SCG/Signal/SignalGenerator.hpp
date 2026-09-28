@@ -98,6 +98,7 @@ namespace Sagax::SCG {
         std::unique_ptr<Impl> impl;
 
         std::string fileName;
+        bool loop = true;
         double sampleRate;
 
         IQFileGenerator();

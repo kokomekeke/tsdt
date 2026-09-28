@@ -312,7 +312,11 @@ namespace Sagax::SCG {
         Common::Assert(impl->meta.nSamples.has_value() && impl->meta.nSamples.value() > 0, "file has no samples or missing samplecount info");
         impl->resampler.Setup(impl->meta.sampleRate.value(), sampleRate);
 
-        impl->worker.Setup((SSG::IO::SampleFileIn<SCGSample>*)(&impl->file), SSG::IO::FilePlaybackMode::Infinite{}, 5, scgPacketSize, true);
+        SSG::IO::FilePlaybackMode::Variant mode = SSG::IO::FilePlaybackMode::Infinite{};
+        if(!loop) {
+            mode = SSG::IO::FilePlaybackMode::File{};
+        }
+        impl->worker.Setup((SSG::IO::SampleFileIn<SCGSample>*)(&impl->file), mode, 5, scgPacketSize, true);
         impl->worker.Start();
     }
 
@@ -339,6 +343,17 @@ namespace Sagax::SCG {
             impl->resampler.Push();
         }
         impl->resampler.PullMax(packet, nSamplesMax);
+
+        // after the end of the file the rest of the event is silence
+        if(!loop && packet.nSamples < nSamplesMax && impl->worker.Finished()) {
+            std::size_t nFilled = packet.nSamples;
+            packet.Reshape(packet.sampleRate, 1, nSamplesMax, false);
+            std::fill(
+                packet.data.begin() + std::ptrdiff_t(nFilled),
+                packet.data.end(),
+                SCGSample{ SCGSampleBase(0.0), SCGSampleBase(0.0) }
+            );
+        }
     }
 
     void IQFileGenerator::SetSampleRate(double sampleRate_) {

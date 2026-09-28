@@ -181,6 +181,7 @@ namespace Sagax::SCG {
         if(auto *s = std::get_if<SignalVariant::IQFile>(&v.variant)) {
             auto p = std::make_unique<IQFileGenerator>();
             p->fileName = s->fileName;
+            p->loop = s->loop;
             basePtr = std::move(p);
         }
 

@@ -31,12 +31,14 @@ namespace Sagax::SCG {
             std::string brokerHost;
             std::int32_t brokerPort;
             std::string commandTopic;
-            std::string signalLogTopic; // signal status
-            std::string testLogTopic; // test status changes
+            std::string signalLogTopic;
+            std::string testLogTopic;
             std::string errorLogTopic;
         };
 
         std::string recordingDir;
+        // rinex navigation file
+        std::string gnssEphemerisFile;
         bool mockRadios; // every radio is replaced with a device that only paces the pipeline
         double statusUpdatePeriod_s;
         double startAhead_s; // pipeline starts before the specified time, but the output is stalled until the precise moment

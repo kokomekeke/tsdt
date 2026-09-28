@@ -101,6 +101,7 @@ namespace Sagax::SCG {
             struct IQFileParser : public JsonObjectParser<SignalVariant::IQFile> {
                 IQFileParser() {
                     AddParam(&SignalVariant::IQFile::fileName, JsonPrimitiveParser<std::string>{}, "file");
+                    AddParamDef(&SignalVariant::IQFile::loop, JsonPrimitiveParser<bool>{}, true, "loop");
                 }
             };
 
