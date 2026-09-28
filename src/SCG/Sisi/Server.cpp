@@ -144,7 +144,8 @@ static bool ReadLiteral(const std::string &s, std::size_t &i, char c) {
     return true;
 }
 
-// the format is 2026-09-02T14:30:00+02:00. std::chrono::parse is not in every standard
+// the format is 2026-09-02T14:30:00.000+02:00, the fraction of a second is optional and
+// can have any number of digits. std::chrono::parse is not in every standard
 // library this builds against, so the fields are read out one at a time. the trailing
 // offset is how far the written time is ahead of utc, so it is subtracted to get the
 // instant. a Z stands for a zero offset and the colon inside the offset is optional
@@ -166,6 +167,21 @@ static CommandError ParseStartTime(const std::string &s, std::chrono::system_clo
         ReadDigits(s, i, 2, second);
     if(!fields) {
         return std::format("could not parse starting time: \"{}\"", s);
+    }
+
+    // digits past nanoseconds are read and dropped
+    std::chrono::nanoseconds fraction{0};
+    if(ReadLiteral(s, i, '.')) {
+        std::size_t iFraction = i;
+        std::int64_t scale = 100000000;
+        while(i < s.size() && s[i] >= '0' && s[i] <= '9') {
+            fraction += std::chrono::nanoseconds((s[i] - '0') * scale);
+            scale /= 10;
+            ++i;
+        }
+        if(i == iFraction) {
+            return std::format("could not parse starting time: \"{}\"", s);
+        }
     }
 
     std::chrono::minutes offset{0};
@@ -209,6 +225,7 @@ static CommandError ParseStartTime(const std::string &s, std::chrono::system_clo
         + std::chrono::hours(hour)
         + std::chrono::minutes(minute)
         + std::chrono::seconds(second)
+        + std::chrono::duration_cast<std::chrono::system_clock::duration>(fraction)
         - offset;
 
     if(out <= std::chrono::system_clock::now()) {

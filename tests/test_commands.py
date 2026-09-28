@@ -49,6 +49,34 @@ def test_a_time_without_an_offset_is_reported(scgserver, rid_path):
     assert "no utc offset" in message, message
 
 
+def test_a_time_with_a_fraction_of_a_second_is_accepted(scgserver, rid_path):
+    payload = json.dumps({
+        "command": "TEST_SETUP",
+        "extras": {
+            "scenario_url": rid_path.as_uri(),
+            "start_time": utc_string(3600).replace("Z", ".000Z"),
+            "test_id": "fraction",
+        },
+    })
+    mark = scgserver.send(payload)
+    scgserver.expect_no_error(mark)
+    assert scgserver.wait_for_log("test scheduled: fraction")
+
+
+def test_a_fraction_without_digits_is_reported(scgserver, rid_path):
+    payload = json.dumps({
+        "command": "TEST_SETUP",
+        "extras": {
+            "scenario_url": rid_path.as_uri(),
+            "start_time": utc_string(3600).replace("Z", ".Z"),
+            "test_id": "nodigits",
+        },
+    })
+    mark = scgserver.send(payload)
+    message, _ = scgserver.expect_error(mark)
+    assert "could not parse starting time" in message, message
+
+
 def test_a_time_that_does_not_parse_is_reported(scgserver, rid_path):
     payload = json.dumps({
         "command": "TEST_SETUP",
