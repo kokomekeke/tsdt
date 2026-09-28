@@ -26,7 +26,8 @@ namespace Sagax::SCG {
         Variant variant;
     };
 
-    struct StatusMessage {
+    // one test changed its status. only the change is sent, on test_log_topic
+    struct TestStatusMessage {
         enum class TestStatus {
             TEST_INIT,
             TEST_PREPARE,
@@ -35,16 +36,21 @@ namespace Sagax::SCG {
             TEST_COMPLETED,
             TEST_FAILED
         };
-        struct TestInfo {
-            std::string testId;
-            TestStatus status;
-        };
-        struct Details {
-            // anything we might need later
+        std::string timestamp; // when the status was published, see FormatIsoTime
+        std::string testId;
+        TestStatus status;
+    };
+
+    // what is on the air right now, on signal_log_topic. sent on a change and again every
+    // status_update_period_s
+    struct SignalStatusMessage {
+        enum class SignalStatus {
+            none,
+            jamming,
+            spoofing // wins over jamming when both are active
         };
         std::string timestamp; // when the status was published, see FormatIsoTime
-        std::vector<TestInfo> tests;
-        Details details;
+        SignalStatus status;
     };
 
     struct ErrorMessage {

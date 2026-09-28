@@ -22,11 +22,14 @@ namespace Sagax::SCG {
         if(cfg.mqtt.commandTopic.empty()) {
             res.errors.push_back("mqtt.command_topic must not be empty");
         }
-        if(cfg.mqtt.logTopic.empty()) {
-            res.errors.push_back("mqtt.log_topic must not be empty");
+        if(cfg.mqtt.signalLogTopic.empty()) {
+            res.errors.push_back("mqtt.signal_log_topic must not be empty");
         }
-        if(cfg.mqtt.errorTopic.empty()) {
-            res.errors.push_back("mqtt.error_topic must not be empty");
+        if(cfg.mqtt.testLogTopic.empty()) {
+            res.errors.push_back("mqtt.test_log_topic must not be empty");
+        }
+        if(cfg.mqtt.errorLogTopic.empty()) {
+            res.errors.push_back("mqtt.error_log_topic must not be empty");
         }
 
         if(cfg.scenarioFetchTimeout_s <= 0.0) {

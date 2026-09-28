@@ -31,7 +31,8 @@
     "mqtt": {
         "broker_host": "127.0.0.1",
         "command_topic": "cmd/test",
-        "log_topic": "tm/test",
-        "error_topic": "tm/test"
+        "signal_log_topic": "tm/test",
+        "test_log_topic": "tm/test/test",
+        "error_log_topic": "tm/test"
     }
 }

@@ -153,37 +153,37 @@ namespace Sagax::SCG {
             }
         };
 
-        struct StatusMessageJsonParser : Json::JsonObjectParser<StatusMessage> {
-            struct TestStatusParser : Json::JsonEnumParser<StatusMessage::TestStatus> {
+        struct TestStatusMessageJsonParser : Json::JsonObjectParser<TestStatusMessage> {
+            struct TestStatusParser : Json::JsonEnumParser<TestStatusMessage::TestStatus> {
                 TestStatusParser() {
-                    AddEnumerator(StatusMessage::TestStatus::TEST_INIT, "TEST_INIT");
-                    AddEnumerator(StatusMessage::TestStatus::TEST_PREPARE, "TEST_PREPARE");
-                    AddEnumerator(StatusMessage::TestStatus::TEST_READY, "TEST_READY");
-                    AddEnumerator(StatusMessage::TestStatus::TEST_RUNNING, "TEST_RUNNING");
-                    AddEnumerator(StatusMessage::TestStatus::TEST_COMPLETED, "TEST_COMPLETED");
-                    AddEnumerator(StatusMessage::TestStatus::TEST_FAILED, "TEST_FAILED");
+                    AddEnumerator(TestStatusMessage::TestStatus::TEST_INIT, "TEST_INIT");
+                    AddEnumerator(TestStatusMessage::TestStatus::TEST_PREPARE, "TEST_PREPARE");
+                    AddEnumerator(TestStatusMessage::TestStatus::TEST_READY, "TEST_READY");
+                    AddEnumerator(TestStatusMessage::TestStatus::TEST_RUNNING, "TEST_RUNNING");
+                    AddEnumerator(TestStatusMessage::TestStatus::TEST_COMPLETED, "TEST_COMPLETED");
+                    AddEnumerator(TestStatusMessage::TestStatus::TEST_FAILED, "TEST_FAILED");
                 }
             };
 
-            struct TestInfoParser : Json::JsonObjectParser<StatusMessage::TestInfo> {
-                TestInfoParser() {
-                    AddParam(&StatusMessage::TestInfo::testId, Json::JsonPrimitiveParser<std::string>{}, "test_id");
-                    AddParam(&StatusMessage::TestInfo::status, TestStatusParser{}, "status");
+            TestStatusMessageJsonParser() {
+                AddParam(&TestStatusMessage::timestamp, Json::JsonPrimitiveParser<std::string>{}, "timestamp");
+                AddParam(&TestStatusMessage::testId, Json::JsonPrimitiveParser<std::string>{}, "test_id");
+                AddParam(&TestStatusMessage::status, TestStatusParser{}, "status");
+            }
+        };
+
+        struct SignalStatusMessageJsonParser : Json::JsonObjectParser<SignalStatusMessage> {
+            struct SignalStatusParser : Json::JsonEnumParser<SignalStatusMessage::SignalStatus> {
+                SignalStatusParser() {
+                    AddEnumerator(SignalStatusMessage::SignalStatus::none, "none");
+                    AddEnumerator(SignalStatusMessage::SignalStatus::jamming, "jamming");
+                    AddEnumerator(SignalStatusMessage::SignalStatus::spoofing, "spoofing");
                 }
             };
 
-            // no members yet, it serializes as an empty object and accepts whatever
-            // arrives in its place
-            struct DetailsParser : Json::JsonObjectParser<StatusMessage::Details> {
-                DetailsParser() {
-                }
-            };
-
-            StatusMessageJsonParser() {
-                AddParam(&StatusMessage::timestamp, Json::JsonPrimitiveParser<std::string>{}, "timestamp");
-                auto p0 = AddParam(&StatusMessage::tests, JsonArrayParser<StatusMessage::TestInfo>{}, "tests");
-                p0->SetItemParser(TestInfoParser{});
-                AddParam(&StatusMessage::details, DetailsParser{}, "details");
+            SignalStatusMessageJsonParser() {
+                AddParam(&SignalStatusMessage::timestamp, Json::JsonPrimitiveParser<std::string>{}, "timestamp");
+                AddParam(&SignalStatusMessage::status, SignalStatusParser{}, "status");
             }
         };
 
@@ -196,7 +196,8 @@ namespace Sagax::SCG {
         InterferenceSourceParser interferenceSourceParser;
         RidParser ridParser;
         CommandMessageJsonParser commandMessageParser;
-        StatusMessageJsonParser statusMessageParser;
+        TestStatusMessageJsonParser testStatusMessageParser;
+        SignalStatusMessageJsonParser signalStatusMessageParser;
         ErrorMessageJsonParser errorMessageParser;
 
     }
@@ -236,16 +237,29 @@ namespace Sagax::SCG {
         return Json::DumpJson(j, false);
     }
 
-    StatusMessage ParseStatusMessage(const std::string &s) {
+    TestStatusMessage ParseTestStatusMessage(const std::string &s) {
         Json::JsonHandle j = Json::ParseJson(s);
-        StatusMessage msg;
-        statusMessageParser.Parse(j, msg);
+        TestStatusMessage msg;
+        testStatusMessageParser.Parse(j, msg);
         return msg;
     }
 
-    std::string SerializeStatusMessage(const StatusMessage &t) {
+    std::string SerializeTestStatusMessage(const TestStatusMessage &t) {
         Json::JsonHandle j;
-        statusMessageParser.Serialize(t, j);
+        testStatusMessageParser.Serialize(t, j);
+        return Json::DumpJson(j, false);
+    }
+
+    SignalStatusMessage ParseSignalStatusMessage(const std::string &s) {
+        Json::JsonHandle j = Json::ParseJson(s);
+        SignalStatusMessage msg;
+        signalStatusMessageParser.Parse(j, msg);
+        return msg;
+    }
+
+    std::string SerializeSignalStatusMessage(const SignalStatusMessage &t) {
+        Json::JsonHandle j;
+        signalStatusMessageParser.Serialize(t, j);
         return Json::DumpJson(j, false);
     }
 

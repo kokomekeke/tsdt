@@ -39,8 +39,9 @@ namespace Sagax::SCG {
                 AddParam(&ServerConfig::Mqtt::brokerHost, JsonPrimitiveParser<std::string>{}, "broker_host");
                 AddParam(&ServerConfig::Mqtt::brokerPort, JsonPrimitiveParser<std::int32_t>{}, "broker_port");
                 AddParam(&ServerConfig::Mqtt::commandTopic, JsonPrimitiveParser<std::string>{}, "command_topic");
-                AddParam(&ServerConfig::Mqtt::logTopic, JsonPrimitiveParser<std::string>{}, "log_topic");
-                AddParam(&ServerConfig::Mqtt::errorTopic, JsonPrimitiveParser<std::string>{}, "error_topic");
+                AddParam(&ServerConfig::Mqtt::signalLogTopic, JsonPrimitiveParser<std::string>{}, "signal_log_topic");
+                AddParam(&ServerConfig::Mqtt::testLogTopic, JsonPrimitiveParser<std::string>{}, "test_log_topic");
+                AddParam(&ServerConfig::Mqtt::errorLogTopic, JsonPrimitiveParser<std::string>{}, "error_log_topic");
             }
         };
 

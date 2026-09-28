@@ -31,8 +31,9 @@ namespace Sagax::SCG {
             std::string brokerHost;
             std::int32_t brokerPort;
             std::string commandTopic;
-            std::string logTopic;
-            std::string errorTopic;
+            std::string signalLogTopic; // signal status
+            std::string testLogTopic; // test status changes
+            std::string errorLogTopic;
         };
 
         std::string recordingDir;

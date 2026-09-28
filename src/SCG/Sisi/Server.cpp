@@ -15,6 +15,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <variant>
+#include <set>
 #include "Vendored/argparse/argparse.hpp"
 #include "Common/Logger.hpp"
 #include "Common/Defer.hpp"
@@ -295,8 +296,8 @@ struct ScheduledTest {
     // recording: the recording pipeline is running for it
     // ready: the recording is on disk
     // playing: the playback pipeline is running for it
-    // done, failed: over. these stay in the list and keep being reported, a test is only
-    // removed by a cancel or by another setup taking its id
+    // done, failed: over, erased from the list at the end of the UpdateSchedule that
+    // put them there. the change was already published when the state was set
     enum struct State {
         pending,
         recording,
@@ -309,17 +310,12 @@ struct ScheduledTest {
     std::string testId;
     std::chrono::system_clock::time_point time;
     SCG::Rid rid;
+    // sink event id -> index into rid.interferenceSources
+    std::vector<std::int32_t> eventMap;
     SCG::Scenario scenario;
     std::string recordingDirectory;
     State state = State::pending;
 };
-
-// a test that has run its course. it is still listed and still reported, but it holds
-// nothing up: the schedule steps over it and its id can be taken by another setup
-static bool IsOver(ScheduledTest::State state) {
-    return state == ScheduledTest::State::done
-        || state == ScheduledTest::State::failed;
-}
 
 struct Program {
 private:
@@ -347,11 +343,21 @@ private:
     Common::ThreadPool threadPool{4};
     SCG::ScenarioRunnerContext ctx;
 
-    // only the main loop touches these. the payload of the last publish is kept so that
-    // a change can be detected, nextStatus is when the same payload is sent again
-    std::string lastStatusPayload;
+    // the event callbacks run on the sink module thread while it holds its own mutex.
+    // the controller takes those same module mutexes while stopping, so the callbacks
+    // take mtxSignal only and never mtx. the sources are set for a playback only, a
+    // recording puts nothing on the air, so its events fall outside the map and are
+    // dropped
+    std::mutex mtxSignal;
+    std::vector<std::int32_t> signalEventMap;
+    std::vector<SignalStatusMessage::SignalStatus> signalSources;
+    std::set<std::int32_t> activeEventIds;
+
+    // only the main loop touches these. the last published signal status is kept so that
+    // a change can be detected, nextSignalStatus is when the same status is sent again
+    std::optional<SignalStatusMessage::SignalStatus> lastSignalStatus;
     std::chrono::steady_clock::duration statusPeriod{};
-    std::chrono::steady_clock::time_point nextStatus;
+    std::chrono::steady_clock::time_point nextSignalStatus;
 
     void Configure() {
         pipelineConfig = SCG::PipelineConfig{};
@@ -393,6 +399,72 @@ private:
             }
         }
 #endif
+
+        pipelineConfig.events.eventStart = [this](std::int32_t eventId) {
+            this->SetEventActive(eventId, true);
+        };
+        pipelineConfig.events.eventEnd = [this](std::int32_t eventId) {
+            this->SetEventActive(eventId, false);
+        };
+    }
+
+    // an event counts on its own rather than through its source, so two events of the
+    // same source that touch do not clear each other
+    void SetEventActive(std::int32_t eventId, bool active) {
+        {
+            std::unique_lock lck(mtxSignal);
+            if(eventId < 0 || std::size_t(eventId) >= signalEventMap.size()) {
+                return;
+            }
+            if(active) {
+                activeEventIds.insert(eventId);
+            }
+            else {
+                activeEventIds.erase(eventId);
+            }
+        }
+        cv.notify_all();
+    }
+
+    static SignalStatusMessage::SignalStatus SourceKind(const SCG::Rid::InterferenceSource &source) {
+        if(std::holds_alternative<SCG::Rid::InterferenceSource::Spoofing>(source.variant)) {
+            return SignalStatusMessage::SignalStatus::spoofing;
+        }
+        return SignalStatusMessage::SignalStatus::jamming;
+    }
+
+    void SetSignalSources(const ScheduledTest &test) {
+        std::unique_lock lck(mtxSignal);
+        signalEventMap = test.eventMap;
+        signalSources.clear();
+        for(auto &source : test.rid.interferenceSources) {
+            signalSources.push_back(SourceKind(source));
+        }
+        activeEventIds.clear();
+    }
+
+    void ClearSignalSources() {
+        std::unique_lock lck(mtxSignal);
+        signalEventMap.clear();
+        signalSources.clear();
+        activeEventIds.clear();
+    }
+
+    // any spoofing source on the air makes it spoofing, any other source jamming
+    SignalStatusMessage::SignalStatus CurrentSignalStatus() {
+        std::unique_lock lck(mtxSignal);
+        auto status = SignalStatusMessage::SignalStatus::none;
+        for(std::int32_t eventId : activeEventIds) {
+            std::int32_t sourceId = signalEventMap[eventId];
+            if(sourceId < 0 || std::size_t(sourceId) >= signalSources.size()) {
+                continue;
+            }
+            if(signalSources[sourceId] == SignalStatusMessage::SignalStatus::spoofing) {
+                return SignalStatusMessage::SignalStatus::spoofing;
+            }
+            status = SignalStatusMessage::SignalStatus::jamming;
+        }
+        return status;
     }
 
     // the pipeline holds the preinitialized devices while it runs, so this is only
@@ -428,62 +500,69 @@ private:
         Common::Logger::Error("{}", text.c_str());
         ErrorMessage message;
         message.message = text;
-        Publish(config.mqtt.errorTopic, SerializeErrorMessage(message));
+        Publish(config.mqtt.errorLogTopic, SerializeErrorMessage(message));
     }
 
-    static StatusMessage::TestStatus ReportedStatus(ScheduledTest::State state) {
+    static TestStatusMessage::TestStatus ReportedStatus(ScheduledTest::State state) {
         switch(state) {
-            case ScheduledTest::State::pending:   return StatusMessage::TestStatus::TEST_INIT;
-            case ScheduledTest::State::recording: return StatusMessage::TestStatus::TEST_PREPARE;
-            case ScheduledTest::State::ready:     return StatusMessage::TestStatus::TEST_READY;
-            case ScheduledTest::State::playing:   return StatusMessage::TestStatus::TEST_RUNNING;
-            case ScheduledTest::State::done:      return StatusMessage::TestStatus::TEST_COMPLETED;
-            case ScheduledTest::State::failed:    return StatusMessage::TestStatus::TEST_FAILED;
+            case ScheduledTest::State::pending:   return TestStatusMessage::TestStatus::TEST_INIT;
+            case ScheduledTest::State::recording: return TestStatusMessage::TestStatus::TEST_PREPARE;
+            case ScheduledTest::State::ready:     return TestStatusMessage::TestStatus::TEST_READY;
+            case ScheduledTest::State::playing:   return TestStatusMessage::TestStatus::TEST_RUNNING;
+            case ScheduledTest::State::done:      return TestStatusMessage::TestStatus::TEST_COMPLETED;
+            case ScheduledTest::State::failed:    return TestStatusMessage::TestStatus::TEST_FAILED;
         }
         Common::Assert(false, "unhandled test state");
-        return StatusMessage::TestStatus::TEST_FAILED;
+        return TestStatusMessage::TestStatus::TEST_FAILED;
     }
 
-    // the whole schedule is reported, in the order the tests were accepted. only the
-    // main loop touches the list, and this runs on it, so nothing is locked here
-    void PublishStatus() {
-        StatusMessage message;
-        for(auto &t : tests) {
-            StatusMessage::TestInfo info;
-            info.testId = t->testId;
-            info.status = ReportedStatus(t->state);
-            message.tests.push_back(std::move(info));
-        }
+    void PublishTestStatus(const ScheduledTest &test) {
+        TestStatusMessage message;
+        message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
+        message.testId = test.testId;
+        message.status = ReportedStatus(test.state);
+        Publish(config.mqtt.testLogTopic, SerializeTestStatusMessage(message));
+    }
 
-        // the payload is compared instead of flagging every place that changes the
-        // status. a completed mqtt publish does not change it, which is what stops the
-        // client wakeups from feeding back into another publish. the timestamp is left
-        // out of what is compared and filled in below, otherwise no two payloads would
-        // ever be equal and every tick would publish
-        std::string payload = SerializeStatusMessage(message);
-        auto now = std::chrono::steady_clock::now();
-        if(payload == lastStatusPayload && now < nextStatus) {
+    // every change of a test state after it is scheduled goes through here, so each one
+    // is published exactly once. a finished test is gone from the list by the next tick,
+    // so the change could not be picked up later by comparing against the list
+    void SetState(ScheduledTest &test, ScheduledTest::State state) {
+        if(test.state == state) {
             return;
         }
-        lastStatusPayload = payload;
-        nextStatus = now + statusPeriod;
+        test.state = state;
+        PublishTestStatus(test);
+    }
 
+    // the status is compared rather than the payload, the timestamp would make every
+    // payload differ. a completed mqtt publish does not change the status, which is what
+    // stops the client wakeups from feeding back into another publish
+    void PublishSignalStatus() {
+        auto status = CurrentSignalStatus();
+        auto now = std::chrono::steady_clock::now();
+        if(lastSignalStatus == status && now < nextSignalStatus) {
+            return;
+        }
+        lastSignalStatus = status;
+        nextSignalStatus = now + statusPeriod;
+
+        SignalStatusMessage message;
         message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
-        Publish(config.mqtt.logTopic, SerializeStatusMessage(message));
+        message.status = status;
+        Publish(config.mqtt.signalLogTopic, SerializeSignalStatusMessage(message));
     }
 
     // a playback holds the pipeline from start_ahead before its time until the scenario
-    // has run out, and only one pipeline runs at a time. the tests that are over stay in
-    // the list until UpdateSchedule erases them, so those are skipped
+    // has run out, and only one pipeline runs at a time. the tests that are over are
+    // erased at the end of UpdateSchedule and commands are handled before it, so none
+    // are left in the list here
     CommandError CheckOverlap(const std::string &testId, std::chrono::system_clock::time_point time, double duration) {
         auto startAhead = Seconds(config.startAhead_s);
 
         auto begin = time - startAhead;
         auto end = time + Seconds(duration);
         for(auto &t : tests) {
-            if(IsOver(t->state)) {
-                continue;
-            }
             auto otherBegin = t->time - startAhead;
             auto otherEnd = t->time + Seconds(t->scenario.duration);
             if(begin < otherEnd && otherBegin < end) {
@@ -510,9 +589,6 @@ private:
         double work = duration;
         auto earliest = time - startAhead;
         for(auto &t : tests) {
-            if(IsOver(t->state)) {
-                continue;
-            }
             if(t->state == ScheduledTest::State::pending || t->state == ScheduledTest::State::recording) {
                 work += t->scenario.duration;
             }
@@ -536,7 +612,7 @@ private:
         SCG_CHECK(ParseStartTime(command.time, time));
         SCG_CHECK(CheckTestId(command.testId));
         for(auto &t : tests) {
-            if(t->testId == command.testId && !IsOver(t->state)) {
+            if(t->testId == command.testId) {
                 return std::format("test id already scheduled: \"{}\"", command.testId);
             }
         }
@@ -562,22 +638,16 @@ private:
         SCG_CHECK(CheckOverlap(command.testId, time, scenario.duration));
         SCG_CHECK(CheckRecordingQueue(command.testId, time, scenario.duration));
 
-        // the run that held this id before is dropped here rather than up at the check,
-        // so a setup that is turned away leaves the state of that run to be read. only a
-        // test that is over can still be holding the id, and one that is over is never
-        // the one running, so testRunning cannot be left dangling by this
-        std::erase_if(tests, [&](const std::unique_ptr<ScheduledTest> &t) {
-            return t->testId == command.testId;
-        });
-
         auto test = std::make_unique<ScheduledTest>();
         test->testId = command.testId;
         test->time = time;
         test->recordingDirectory = std::format("{}/{}", config.recordingDir, command.testId);
         test->rid = std::move(rid);
+        test->eventMap = std::move(scenarioMap.eventMap);
         test->scenario = std::move(scenario);
         test->state = ScheduledTest::State::pending;
 
+        PublishTestStatus(*test);
         tests.push_back(std::move(test));
         Common::Logger::Info("test scheduled: {}", command.testId);
         return {};
@@ -593,6 +663,8 @@ private:
         if(testRunning == it->get()) {
             StopPipeline();
         }
+        // the spec has no status of its own for a cancel yet
+        SetState(**it, ScheduledTest::State::failed);
         tests.erase(it);
         Common::Logger::Info("test cancelled: {}", command.testId);
         return {};
@@ -623,7 +695,7 @@ private:
         }
         catch(const std::exception &e) {
             PublishError(std::format("could not build pipeline for test \"{}\": {}", test.testId, e.what()));
-            test.state = ScheduledTest::State::failed;
+            SetState(test, ScheduledTest::State::failed);
             return;
         }
 
@@ -641,15 +713,16 @@ private:
             PublishError(std::format("could not initialize resources for test \"{}\": {}", test.testId, e.what()));
             ctx.Dispose();
             ctx.controller.reset();
-            test.state = ScheduledTest::State::failed;
+            SetState(test, ScheduledTest::State::failed);
             return;
         }
 
         if(isPlayback) {
-            test.state = ScheduledTest::State::playing;
+            SetSignalSources(test);
+            SetState(test, ScheduledTest::State::playing);
         }
         else {
-            test.state = ScheduledTest::State::recording;
+            SetState(test, ScheduledTest::State::recording);
         }
         testRunning = &test;
         ctx.controller->Start();
@@ -666,6 +739,7 @@ private:
         ctx.Dispose();
         ctx.controller.reset();
         testRunning = nullptr;
+        ClearSignalSources();
         Common::Logger::Info("pipeline stopped");
     }
 
@@ -685,16 +759,17 @@ private:
         ctx.Dispose();
         ctx.controller.reset();
         testRunning = nullptr;
+        ClearSignalSources();
 
         if(failed) {
-            test.state = ScheduledTest::State::failed;
+            SetState(test, ScheduledTest::State::failed);
         }
         else if(test.state == ScheduledTest::State::recording) {
-            test.state = ScheduledTest::State::ready;
+            SetState(test, ScheduledTest::State::ready);
             Common::Logger::Info("recording finished: {}", test.testId);
         }
         else {
-            test.state = ScheduledTest::State::done;
+            SetState(test, ScheduledTest::State::done);
             Common::Logger::Info("playback finished: {}", test.testId);
         }
     }
@@ -722,12 +797,12 @@ private:
             }
             if(now >= test.time) {
                 PublishError(std::format("test \"{}\" missed its starting time", test.testId));
-                test.state = ScheduledTest::State::failed;
+                SetState(test, ScheduledTest::State::failed);
                 continue;
             }
             if(testRunning != nullptr) {
                 PublishError(std::format("test \"{}\" cannot start, another pipeline is running", test.testId));
-                test.state = ScheduledTest::State::failed;
+                SetState(test, ScheduledTest::State::failed);
                 continue;
             }
             StartPipeline(test);
@@ -741,6 +816,11 @@ private:
                 }
             }
         }
+
+        std::erase_if(tests, [](const std::unique_ptr<ScheduledTest> &t) {
+            return t->state == ScheduledTest::State::done
+                || t->state == ScheduledTest::State::failed;
+        });
     }
 
     void HandleCommand(const MqttClient::Message &msg) {
@@ -856,7 +936,7 @@ private:
         statusPeriod = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
             std::chrono::duration<double>(config.statusUpdatePeriod_s)
         );
-        nextStatus = std::chrono::steady_clock::now();
+        nextSignalStatus = std::chrono::steady_clock::now();
         while(true) {
             // mtx is held for the wait only, the steps below reach the module mutexes
             // through the controller and must not hold it. the wait also returns early
@@ -871,7 +951,7 @@ private:
 
             HandleCommands();
             UpdateSchedule();
-            PublishStatus();
+            PublishSignalStatus();
         }
     }
 

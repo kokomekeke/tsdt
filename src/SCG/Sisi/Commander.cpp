@@ -331,9 +331,11 @@ int main(int argc, char **argv) {
     cfg.host = config.mqtt.brokerHost;
     cfg.port = config.mqtt.brokerPort;
     cfg.keepAlive_s = 60;
-    cfg.subscribeTopics = { config.mqtt.logTopic };
-    if(config.mqtt.errorTopic != config.mqtt.logTopic) {
-        cfg.subscribeTopics.push_back(config.mqtt.errorTopic);
+    cfg.subscribeTopics = { config.mqtt.signalLogTopic };
+    for(const auto &topic : { config.mqtt.testLogTopic, config.mqtt.errorLogTopic }) {
+        if(std::find(cfg.subscribeTopics.begin(), cfg.subscribeTopics.end(), topic) == cfg.subscribeTopics.end()) {
+            cfg.subscribeTopics.push_back(topic);
+        }
     }
     cfg.clientId = "Commander";
     cfg.reconnectDelays_ms = { 1000, 2000, 5000 };
@@ -354,8 +356,9 @@ int main(int argc, char **argv) {
 
     PrintHelp();
     Common::Logger::Info("connected command topic: {}", config.mqtt.commandTopic);
-    Common::Logger::Info("listening log topic: {}", config.mqtt.logTopic);
-    Common::Logger::Info("listening error topic: {}", config.mqtt.errorTopic);
+    Common::Logger::Info("listening signal log topic: {}", config.mqtt.signalLogTopic);
+    Common::Logger::Info("listening test log topic: {}", config.mqtt.testLogTopic);
+    Common::Logger::Info("listening error log topic: {}", config.mqtt.errorLogTopic);
 
     [[maybe_unused]] TerminalRawMode rawMode;
     editor.Start();

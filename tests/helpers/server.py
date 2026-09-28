@@ -50,7 +50,8 @@ class ScgServer:
         self.work_dir = work_dir
         index = next(_counter)
         self.command_topic = f"cmd/test{index}"
-        self.error_topic = f"tm/test{index}"
+        self.error_log_topic = f"tm/test{index}"
+        self.test_log_topic = f"tm/test{index}/test"
 
         config = json.loads(TEMPLATE.read_text(encoding="utf-8"))
         config["recording_directory"] = str(work_dir / "recordings").replace("\\", "/")
@@ -60,8 +61,9 @@ class ScgServer:
         config["mqtt"]["broker_host"] = broker.host
         config["mqtt"]["broker_port"] = broker.port
         config["mqtt"]["command_topic"] = self.command_topic
-        config["mqtt"]["log_topic"] = self.error_topic
-        config["mqtt"]["error_topic"] = self.error_topic
+        config["mqtt"]["signal_log_topic"] = self.error_log_topic
+        config["mqtt"]["test_log_topic"] = self.test_log_topic
+        config["mqtt"]["error_log_topic"] = self.error_log_topic
         if config_changes:
             config_changes(config)
 
@@ -122,13 +124,13 @@ class ScgServer:
         return self.send(cancel_command(test_id))
 
     def error(self, mark, timeout=6.0):
-        return self.broker.wait_for_error(mark, self.error_topic, timeout)
+        return self.broker.wait_for_error(mark, self.error_log_topic, timeout)
 
     def expect_error(self, mark, timeout=6.0):
-        answer = self.broker.wait_for_error(mark, self.error_topic, timeout)
+        answer = self.broker.wait_for_error(mark, self.error_log_topic, timeout)
         assert answer is not None, f"no error came back in {timeout} s\n{self.log}"
         return answer
 
     def expect_no_error(self, mark, timeout=2.0):
-        answer = self.broker.wait_for_error(mark, self.error_topic, timeout)
+        answer = self.broker.wait_for_error(mark, self.error_log_topic, timeout)
         assert answer is None, f"unexpected error: {answer[0]}"

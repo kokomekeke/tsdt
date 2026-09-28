@@ -32,7 +32,8 @@
         "broker_host": "",
         "broker_port": 1883,
         "command_topic": "cmd/test",
-        "log_topic": "tm/test",
-        "error_topic": "tm/test"
+        "signal_log_topic": "tm/test",
+        "test_log_topic": "tm/test/test",
+        "error_log_topic": "tm/test"
     }
 }
