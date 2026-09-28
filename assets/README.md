@@ -6,7 +6,7 @@ here is only for a test; the files that exist for the test suite are under `test
 | directory | what is in it | what reads it |
 |---|---|---|
 | `config` | server configs | `scgserver <config>`, `scglint config`, `scglint rid` |
-| `rid` | radio interference descriptions | the `scenario` field of a TEST_SETUP command, `scglint rid` |
+| `rid` | radio interference descriptions | the `scenario_url` field of a TEST_SETUP command, `scglint rid` |
 | `scenario` | scenarios, the form a rid is turned into | `scg`, `scglint scenario` |
 
 A rid is only meaningful next to a config, because it names radios by the ids the config

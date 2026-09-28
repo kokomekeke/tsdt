@@ -556,7 +556,7 @@ private:
 
         SignalStatusMessage message;
         message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
-        message.status = status;
+        message.type = status;
         Publish(config.mqtt.signalLogTopic, SerializeSignalStatusMessage(message));
     }
 
@@ -612,7 +612,7 @@ private:
 
     CommandError ScheduleTest(const CommandMessage::TestSetup &command) {
         std::chrono::system_clock::time_point time;
-        SCG_CHECK(ParseStartTime(command.time, time));
+        SCG_CHECK(ParseStartTime(command.startTime, time));
         SCG_CHECK(CheckTestId(command.testId));
         for(auto &t : tests) {
             if(t->testId == command.testId) {
@@ -621,7 +621,7 @@ private:
         }
 
         std::string json;
-        SCG_CHECK(SCG::Fetch(command.scenario, config.scenarioFetchTimeout_s, json));
+        SCG_CHECK(SCG::Fetch(command.scenarioUrl, config.scenarioFetchTimeout_s, json));
 
         SCG::Rid rid;
         SCG_CHECK(ReadRid(json, rid));
@@ -904,7 +904,7 @@ private:
         }
         else if(std::holds_alternative<CommandMessage::TestSetup>(cm.variant)) {
             auto &v = std::get<CommandMessage::TestSetup>(cm.variant);
-            Common::Logger::Info("received [{}] TEST_SETUP: scenario={} time={} test_id={}", msg.topic, v.scenario, v.time, v.testId);
+            Common::Logger::Info("received [{}] TEST_SETUP: scenario_url={} start_time={} test_id={}", msg.topic, v.scenarioUrl, v.startTime, v.testId);
             error = ScheduleTest(v);
         }
         else if(std::holds_alternative<CommandMessage::TestCancel>(cm.variant)) {

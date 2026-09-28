@@ -126,8 +126,8 @@ namespace Sagax::SCG {
         struct CommandMessageJsonParser : Json::JsonObjectParser<CommandMessage> {
             struct TestSetupParser : Json::JsonObjectParser<CommandMessage::TestSetup> {
                 TestSetupParser() {
-                    AddParam(&CommandMessage::TestSetup::scenario, Json::JsonPrimitiveParser<std::string>{}, "scenario_url");
-                    AddParam(&CommandMessage::TestSetup::time, Json::JsonPrimitiveParser<std::string>{}, "time");
+                    AddParam(&CommandMessage::TestSetup::scenarioUrl, Json::JsonPrimitiveParser<std::string>{}, "scenario_url");
+                    AddParam(&CommandMessage::TestSetup::startTime, Json::JsonPrimitiveParser<std::string>{}, "start_time");
                     AddParam(&CommandMessage::TestSetup::testId, Json::JsonPrimitiveParser<std::string>{}, "test_id");
                 }
             };
@@ -183,7 +183,7 @@ namespace Sagax::SCG {
 
             SignalStatusMessageJsonParser() {
                 AddParam(&SignalStatusMessage::timestamp, Json::JsonPrimitiveParser<std::string>{}, "timestamp");
-                AddParam(&SignalStatusMessage::status, SignalStatusParser{}, "type");
+                AddParam(&SignalStatusMessage::type, SignalStatusParser{}, "type");
             }
         };
 

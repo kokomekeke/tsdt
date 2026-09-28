@@ -9,8 +9,8 @@
 namespace Sagax::SCG {
     struct CommandMessage {
         struct TestSetup {
-            std::string scenario;
-            std::string time;
+            std::string scenarioUrl;
+            std::string startTime;
             std::string testId;
         };
 
@@ -47,7 +47,7 @@ namespace Sagax::SCG {
             spoofing
         };
         std::string timestamp; // iso 8601, utc
-        SignalStatus status;
+        SignalStatus type;
     };
 
     struct ErrorMessage {

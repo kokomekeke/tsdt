@@ -92,7 +92,7 @@ def test_a_spoofed_test_runs_through_every_status(server, tmp_path):
 
     def signals():
         messages = [json.loads(p) for _, _, p in sched.broker.since(mark, sched.error_log_topic)]
-        return [m["status"] for m in messages if "status" in m]
+        return [m["type"] for m in messages if "type" in m]
 
     assert wait_until(lambda: statuses()[-1]["status"] == "TEST_COMPLETED"), statuses()
     assert [s["status"] for s in statuses()] == [

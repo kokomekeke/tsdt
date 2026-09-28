@@ -27,8 +27,8 @@ def setup_command(scenario, test_id, seconds_ahead):
     return json.dumps({
         "command": "TEST_SETUP",
         "extras": {
-            "scenario": scenario,
-            "time": utc_string(seconds_ahead),
+            "scenario_url": scenario,
+            "start_time": utc_string(seconds_ahead),
             "test_id": test_id,
         },
     })
