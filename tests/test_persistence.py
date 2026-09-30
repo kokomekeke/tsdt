@@ -7,12 +7,30 @@ import json
 import time
 
 from helpers.rid import write_gnss_rid
+from helpers.server import utc_string
 
 DURATION_S = 0.5
 
 
 def with_ephemeris(config):
     config["gnss_ephemeris_file"] = "ephemeris/none.rnx"
+
+
+def write_saved(tmp_path, test_id, rid, seconds_ahead, status="TEST_INIT", saved_id=None):
+    """the files the server leaves for a test that is not over, written by hand"""
+    directory = tmp_path / "recordings" / test_id
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "rid.json").write_text(rid.read_text(encoding="utf-8"), encoding="utf-8")
+    content = {
+        "command": {
+            "scenario_url": rid.as_uri(),
+            "start_time": utc_string(seconds_ahead),
+            "test_id": saved_id or test_id,
+        },
+        "status": status,
+    }
+    (directory / "test.json").write_text(json.dumps(content), encoding="utf-8")
+    return directory
 
 
 def saved(tmp_path, test_id):
@@ -122,3 +140,102 @@ def test_an_unreadable_saved_test_is_dropped(server, broker, tmp_path):
     assert '"broken"' in message, message
     assert wait_until(lambda: statuses(second, mark, "broken") == ["TEST_FAILED"])
     assert not (directory / "test.json").exists()
+
+
+def test_a_running_test_is_played_again(server, broker, tmp_path, rid_path):
+    """the server went down during start_ahead, before the start time"""
+    write_saved(tmp_path, "interrupted", rid_path, seconds_ahead=600, status="TEST_RUNNING")
+
+    mark = broker.mark()
+    restarted = server()
+    assert restarted.wait_for_log("test restored: interrupted"), restarted.log
+    assert wait_until(lambda: statuses(restarted, mark, "interrupted") == ["TEST_READY"])
+    assert "preparation started: interrupted" not in restarted.log
+    assert saved(tmp_path, "interrupted")["status"] == "TEST_READY"
+
+
+def test_the_later_of_two_overlapping_tests_is_dropped(server, broker, tmp_path, rid_path):
+    """restored in the order they start, so the earlier one is kept"""
+    write_saved(tmp_path, "later", rid_path, seconds_ahead=601, status="TEST_READY")
+    write_saved(tmp_path, "earlier", rid_path, seconds_ahead=600, status="TEST_READY")
+
+    mark = broker.mark()
+    restarted = server()
+    message, _ = restarted.expect_error(mark)
+    assert '"later"' in message, message
+    assert "overlaps test" in message and '"earlier"' in message, message
+    assert wait_until(lambda: statuses(restarted, mark, "later") == ["TEST_FAILED"])
+    assert statuses(restarted, mark, "earlier") == ["TEST_READY"]
+    assert not (tmp_path / "recordings" / "later" / "test.json").exists()
+    assert (tmp_path / "recordings" / "earlier" / "test.json").exists()
+
+
+def test_a_test_that_can_no_longer_be_prepared_in_time_is_dropped(server, broker, tmp_path):
+    """sixty seconds of gnss recording do not fit into the forty left before the start"""
+    rid = write_gnss_rid(tmp_path / "long.json", duration_s=60.0, bandwidth_hz=48000)
+    write_saved(tmp_path, "late", rid, seconds_ahead=40)
+
+    mark = broker.mark()
+    restarted = server(config_changes=with_ephemeris)
+    message, _ = restarted.expect_error(mark)
+    assert '"late"' in message and "cannot be prepared in time" in message, message
+    assert wait_until(lambda: statuses(restarted, mark, "late") == ["TEST_FAILED"])
+
+
+def test_a_test_the_new_config_rejects_is_dropped(server, broker, tmp_path):
+    """a spoofer saved under a config with an ephemeris, restored under one without"""
+    rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S)
+    write_saved(tmp_path, "spoofed", rid, seconds_ahead=600, status="TEST_READY")
+
+    mark = broker.mark()
+    restarted = server()
+    message, _ = restarted.expect_error(mark)
+    assert '"spoofed"' in message and "gnss_ephemeris_file" in message, message
+    assert wait_until(lambda: statuses(restarted, mark, "spoofed") == ["TEST_FAILED"])
+    assert not (tmp_path / "recordings" / "spoofed" / "test.json").exists()
+
+
+def test_a_test_without_its_rid_is_dropped(server, broker, tmp_path, rid_path):
+    directory = write_saved(tmp_path, "norid", rid_path, seconds_ahead=600)
+    (directory / "rid.json").unlink()
+
+    mark = broker.mark()
+    restarted = server()
+    message, _ = restarted.expect_error(mark)
+    assert '"norid"' in message and "rid.json" in message, message
+    assert wait_until(lambda: statuses(restarted, mark, "norid") == ["TEST_FAILED"])
+
+
+def test_a_test_in_the_wrong_directory_is_dropped(server, broker, tmp_path, rid_path):
+    write_saved(tmp_path, "moved", rid_path, seconds_ahead=600, saved_id="original")
+
+    mark = broker.mark()
+    restarted = server()
+    message, _ = restarted.expect_error(mark)
+    assert '"moved"' in message and '"original"' in message, message
+    assert wait_until(lambda: statuses(restarted, mark, "moved") == ["TEST_FAILED"])
+    assert "test restored" not in restarted.log
+
+
+def test_the_state_is_saved_on_every_change(server, tmp_path):
+    """the status in test.json follows the test up to the playback, then the file goes away"""
+    rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S)
+    sched = server(start_ahead_s=2.0, config_changes=with_ephemeris)
+    sched.setup(rid.as_uri(), test_id="followed", seconds_ahead=6)
+    assert sched.wait_for_log("preparation finished: followed", timeout=30.0), sched.log
+    assert saved(tmp_path, "followed")["status"] == "TEST_READY"
+
+    running = []
+
+    def status_changed():
+        try:
+            running.append(saved(tmp_path, "followed")["status"])
+        except FileNotFoundError:
+            pass
+        return "TEST_RUNNING" in running
+
+    assert sched.wait_for_log("playback started: followed", timeout=30.0), sched.log
+    assert wait_until(status_changed, timeout=2.0), running
+
+    assert sched.wait_for_log("playback finished: followed", timeout=30.0), sched.log
+    assert wait_until(lambda: not (tmp_path / "recordings" / "followed" / "test.json").exists())

@@ -82,10 +82,8 @@ private:
 
     // the event callbacks run on the sink thread while it holds its module mutex, and the
     // controller takes the module mutexes while stopping, so the callbacks only take
-    // mtxSignal and never mtx. events outside a playback are dropped
+    // mtxSignal and never mtx
     std::mutex mtxSignal;
-    std::vector<std::int32_t> signalEventMap;
-    std::vector<SignalStatusMessage::SignalStatus> signalSources;
     std::set<std::int32_t> activeEventIds;
 
     // only the main loop touches these
@@ -144,9 +142,6 @@ private:
     void SetEventActive(std::int32_t eventId, bool active) {
         {
             std::unique_lock lck(mtxSignal);
-            if(eventId < 0 || std::size_t(eventId) >= signalEventMap.size()) {
-                return;
-            }
             if(active) {
                 activeEventIds.insert(eventId);
             }
@@ -157,39 +152,34 @@ private:
         cv.notify_all();
     }
 
-    static SignalStatusMessage::SignalStatus SourceKind(const SCG::Rid::InterferenceSource &source) {
-        if(std::holds_alternative<SCG::Rid::InterferenceSource::Spoofing>(source.variant)) {
-            return SignalStatusMessage::SignalStatus::spoofing;
-        }
-        return SignalStatusMessage::SignalStatus::jamming;
-    }
-
-    void SetSignalSources(const ScheduledTest &test) {
+    void ClearActiveEvents() {
         std::unique_lock lck(mtxSignal);
-        signalEventMap = test.eventMap;
-        signalSources.clear();
-        for(auto &source : test.rid.interferenceSources) {
-            signalSources.push_back(SourceKind(source));
-        }
         activeEventIds.clear();
     }
 
-    void ClearSignalSources() {
-        std::unique_lock lck(mtxSignal);
-        signalEventMap.clear();
-        signalSources.clear();
-        activeEventIds.clear();
-    }
-
+    // the active events are mapped to the sources of the test that is playing
     SignalStatusMessage::SignalStatus CurrentSignalStatus() {
-        std::unique_lock lck(mtxSignal);
+        std::set<std::int32_t> eventIds;
+        {
+            std::unique_lock lck(mtxSignal);
+            eventIds = activeEventIds;
+        }
+
         auto status = SignalStatusMessage::SignalStatus::none;
-        for(std::int32_t eventId : activeEventIds) {
-            std::int32_t sourceId = signalEventMap[eventId];
-            if(sourceId < 0 || std::size_t(sourceId) >= signalSources.size()) {
+        ScheduledTest *test = scheduler.Running();
+        if(test == nullptr || test->state != ScheduledTest::State::playing) {
+            return status;
+        }
+        auto &sources = test->rid.interferenceSources;
+        for(std::int32_t eventId : eventIds) {
+            if(eventId < 0 || std::size_t(eventId) >= test->eventMap.size()) {
                 continue;
             }
-            if(signalSources[sourceId] == SignalStatusMessage::SignalStatus::spoofing) {
+            std::int32_t sourceId = test->eventMap[eventId];
+            if(sourceId < 0 || std::size_t(sourceId) >= sources.size()) {
+                continue;
+            }
+            if(std::holds_alternative<SCG::Rid::InterferenceSource::Spoofing>(sources[sourceId].variant)) {
                 return SignalStatusMessage::SignalStatus::spoofing;
             }
             status = SignalStatusMessage::SignalStatus::jamming;
@@ -350,7 +340,7 @@ private:
             return;
         }
 
-        SetSignalSources(test);
+        ClearActiveEvents();
         scheduler.Started(test);
         ctx.controller->Start();
         Common::Logger::Info("playback started: {}", test.testId);
@@ -361,7 +351,7 @@ private:
         ctx.controller->Join();
         ctx.Dispose();
         ctx.controller.reset();
-        ClearSignalSources();
+        ClearActiveEvents();
         Common::Logger::Info("pipeline stopped");
     }
 
@@ -379,7 +369,7 @@ private:
         }
         ctx.Dispose();
         ctx.controller.reset();
-        ClearSignalSources();
+        ClearActiveEvents();
 
         scheduler.Finished(test, !failed);
         if(!failed) {
