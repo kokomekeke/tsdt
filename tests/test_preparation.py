@@ -25,7 +25,7 @@ def test_a_spoofer_is_recorded_into_the_directory_of_its_test(server, tmp_path):
     assert sched.wait_for_log("preparation finished: spoofed", timeout=30.0), sched.log
 
     directory = tmp_path / "recordings" / "spoofed"
-    assert sorted(p.name for p in directory.iterdir()) == ["gnss_000.wav", "scenario.json"]
+    assert sorted(p.name for p in directory.iterdir()) == ["gnss_000.wav", "rid.json", "scenario.json", "test.json"]
 
     sampleRate, channels = read_iq(directory / "gnss_000.wav")
     assert sampleRate == BANDWIDTH_HZ
@@ -48,13 +48,13 @@ def test_the_scenario_plays_the_recording_once(server, tmp_path):
     assert files[0]["file"].replace("\\", "/").endswith("spoofed/gnss_000.wav"), files[0]["file"]
 
 
-def test_jammers_alone_leave_only_the_scenario(server, tmp_path, rid_path):
+def test_jammers_alone_leave_no_recording(server, tmp_path, rid_path):
     sched = server()
     sched.setup(rid_path.as_uri(), test_id="jammed", seconds_ahead=600)
     assert sched.wait_for_log("preparation finished: jammed", timeout=30.0), sched.log
 
     directory = tmp_path / "recordings" / "jammed"
-    assert sorted(p.name for p in directory.iterdir()) == ["scenario.json"]
+    assert sorted(p.name for p in directory.iterdir()) == ["rid.json", "scenario.json", "test.json"]
 
 
 def test_a_cancel_removes_the_directory(server, tmp_path):

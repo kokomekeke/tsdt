@@ -2,6 +2,7 @@
 #include <string>
 #include "SCG/Sisi/Rid.hpp"
 #include "SCG/Sisi/Messages.hpp"
+#include "SCG/Sisi/SavedTest.hpp"
 
 namespace Sagax::SCG {
 
@@ -25,6 +26,9 @@ namespace Sagax::SCG {
 
     ErrorMessage ParseErrorMessage(const std::string &s);
     std::string SerializeErrorMessage(const ErrorMessage &s);
+
+    SavedTest ParseSavedTest(const std::string &s);
+    std::string SerializeSavedTest(const SavedTest &t);
 
 }
 

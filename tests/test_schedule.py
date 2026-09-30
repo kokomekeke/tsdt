@@ -89,7 +89,12 @@ def test_the_queue_of_preparations_is_counted(server, tmp_path):
     alone.expect_no_error(mark, timeout=2.0)
     assert alone.wait_for_log("test scheduled: alone")
 
-    crowded = server(start_ahead_s=START_AHEAD, config_changes=with_ephemeris)
+    # a directory of its own, it would restore the test of the first server otherwise
+    def separate(config):
+        with_ephemeris(config)
+        config["recording_directory"] = str(tmp_path / "crowded").replace("\\", "/")
+
+    crowded = server(start_ahead_s=START_AHEAD, config_changes=separate)
     crowded.setup(url, test_id="waiting", seconds_ahead=3600)
     mark = crowded.setup(url, test_id="crowded", seconds_ahead=120)
 

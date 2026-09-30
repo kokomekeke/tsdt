@@ -189,6 +189,9 @@ if buildScgServer or buildMqttExamples
         sources: [
             'src/SCG/Sisi/MqttClient.cpp',
             'src/SCG/Sisi/Server.cpp',
+            'src/SCG/Sisi/ServerArguments.cpp',
+            'src/SCG/Sisi/TestScheduler.cpp',
+            'src/SCG/Sisi/TimeFormat.cpp',
         ],
         include_directories: [ 'src/' ],
         dependencies: [

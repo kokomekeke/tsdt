@@ -193,12 +193,20 @@ namespace Sagax::SCG {
             }
         };
 
+        struct SavedTestJsonParser : Json::JsonObjectParser<SavedTest> {
+            SavedTestJsonParser() {
+                AddParam(&SavedTest::command, CommandMessageJsonParser::TestSetupParser{}, "command");
+                AddParam(&SavedTest::status, TestStatusMessageJsonParser::TestStatusParser{}, "status");
+            }
+        };
+
         InterferenceSourceParser interferenceSourceParser;
         RidParser ridParser;
         CommandMessageJsonParser commandMessageParser;
         TestStatusMessageJsonParser testStatusMessageParser;
         SignalStatusMessageJsonParser signalStatusMessageParser;
         ErrorMessageJsonParser errorMessageParser;
+        SavedTestJsonParser savedTestParser;
 
     }
 
@@ -274,6 +282,19 @@ namespace Sagax::SCG {
         Json::JsonHandle j;
         errorMessageParser.Serialize(t, j);
         return Json::DumpJson(j, false);
+    }
+
+    SavedTest ParseSavedTest(const std::string &s) {
+        Json::JsonHandle j = Json::ParseJson(s);
+        SavedTest t;
+        savedTestParser.Parse(j, t);
+        return t;
+    }
+
+    std::string SerializeSavedTest(const SavedTest &t) {
+        Json::JsonHandle j;
+        savedTestParser.Serialize(t, j);
+        return Json::DumpJson(j, true);
     }
 
 }
