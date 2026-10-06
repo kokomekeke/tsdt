@@ -23,7 +23,7 @@ namespace Sagax::SCG {
         };
 
         // part of the protocol and read like the rest, but nothing is done with them
-        // yet. none of the three carries any field
+        // yet. none of them carries any field
         struct IntStart {
         };
 
@@ -33,13 +33,17 @@ namespace Sagax::SCG {
         struct TestUpdate {
         };
 
+        struct TestEnd {
+        };
+
         using Variant = std::variant<
             TestSetup,
             TestCancel,
             IntStop,
             IntStart,
             TestStart,
-            TestUpdate
+            TestUpdate,
+            TestEnd
         >;
 
         Variant variant;
@@ -56,7 +60,7 @@ namespace Sagax::SCG {
         };
         std::string timestamp; // iso 8601, utc
         std::string testId;
-        TestStatus status;
+        TestStatus testStatus;
     };
 
     struct SignalStatusMessage {

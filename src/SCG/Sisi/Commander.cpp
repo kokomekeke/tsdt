@@ -235,7 +235,7 @@ static void PrintHelp() {
     Common::Logger::Info("  testsetup <tsd_url> <time> <test_id>");
     Common::Logger::Info("  testcancel <test_id>");
     Common::Logger::Info("  intstop");
-    Common::Logger::Info("  intstart | teststart | testupdate   (read and ignored)");
+    Common::Logger::Info("  intstart | teststart | testupdate | testend   (read and ignored)");
     Common::Logger::Info("  help");
     Common::Logger::Info("  quit\n");
     Common::Logger::Info("time is given as 2026-09-02T14:30:00+02:00\n");
@@ -432,6 +432,9 @@ int main(int argc, char **argv) {
         }
         else if(cmd == "testupdate") {
             cm.variant = CommandMessage::TestUpdate{};
+        }
+        else if(cmd == "testend") {
+            cm.variant = CommandMessage::TestEnd{};
         }
         else {
             Common::Logger::Warn("unknown command: {}", cmd);

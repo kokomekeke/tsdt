@@ -107,7 +107,7 @@ def test_a_duplicate_test_id_is_reported(scgserver, tsd_path):
 
 # read like any other command and then dropped. they are part of the protocol and do
 # nothing here yet, so the server warns instead of refusing them
-IGNORED = ["INT_START", "TEST_START", "TEST_UPDATE"]
+IGNORED = ["INT_START", "TEST_START", "TEST_UPDATE", "TEST_END"]
 
 
 @pytest.mark.parametrize("name", IGNORED)

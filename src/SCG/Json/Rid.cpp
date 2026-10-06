@@ -154,6 +154,7 @@ namespace Sagax::SCG {
                     AddAlt<CommandMessage::IntStart>("INT_START", "extras", EmptyParser<CommandMessage::IntStart>{});
                     AddAlt<CommandMessage::TestStart>("TEST_START", "extras", EmptyParser<CommandMessage::TestStart>{});
                     AddAlt<CommandMessage::TestUpdate>("TEST_UPDATE", "extras", EmptyParser<CommandMessage::TestUpdate>{});
+                    AddAlt<CommandMessage::TestEnd>("TEST_END", "extras", EmptyParser<CommandMessage::TestEnd>{});
                 }
             };
 
@@ -179,7 +180,7 @@ namespace Sagax::SCG {
             TestStatusMessageJsonParser() {
                 AddParam(&TestStatusMessage::timestamp, Json::JsonPrimitiveParser<std::string>{}, "timestamp");
                 AddParam(&TestStatusMessage::testId, Json::JsonPrimitiveParser<std::string>{}, "test_id");
-                AddParam(&TestStatusMessage::status, TestStatusParser{}, "status");
+                AddParam(&TestStatusMessage::testStatus, TestStatusParser{}, "test_status");
             }
         };
 

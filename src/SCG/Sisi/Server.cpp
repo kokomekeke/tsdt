@@ -226,7 +226,7 @@ private:
         TestStatusMessage message;
         message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
         message.testId = testId;
-        message.status = status;
+        message.testStatus = status;
         Publish(config.mqtt.testLogTopic, SerializeTestStatusMessage(message));
     }
 
@@ -461,6 +461,9 @@ private:
         }
         else if(std::holds_alternative<CommandMessage::TestUpdate>(cm.variant)) {
             Ignored(msg.topic, "TEST_UPDATE");
+        }
+        else if(std::holds_alternative<CommandMessage::TestEnd>(cm.variant)) {
+            Ignored(msg.topic, "TEST_END");
         }
         else {
             error = std::format("received [{}]: unknown command", msg.topic);

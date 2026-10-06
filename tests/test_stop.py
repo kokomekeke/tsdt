@@ -36,7 +36,7 @@ def playing(server, tmp_path, test_id="running"):
 def statuses(instance, test_id="running"):
     """Every status this server published for the test, in order."""
     messages = [json.loads(p) for _, _, p in instance.broker.since(0.0, instance.test_log_topic)]
-    return [m["status"] for m in messages if m["test_id"] == test_id]
+    return [m["test_status"] for m in messages if m["test_id"] == test_id]
 
 
 def signal_types(instance):

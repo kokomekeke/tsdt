@@ -46,7 +46,7 @@ def saved(tmp_path, test_id):
 
 def statuses(server, mark, test_id):
     messages = [json.loads(p) for _, _, p in server.broker.since(mark, server.test_log_topic)]
-    return [m["status"] for m in messages if m["test_id"] == test_id]
+    return [m["test_status"] for m in messages if m["test_id"] == test_id]
 
 
 def wait_until(condition, timeout=5.0):
