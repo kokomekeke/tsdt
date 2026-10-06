@@ -19,12 +19,15 @@
 #include "SCG/Sisi/Rid.hpp"
 #include "SCG/Json/Rid.hpp"
 #include "SCG/Sisi/RidTransform.hpp"
+#include "SCG/Sisi/Tsd.hpp"
+#include "SCG/Json/Tsd.hpp"
+#include "SCG/Sisi/TsdMerge.hpp"
 #include "SCG/Utility/Fetch.hpp"
 
 using namespace Sagax;
 using namespace Sagax::SCG;
 
-// scglint: parses and validates scenario/config/rid json files without touching any
+// scglint: parses and validates scenario/config/rid/tsd json files without touching any
 // hardware (USRP/Sidekiq) or MQTT broker, and without building or running a pipeline.
 // It only exercises the same Parse*/Validate* calls the real tools (scg.exe, scgserver.exe)
 // run before they go anywhere near hardware.
@@ -141,6 +144,61 @@ namespace {
         return Report("rid", res) ? EXIT_OK : EXIT_VALIDATION_FAILED;
     }
 
+    int LintTsd(const std::string &configPath, const std::string &tsdPath) {
+        ServerConfig config;
+        try {
+            std::string jsonStr = ReadFile(configPath);
+            config = ParseServerConfig(jsonStr);
+        }
+        catch(const std::exception &e) {
+            Common::Logger::Error("failed to parse config file:\n{}", e.what());
+            return EXIT_ERROR;
+        }
+
+        {
+            auto res = ValidateConfig(config);
+            if(!Report("config", res)) {
+                Common::Logger::Error("config is invalid; skipping tsd validation");
+                return EXIT_VALIDATION_FAILED;
+            }
+        }
+
+        TsdSources sources;
+        {
+            CommandError error = FetchTsd(config, tsdPath, sources);
+            if(!error.empty()) {
+                Common::Logger::Error("failed to read the tsd:\n{}", error.c_str());
+                return EXIT_ERROR;
+            }
+        }
+
+        {
+            CommandError error = ValidateTsdSources(config, sources);
+            if(!error.empty()) {
+                Common::Logger::Error("{}", error.c_str());
+                return EXIT_VALIDATION_FAILED;
+            }
+        }
+
+        Rid merged;
+        {
+            CommandError error = MergeTsd(sources.tsd, sources.rids, merged);
+            if(!error.empty()) {
+                Common::Logger::Error("the steps cannot be merged: {}", error.c_str());
+                return EXIT_VALIDATION_FAILED;
+            }
+        }
+
+        Common::Logger::Info(
+            "{} step(s), {} interference source(s), {} s in all",
+            sources.tsd.steps.size(),
+            merged.interferenceSources.size(),
+            merged.globalSettings.duration_s
+        );
+
+        return Report("tsd", ValidateRid(config, merged)) ? EXIT_OK : EXIT_VALIDATION_FAILED;
+    }
+
 }
 
 int main(int argc, char **argv) {
@@ -155,7 +213,7 @@ int main(int argc, char **argv) {
 
     argparse::ArgumentParser program("scglint.exe", "1.0", argparse::default_arguments::all);
     program.add_description(
-        "Parses and validates SCG scenario/config/rid json files without requiring hardware "
+        "Parses and validates SCG scenario/config/rid/tsd json files without requiring hardware "
         "or executing anything. Exit codes: 0 = valid, 1 = validation errors, 2 = parse/usage error."
     );
 
@@ -172,9 +230,17 @@ int main(int argc, char **argv) {
     ridCmd.add_argument("config_path").help("path to server config .json");
     ridCmd.add_argument("rid_path").help("url of the rid .json, file:// or http://");
 
+    argparse::ArgumentParser tsdCmd("tsd");
+    tsdCmd.add_description(
+        "read a tsd json and the rid of each of its steps, merge them and validate the result"
+    );
+    tsdCmd.add_argument("config_path").help("path to server config .json");
+    tsdCmd.add_argument("tsd_path").help("url of the tsd .json, file:// or http://");
+
     program.add_subparser(scenarioCmd);
     program.add_subparser(configCmd);
     program.add_subparser(ridCmd);
+    program.add_subparser(tsdCmd);
 
     try {
         program.parse_args(argc, argv);
@@ -193,6 +259,9 @@ int main(int argc, char **argv) {
     }
     else if(program.is_subcommand_used(ridCmd)) {
         return LintRid(ridCmd.get<std::string>("config_path"), ridCmd.get<std::string>("rid_path"));
+    }
+    else if(program.is_subcommand_used(tsdCmd)) {
+        return LintTsd(tsdCmd.get<std::string>("config_path"), tsdCmd.get<std::string>("tsd_path"));
     }
     else {
         Common::Logger::Error("no subcommand given");

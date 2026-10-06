@@ -337,7 +337,7 @@ namespace Sagax::SCG {
         for(std::int32_t i = 0; i < std::int32_t(rid.interferenceSources.size()); ++i) {
             auto &source = rid.interferenceSources[i];
             Scenario::Signal signal;
-            signal.name = std::format("s{:03}", i);
+            signal.name = std::format("s{:04}", i);
             if(std::holds_alternative<Rid::InterferenceSource::Cw>(source.variant)) {
                 // auto &v = std::get<Rid::InterferenceSource::Cw>(source.variant);
                 SignalVariant::Tone signalV;
@@ -370,7 +370,7 @@ namespace Sagax::SCG {
                 job->sampleRate_hz = radioRates[source.radioId];
                 job->duration_s = source.endTime_s - source.startTime_s;
                 job->ephemerisFile = cfg.gnssEphemerisFile;
-                job->fileName = (std::filesystem::path(directory) / std::format("gnss_{:03}.wav", i)).string();
+                job->fileName = (std::filesystem::path(directory) / std::format("gnss_{:04}.wav", i)).string();
 
                 SignalVariant::IQFile signalV;
                 signalV.fileName = job->fileName;

@@ -8,10 +8,10 @@
 #include "Common/Logger.hpp"
 #include "SCG/Json/Rid.hpp"
 #include "SCG/Json/Scenario.hpp"
-#include "SCG/Utility/Fetch.hpp"
 #include "RidTransform.hpp"
 #include "TestScheduler.hpp"
 #include "TimeFormat.hpp"
+#include "TsdMerge.hpp"
 
 namespace Sagax::SCG {
 
@@ -37,9 +37,25 @@ namespace Sagax::SCG {
         }
 
         // test.json holds the setup command and the status while the test is not over,
-        // rid.json the rid the command named
+        // rid.json the merged rid the test plays, tsd.json the tsd the command named and
+        // rid_000.json the rid of every step that named one
         constexpr const char *testFileName = "test.json";
         constexpr const char *ridFileName = "rid.json";
+        constexpr const char *tsdFileName = "tsd.json";
+
+        std::string StepRidFileName(std::size_t step) {
+            return std::format("rid_{:03}.json", step);
+        }
+
+        // the documents the scheduler writes when a test is set up. the preparation
+        // clears everything else out of the directory before it runs
+        bool IsSourceFile(const std::filesystem::path &name) {
+            std::string text = name.string();
+            if(text == testFileName || text == ridFileName || text == tsdFileName) {
+                return true;
+            }
+            return text.starts_with("rid_") && text.ends_with(".json");
+        }
 
         // a crash leaves either the old or the new content
         void WriteTextFile(const std::filesystem::path &path, const std::string &content) {
@@ -184,6 +200,24 @@ namespace Sagax::SCG {
         }
     }
 
+    // tsd.json and the rid of every step are a record of what the test was built from,
+    // nothing reads them back
+    void TestScheduler::SaveSources(const ScheduledTest &test, const TsdSources &sources) {
+        try {
+            std::filesystem::path directory(test.directory);
+            WriteTextFile(directory / tsdFileName, sources.tsdJson);
+            for(std::size_t i = 0; i < sources.ridJsons.size(); ++i) {
+                if(sources.ridJsons[i].empty()) {
+                    continue;
+                }
+                WriteTextFile(directory / StepRidFileName(i), sources.ridJsons[i]);
+            }
+        }
+        catch(const std::exception &e) {
+            Common::Logger::Warn("could not save the documents of test \"{}\": {}", test.testId, e.what());
+        }
+    }
+
     CommandError TestScheduler::SaveTest(const ScheduledTest &test, const std::string &json) {
         try {
             std::filesystem::path directory(test.directory);
@@ -260,14 +294,11 @@ namespace Sagax::SCG {
     CommandError TestScheduler::CreateTest(
         const CommandMessage::TestSetup &command,
         std::chrono::system_clock::time_point time,
-        const std::string &json,
+        Rid rid,
         ScheduledTest::State state,
         std::unique_ptr<ScheduledTest> &out
     ) {
-        Rid rid;
-        SCG_CHECK(ReadRid(json, rid));
-
-        Common::Logger::Info("validating RID..");
+        Common::Logger::Info("validating the merged RID..");
         SCG_CHECK(CheckValidity(ValidateRid(config, rid), "RID"));
         Common::Logger::Info("validation successful");
 
@@ -309,12 +340,25 @@ namespace Sagax::SCG {
         std::chrono::system_clock::time_point time;
         SCG_CHECK(CheckSetup(command, time));
 
+        TsdSources sources;
+        SCG_CHECK(FetchTsd(config, command.scenarioUrl, sources));
+        SCG_CHECK(ValidateTsdSources(config, sources));
+
+        Rid merged;
+        SCG_CHECK(MergeTsd(sources.tsd, sources.rids, merged));
+
         std::string json;
-        SCG_CHECK(Fetch(command.scenarioUrl, config.scenarioFetchTimeout_s, json));
+        try {
+            json = SerializeRid(merged);
+        }
+        catch(const std::exception &e) {
+            return std::format("failed to write the merged RID: {}", e.what());
+        }
 
         std::unique_ptr<ScheduledTest> test;
-        SCG_CHECK(CreateTest(command, time, json, ScheduledTest::State::pending, test));
+        SCG_CHECK(CreateTest(command, time, std::move(merged), ScheduledTest::State::pending, test));
         SCG_CHECK(SaveTest(*test, json));
+        SaveSources(*test, sources);
 
         PublishStatus(*test);
         tests.push_back(std::move(test));
@@ -404,9 +448,11 @@ namespace Sagax::SCG {
         SCG_CHECK(CheckSetup(saved.command, time));
         std::string json;
         SCG_CHECK(ReadTextFile(directory / ridFileName, json));
+        Rid rid;
+        SCG_CHECK(ReadRid(json, rid));
 
         std::unique_ptr<ScheduledTest> test;
-        SCG_CHECK(CreateTest(saved.command, time, json, state, test));
+        SCG_CHECK(CreateTest(saved.command, time, std::move(rid), state, test));
 
         SaveState(*test);
         PublishStatus(*test);
@@ -505,8 +551,7 @@ namespace Sagax::SCG {
         std::filesystem::path directory(test.directory);
         std::vector<std::filesystem::path> leftovers;
         for(auto &entry : std::filesystem::directory_iterator(directory)) {
-            auto name = entry.path().filename();
-            if(name != testFileName && name != ridFileName) {
+            if(!IsSourceFile(entry.path().filename())) {
                 leftovers.push_back(entry.path());
             }
         }

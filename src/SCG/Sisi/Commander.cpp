@@ -232,7 +232,7 @@ static int ReadChar() {
 
 static void PrintHelp() {
     Common::Logger::Info("commands:");
-    Common::Logger::Info("  testsetup <scenario> <time> <test_id>");
+    Common::Logger::Info("  testsetup <tsd_url> <time> <test_id>");
     Common::Logger::Info("  testcancel <test_id>");
     Common::Logger::Info("  help");
     Common::Logger::Info("  quit\n");
@@ -409,9 +409,9 @@ int main(int argc, char **argv) {
         bool make = true;
 
         if(cmd == "testsetup") {
-            std::string scenario, time, testId;
-            iss >> scenario >> time >> testId;
-            cm.variant = CommandMessage::TestSetup{scenario, time, testId};
+            std::string tsdUrl, time, testId;
+            iss >> tsdUrl >> time >> testId;
+            cm.variant = CommandMessage::TestSetup{tsdUrl, time, testId};
         }
         else if(cmd == "testcancel") {
             std::string testId;

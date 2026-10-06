@@ -3,7 +3,6 @@
 #include <string>
 #include <cstdint>
 #include <vector>
-#include "SCG/Scenario/Scenario.hpp"
 
 namespace Sagax::SCG {
 

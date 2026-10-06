@@ -10,6 +10,7 @@ from helpers.httpmock import HttpMock
 from helpers.mqttbroker import Broker
 from helpers.rid import write_rid
 from helpers.server import ScgServer
+from helpers.tsd import write_tsd
 
 
 def pytest_addoption(parser):
@@ -65,6 +66,12 @@ def http_mock():
 def rid_path(tmp_path):
     """A rid short enough that recording it costs nothing."""
     return write_rid(tmp_path / "rid.json", duration_s=0.5)
+
+
+@pytest.fixture
+def tsd_path(tmp_path, rid_path):
+    """A tsd of one step, playing the rid of the rid_path fixture."""
+    return write_tsd(tmp_path / "tsd.json", [(0.5, rid_path.as_uri())])
 
 
 @pytest.fixture

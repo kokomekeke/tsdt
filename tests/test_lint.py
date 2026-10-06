@@ -11,7 +11,8 @@ import json
 import pytest
 
 from helpers.binaries import ROOT
-from helpers.rid import make_permuted_rid
+from helpers.rid import make_permuted_rid, make_rid
+from helpers.tsd import write_tsd
 
 DATA = ROOT / "tests" / "data"
 CONFIG = DATA / "config.json"
@@ -149,6 +150,174 @@ def test_a_missing_file_is_reported(build, tmp_path):
     code, output = lint(build, ["rid", CONFIG, (tmp_path / "nope.json").as_uri()])
     assert code == EXIT_ERROR, output
     assert "failed to open file" in output, output
+
+
+# the tsd subcommand reads a tsd, then the rid of every step, merges them and checks the
+# result. the step urls have to be absolute, so these are written into tmp_path
+
+
+def write_rid_file(path, **kwargs):
+    path.write_text(json.dumps(make_rid(**kwargs), indent=4), encoding="utf-8")
+    return path
+
+
+def test_a_valid_tsd_is_accepted(build, tmp_path):
+    rid = write_rid_file(tmp_path / "rid.json", duration_s=1.0)
+    tsd = write_tsd(tmp_path / "tsd.json", [(1.0, rid.as_uri())])
+    code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
+    assert code == EXIT_OK, output
+    assert "1 step(s), 2 interference source(s), 1 s in all" in output, output
+
+
+def test_the_steps_are_laid_end_to_end(build, tmp_path):
+    """three steps of a second each, and the sources of the last one sit in the third"""
+    rid = write_rid_file(tmp_path / "rid.json", duration_s=1.0)
+    tsd = write_tsd(
+        tmp_path / "tsd.json",
+        [(1.0, rid.as_uri()), (1.0, rid.as_uri()), (1.0, rid.as_uri())],
+    )
+    code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
+    assert code == EXIT_OK, output
+    assert "3 step(s), 6 interference source(s), 3 s in all" in output, output
+
+
+def test_a_step_without_an_interference_only_adds_time(build, tmp_path):
+    rid = write_rid_file(tmp_path / "rid.json", duration_s=1.0)
+    tsd = write_tsd(tmp_path / "tsd.json", [(1.0, rid.as_uri()), (2.0, None)])
+    code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
+    assert code == EXIT_OK, output
+    assert "2 step(s), 2 interference source(s), 3 s in all" in output, output
+
+
+def test_a_step_longer_than_its_rid_is_accepted(build, tmp_path):
+    """the rid plays at the start of the step and the rest of it is quiet"""
+    rid = write_rid_file(tmp_path / "rid.json", duration_s=1.0)
+    tsd = write_tsd(tmp_path / "tsd.json", [(4.0, rid.as_uri())])
+    code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
+    assert code == EXIT_OK, output
+    assert "4 s in all" in output, output
+
+
+def test_a_step_shorter_than_its_rid_is_reported(build, tmp_path):
+    rid = write_rid_file(tmp_path / "rid.json", duration_s=2.0)
+    tsd = write_tsd(tmp_path / "tsd.json", [(1.0, rid.as_uri())])
+    code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
+    assert code == EXIT_INVALID, output
+    assert "step[0]" in output, output
+    assert "the step is 1 s long and the RID it plays is 2 s long" in output, output
+
+
+def test_steps_that_configure_the_radios_differently_are_reported(build, tmp_path):
+    """one tuning per radio holds for the whole playback, so the rids have to agree"""
+    first = write_rid_file(tmp_path / "first.json", duration_s=1.0, bandwidth_hz=192000)
+    second = write_rid_file(tmp_path / "second.json", duration_s=1.0, bandwidth_hz=96000)
+    tsd = write_tsd(tmp_path / "tsd.json", [(1.0, first.as_uri()), (1.0, second.as_uri())])
+    code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
+    assert code == EXIT_INVALID, output
+    assert "step[1] does not configure the radios the way step[0] does" in output, output
+    assert "bandwidth_hz" in output, output
+
+
+def test_steps_naming_different_radios_are_reported(build, tmp_path):
+    """not even a subset is allowed, every rid names the same radios in the same order"""
+    both = tmp_path / "both.json"
+    both.write_text(json.dumps(make_permuted_rid(("r0", "r1")), indent=4), encoding="utf-8")
+    one = tmp_path / "one.json"
+    one.write_text(json.dumps(make_permuted_rid(("r0",)), indent=4), encoding="utf-8")
+    tsd = write_tsd(tmp_path / "tsd.json", [(1.0, both.as_uri()), (1.0, one.as_uri())])
+    code, output = lint(build, ["tsd", CONFIG_TWO_RADIOS, tsd.as_uri()])
+    assert code == EXIT_INVALID, output
+    assert "it configures 1 radios instead of 2" in output, output
+
+
+def test_steps_of_different_versions_are_reported(build, tmp_path):
+    rid = make_rid(duration_s=1.0)
+    first = tmp_path / "first.json"
+    first.write_text(json.dumps(rid, indent=4), encoding="utf-8")
+    rid["metadata"]["version"] = "2.0.0"
+    second = tmp_path / "second.json"
+    second.write_text(json.dumps(rid, indent=4), encoding="utf-8")
+    tsd = write_tsd(tmp_path / "tsd.json", [(1.0, first.as_uri()), (1.0, second.as_uri())])
+    code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
+    assert code == EXIT_INVALID, output
+    assert 'step[1] is version "2.0.0"' in output, output
+
+
+def test_a_tsd_of_quiet_steps_alone_is_reported(build, tmp_path):
+    tsd = write_tsd(tmp_path / "tsd.json", [(1.0, None), (1.0, None)])
+    code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
+    assert code == EXIT_INVALID, output
+    assert "no step of the TSD names an interference" in output, output
+
+
+def test_a_tsd_without_steps_is_reported(build, tmp_path):
+    tsd = write_tsd(tmp_path / "tsd.json", [])
+    code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
+    assert code == EXIT_INVALID, output
+    assert "the TSD has no steps" in output, output
+
+
+def test_a_step_with_a_duration_of_zero_is_reported(build, tmp_path):
+    rid = write_rid_file(tmp_path / "rid.json", duration_s=1.0)
+    tsd = write_tsd(tmp_path / "tsd.json", [(0.0, rid.as_uri())])
+    code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
+    assert code == EXIT_INVALID, output
+    assert "step[0]: duration_seconds must be positive" in output, output
+
+
+def test_a_step_whose_rid_breaks_a_rule_is_reported(build, tmp_path):
+    """the rid rules run on each step on its own, which is what names the step"""
+    rid = write_rid_file(tmp_path / "rid.json", duration_s=1.0, radio_id="nosuchradio")
+    tsd = write_tsd(tmp_path / "tsd.json", [(1.0, rid.as_uri())])
+    code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
+    assert code == EXIT_INVALID, output
+    assert "step[0]" in output, output
+    assert "unknown radioId: nosuchradio" in output, output
+
+
+def test_a_key_the_tsd_does_not_know_is_ignored(build, tmp_path):
+    """a tsd may carry fields that are none of our business"""
+    rid = write_rid_file(tmp_path / "rid.json", duration_s=1.0)
+    content = json.loads(
+        write_tsd(tmp_path / "tsd.json", [(1.0, rid.as_uri())]).read_text(encoding="utf-8")
+    )
+    content["image"] = "https://example.invalid/picture.png"
+    content["whatever"] = {"nested": [1, 2, 3]}
+    content["steps"][0]["also_this"] = True
+    path = tmp_path / "extra.json"
+    path.write_text(json.dumps(content, indent=4), encoding="utf-8")
+
+    code, output = lint(build, ["tsd", CONFIG, path.as_uri()])
+    assert code == EXIT_OK, output
+
+
+def test_a_step_without_an_interference_key_is_reported(build, tmp_path):
+    """interference is required, null is how a step says it has none"""
+    rid = write_rid_file(tmp_path / "rid.json", duration_s=1.0)
+    content = json.loads(
+        write_tsd(tmp_path / "tsd.json", [(1.0, rid.as_uri())]).read_text(encoding="utf-8")
+    )
+    del content["steps"][0]["interference"]
+    path = tmp_path / "nokey.json"
+    path.write_text(json.dumps(content, indent=4), encoding="utf-8")
+
+    code, output = lint(build, ["tsd", CONFIG, path.as_uri()])
+    assert code == EXIT_ERROR, output
+    assert "interference" in output, output
+
+
+def test_a_document_that_is_not_a_tsd_is_reported(build):
+    code, output = lint(build, ["tsd", CONFIG, (DATA / "not-json.json").as_uri()])
+    assert code == EXIT_ERROR, output
+    assert "failed to parse TSD" in output, output
+
+
+def test_an_invalid_config_stops_the_tsd_from_being_looked_at(build, tmp_path):
+    rid = write_rid_file(tmp_path / "rid.json", duration_s=1.0)
+    tsd = write_tsd(tmp_path / "tsd.json", [(1.0, rid.as_uri())])
+    code, output = lint(build, ["tsd", DATA / "config-invalid.json", tsd.as_uri()])
+    assert code == EXIT_INVALID, output
+    assert "skipping tsd validation" in output, output
 
 
 def test_help_and_version_succeed(build):

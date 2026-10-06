@@ -8,6 +8,7 @@ import time
 
 from helpers.rid import write_gnss_rid
 from helpers.server import utc_string
+from helpers.tsd import wrap_rid
 
 DURATION_S = 0.5
 
@@ -17,7 +18,12 @@ def with_ephemeris(config):
 
 
 def write_saved(tmp_path, test_id, rid, seconds_ahead, status="TEST_INIT", saved_id=None):
-    """the files the server leaves for a test that is not over, written by hand"""
+    """the files the server leaves for a test that is not over, written by hand
+
+    only these two are read back. the server also leaves the tsd and the rid of every
+    step beside them, as a record of what the test was built from, and the url in the
+    command is never read again, which is why a rid stands in for a tsd here
+    """
     directory = tmp_path / "recordings" / test_id
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "rid.json").write_text(rid.read_text(encoding="utf-8"), encoding="utf-8")
@@ -54,22 +60,31 @@ def wait_until(condition, timeout=5.0):
 
 def test_a_scheduled_test_is_saved(server, tmp_path):
     rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S)
+    tsd = wrap_rid(rid, duration_s=DURATION_S)
     first = server(config_changes=with_ephemeris)
-    first.setup(rid.as_uri(), test_id="kept", seconds_ahead=600)
+    first.setup(tsd.as_uri(), test_id="kept", seconds_ahead=600)
     assert first.wait_for_log("preparation finished: kept", timeout=30.0), first.log
 
     directory = tmp_path / "recordings" / "kept"
-    assert (directory / "rid.json").read_text(encoding="utf-8") == rid.read_text(encoding="utf-8")
+    # the tsd and the rid of the step are kept as they were read, rid.json holds the
+    # merged rid the test plays
+    assert (directory / "tsd.json").read_text(encoding="utf-8") == tsd.read_text(encoding="utf-8")
+    assert (directory / "rid_000.json").read_text(encoding="utf-8") == rid.read_text(encoding="utf-8")
+    merged = json.loads((directory / "rid.json").read_text(encoding="utf-8"))
+    assert merged["metadata"]["scenario_name"] == "test"
+    assert merged["global_settings"]["duration_s"] == DURATION_S
+
     content = saved(tmp_path, "kept")
     assert content["status"] == "TEST_READY"
     assert content["command"]["test_id"] == "kept"
-    assert content["command"]["scenario_url"] == rid.as_uri()
+    assert content["command"]["scenario_url"] == tsd.as_uri()
 
 
 def test_a_prepared_test_is_restored_without_preparing_it_again(server, broker, tmp_path):
     rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S)
+    tsd = wrap_rid(rid, duration_s=DURATION_S)
     first = server(config_changes=with_ephemeris)
-    first.setup(rid.as_uri(), test_id="kept", seconds_ahead=600)
+    first.setup(tsd.as_uri(), test_id="kept", seconds_ahead=600)
     assert first.wait_for_log("preparation finished: kept", timeout=30.0), first.log
     first.stop()
 
@@ -78,13 +93,14 @@ def test_a_prepared_test_is_restored_without_preparing_it_again(server, broker, 
     assert second.wait_for_log("test restored: kept"), second.log
     assert wait_until(lambda: statuses(second, mark, "kept") == ["TEST_READY"]), statuses(second, mark, "kept")
     assert "preparation started: kept" not in second.log
-    assert (tmp_path / "recordings" / "kept" / "gnss_000.wav").is_file()
+    assert (tmp_path / "recordings" / "kept" / "gnss_0000.wav").is_file()
 
 
 def test_a_test_that_was_not_prepared_is_prepared_after_the_restart(server, broker, tmp_path):
     rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S)
+    tsd = wrap_rid(rid, duration_s=DURATION_S)
     first = server(config_changes=with_ephemeris)
-    first.setup(rid.as_uri(), test_id="unfinished", seconds_ahead=600)
+    first.setup(tsd.as_uri(), test_id="unfinished", seconds_ahead=600)
     assert first.wait_for_log("preparation finished: unfinished", timeout=30.0), first.log
     first.stop()
 
@@ -102,9 +118,9 @@ def test_a_test_that_was_not_prepared_is_prepared_after_the_restart(server, brok
     assert statuses(second, mark, "unfinished") == ["TEST_INIT", "TEST_PREPARE", "TEST_READY"]
 
 
-def test_a_test_missed_while_the_server_was_down_fails(server, broker, tmp_path, rid_path):
+def test_a_test_missed_while_the_server_was_down_fails(server, broker, tmp_path, tsd_path):
     first = server(start_ahead_s=2.0)
-    first.setup(rid_path.as_uri(), test_id="missed", seconds_ahead=5)
+    first.setup(tsd_path.as_uri(), test_id="missed", seconds_ahead=5)
     assert first.wait_for_log("preparation finished: missed", timeout=30.0), first.log
     first.stop()
 
@@ -119,9 +135,9 @@ def test_a_test_missed_while_the_server_was_down_fails(server, broker, tmp_path,
     assert not (tmp_path / "recordings" / "missed" / "test.json").exists()
 
 
-def test_a_finished_test_is_not_saved(server, tmp_path, rid_path):
+def test_a_finished_test_is_not_saved(server, tmp_path, tsd_path):
     first = server(start_ahead_s=2.0)
-    first.setup(rid_path.as_uri(), test_id="finished", seconds_ahead=5)
+    first.setup(tsd_path.as_uri(), test_id="finished", seconds_ahead=5)
     assert first.wait_for_log("playback finished: finished", timeout=30.0), first.log
 
     directory = tmp_path / "recordings" / "finished"
@@ -220,8 +236,9 @@ def test_a_test_in_the_wrong_directory_is_dropped(server, broker, tmp_path, rid_
 def test_the_state_is_saved_on_every_change(server, tmp_path):
     """the status in test.json follows the test up to the playback, then the file goes away"""
     rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S)
+    tsd = wrap_rid(rid, duration_s=DURATION_S)
     sched = server(start_ahead_s=2.0, config_changes=with_ephemeris)
-    sched.setup(rid.as_uri(), test_id="followed", seconds_ahead=6)
+    sched.setup(tsd.as_uri(), test_id="followed", seconds_ahead=6)
     assert sched.wait_for_log("preparation finished: followed", timeout=30.0), sched.log
     assert saved(tmp_path, "followed")["status"] == "TEST_READY"
 

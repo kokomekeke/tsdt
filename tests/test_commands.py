@@ -19,27 +19,27 @@ def test_an_unknown_command_is_reported(scgserver):
     assert "bad payload" in message, message
 
 
-def test_a_missing_field_is_reported(scgserver, rid_path):
+def test_a_missing_field_is_reported(scgserver, tsd_path):
     payload = json.dumps({
         "command": "TEST_SETUP",
-        "extras": {"scenario_url": rid_path.as_uri(), "start_time": utc_string(3600)},
+        "extras": {"scenario_url": tsd_path.as_uri(), "start_time": utc_string(3600)},
     })
     mark = scgserver.send(payload)
     message, _ = scgserver.expect_error(mark)
     assert "bad payload" in message, message
 
 
-def test_a_time_in_the_past_is_reported(scgserver, rid_path):
-    mark = scgserver.setup(rid_path.as_uri(), test_id="past", seconds_ahead=-3600)
+def test_a_time_in_the_past_is_reported(scgserver, tsd_path):
+    mark = scgserver.setup(tsd_path.as_uri(), test_id="past", seconds_ahead=-3600)
     message, _ = scgserver.expect_error(mark)
     assert "starting time is in the past" in message, message
 
 
-def test_a_time_without_an_offset_is_reported(scgserver, rid_path):
+def test_a_time_without_an_offset_is_reported(scgserver, tsd_path):
     payload = json.dumps({
         "command": "TEST_SETUP",
         "extras": {
-            "scenario_url": rid_path.as_uri(),
+            "scenario_url": tsd_path.as_uri(),
             "start_time": utc_string(3600).rstrip("Z"),
             "test_id": "nooffset",
         },
@@ -49,11 +49,11 @@ def test_a_time_without_an_offset_is_reported(scgserver, rid_path):
     assert "no utc offset" in message, message
 
 
-def test_a_time_with_a_fraction_of_a_second_is_accepted(scgserver, rid_path):
+def test_a_time_with_a_fraction_of_a_second_is_accepted(scgserver, tsd_path):
     payload = json.dumps({
         "command": "TEST_SETUP",
         "extras": {
-            "scenario_url": rid_path.as_uri(),
+            "scenario_url": tsd_path.as_uri(),
             "start_time": utc_string(3600).replace("Z", ".000Z"),
             "test_id": "fraction",
         },
@@ -63,11 +63,11 @@ def test_a_time_with_a_fraction_of_a_second_is_accepted(scgserver, rid_path):
     assert scgserver.wait_for_log("test scheduled: fraction")
 
 
-def test_a_fraction_without_digits_is_reported(scgserver, rid_path):
+def test_a_fraction_without_digits_is_reported(scgserver, tsd_path):
     payload = json.dumps({
         "command": "TEST_SETUP",
         "extras": {
-            "scenario_url": rid_path.as_uri(),
+            "scenario_url": tsd_path.as_uri(),
             "start_time": utc_string(3600).replace("Z", ".Z"),
             "test_id": "nodigits",
         },
@@ -77,10 +77,10 @@ def test_a_fraction_without_digits_is_reported(scgserver, rid_path):
     assert "could not parse starting time" in message, message
 
 
-def test_a_time_that_does_not_parse_is_reported(scgserver, rid_path):
+def test_a_time_that_does_not_parse_is_reported(scgserver, tsd_path):
     payload = json.dumps({
         "command": "TEST_SETUP",
-        "extras": {"scenario_url": rid_path.as_uri(), "start_time": "tomorrow", "test_id": "badtime"},
+        "extras": {"scenario_url": tsd_path.as_uri(), "start_time": "tomorrow", "test_id": "badtime"},
     })
     mark = scgserver.send(payload)
     message, _ = scgserver.expect_error(mark)
@@ -88,14 +88,14 @@ def test_a_time_that_does_not_parse_is_reported(scgserver, rid_path):
 
 
 @pytest.mark.parametrize("test_id", ["", ".", "..", "a/b", "a:b", "a*b"])
-def test_a_test_id_that_is_not_a_directory_name_is_reported(scgserver, rid_path, test_id):
-    mark = scgserver.setup(rid_path.as_uri(), test_id=test_id, seconds_ahead=3600)
+def test_a_test_id_that_is_not_a_directory_name_is_reported(scgserver, tsd_path, test_id):
+    mark = scgserver.setup(tsd_path.as_uri(), test_id=test_id, seconds_ahead=3600)
     message, _ = scgserver.expect_error(mark)
     assert "cannot be used as a directory name" in message, message
 
 
-def test_a_duplicate_test_id_is_reported(scgserver, rid_path):
-    url = rid_path.as_uri()
+def test_a_duplicate_test_id_is_reported(scgserver, tsd_path):
+    url = tsd_path.as_uri()
     mark = scgserver.setup(url, test_id="twice", seconds_ahead=3600)
     scgserver.expect_no_error(mark, timeout=2.0)
     assert scgserver.wait_for_log("test scheduled: twice")
@@ -111,8 +111,8 @@ def test_cancelling_an_unknown_test_is_reported(scgserver):
     assert "unknown test id" in message, message
 
 
-def test_a_scheduled_test_can_be_cancelled(scgserver, rid_path):
-    mark = scgserver.setup(rid_path.as_uri(), test_id="cancelme", seconds_ahead=3600)
+def test_a_scheduled_test_can_be_cancelled(scgserver, tsd_path):
+    mark = scgserver.setup(tsd_path.as_uri(), test_id="cancelme", seconds_ahead=3600)
     scgserver.expect_no_error(mark, timeout=2.0)
     assert scgserver.wait_for_log("test scheduled: cancelme")
 
@@ -121,8 +121,8 @@ def test_a_scheduled_test_can_be_cancelled(scgserver, rid_path):
     assert scgserver.wait_for_log("test cancelled: cancelme")
 
 
-def test_a_cancelled_test_id_can_be_used_again(scgserver, rid_path):
-    url = rid_path.as_uri()
+def test_a_cancelled_test_id_can_be_used_again(scgserver, tsd_path):
+    url = tsd_path.as_uri()
     scgserver.setup(url, test_id="again", seconds_ahead=3600)
     assert scgserver.wait_for_log("test scheduled: again")
     scgserver.cancel("again")

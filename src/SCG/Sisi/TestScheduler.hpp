@@ -14,6 +14,7 @@
 #include "Rid.hpp"
 #include "SavedTest.hpp"
 #include "ServerConfig.hpp"
+#include "TsdMerge.hpp"
 
 namespace Sagax::SCG {
 
@@ -55,6 +56,7 @@ namespace Sagax::SCG {
         void PublishStatus(const ScheduledTest &test);
         void SaveState(const ScheduledTest &test);
         CommandError SaveTest(const ScheduledTest &test, const std::string &json);
+        void SaveSources(const ScheduledTest &test, const TsdSources &sources);
 
         CommandError CheckSetup(const CommandMessage::TestSetup &command, std::chrono::system_clock::time_point &time);
         CommandError CheckOverlap(const std::string &testId, std::chrono::system_clock::time_point time, double duration);
@@ -62,7 +64,7 @@ namespace Sagax::SCG {
         CommandError CreateTest(
             const CommandMessage::TestSetup &command,
             std::chrono::system_clock::time_point time,
-            const std::string &json,
+            Rid rid,
             ScheduledTest::State state,
             std::unique_ptr<ScheduledTest> &out
         );

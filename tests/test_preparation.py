@@ -7,6 +7,7 @@ import json
 import time
 
 from helpers.rid import write_gnss_rid
+from helpers.tsd import wrap_rid
 from helpers.wavio import read_iq, rms
 
 BANDWIDTH_HZ = 192000
@@ -19,15 +20,18 @@ def with_ephemeris(config):
 
 def test_a_spoofer_is_recorded_into_the_directory_of_its_test(server, tmp_path):
     rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S, bandwidth_hz=BANDWIDTH_HZ)
+    tsd = wrap_rid(rid, duration_s=DURATION_S)
     sched = server(config_changes=with_ephemeris)
-    mark = sched.setup(rid.as_uri(), test_id="spoofed", seconds_ahead=600)
+    mark = sched.setup(tsd.as_uri(), test_id="spoofed", seconds_ahead=600)
     sched.expect_no_error(mark, timeout=2.0)
     assert sched.wait_for_log("preparation finished: spoofed", timeout=30.0), sched.log
 
     directory = tmp_path / "recordings" / "spoofed"
-    assert sorted(p.name for p in directory.iterdir()) == ["gnss_000.wav", "rid.json", "scenario.json", "test.json"]
+    assert sorted(p.name for p in directory.iterdir()) == [
+        "gnss_0000.wav", "rid.json", "rid_000.json", "scenario.json", "test.json", "tsd.json",
+    ]
 
-    sampleRate, channels = read_iq(directory / "gnss_000.wav")
+    sampleRate, channels = read_iq(directory / "gnss_0000.wav")
     assert sampleRate == BANDWIDTH_HZ
     assert len(channels) == 1
     assert len(channels[0]) == int(DURATION_S * BANDWIDTH_HZ)
@@ -36,8 +40,9 @@ def test_a_spoofer_is_recorded_into_the_directory_of_its_test(server, tmp_path):
 
 def test_the_scenario_plays_the_recording_once(server, tmp_path):
     rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S, bandwidth_hz=BANDWIDTH_HZ)
+    tsd = wrap_rid(rid, duration_s=DURATION_S)
     sched = server(config_changes=with_ephemeris)
-    sched.setup(rid.as_uri(), test_id="spoofed", seconds_ahead=600)
+    sched.setup(tsd.as_uri(), test_id="spoofed", seconds_ahead=600)
     assert sched.wait_for_log("preparation finished: spoofed", timeout=30.0), sched.log
 
     directory = tmp_path / "recordings" / "spoofed"
@@ -45,22 +50,25 @@ def test_the_scenario_plays_the_recording_once(server, tmp_path):
     files = [s for s in scenario["signals"] if s.get("type") == "IQFile"]
     assert len(files) == 1, scenario["signals"]
     assert files[0]["loop"] is False
-    assert files[0]["file"].replace("\\", "/").endswith("spoofed/gnss_000.wav"), files[0]["file"]
+    assert files[0]["file"].replace("\\", "/").endswith("spoofed/gnss_0000.wav"), files[0]["file"]
 
 
-def test_jammers_alone_leave_no_recording(server, tmp_path, rid_path):
+def test_jammers_alone_leave_no_recording(server, tmp_path, tsd_path):
     sched = server()
-    sched.setup(rid_path.as_uri(), test_id="jammed", seconds_ahead=600)
+    sched.setup(tsd_path.as_uri(), test_id="jammed", seconds_ahead=600)
     assert sched.wait_for_log("preparation finished: jammed", timeout=30.0), sched.log
 
     directory = tmp_path / "recordings" / "jammed"
-    assert sorted(p.name for p in directory.iterdir()) == ["rid.json", "scenario.json", "test.json"]
+    assert sorted(p.name for p in directory.iterdir()) == [
+        "rid.json", "rid_000.json", "scenario.json", "test.json", "tsd.json",
+    ]
 
 
 def test_a_cancel_removes_the_directory(server, tmp_path):
     rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S, bandwidth_hz=BANDWIDTH_HZ)
+    tsd = wrap_rid(rid, duration_s=DURATION_S)
     sched = server(config_changes=with_ephemeris)
-    sched.setup(rid.as_uri(), test_id="dropped", seconds_ahead=600)
+    sched.setup(tsd.as_uri(), test_id="dropped", seconds_ahead=600)
     assert sched.wait_for_log("preparation finished: dropped", timeout=30.0), sched.log
 
     directory = tmp_path / "recordings" / "dropped"
@@ -74,16 +82,18 @@ def test_a_cancel_removes_the_directory(server, tmp_path):
 
 def test_a_spoofer_needs_an_ephemeris(server, tmp_path):
     rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S, bandwidth_hz=BANDWIDTH_HZ)
+    tsd = wrap_rid(rid, duration_s=DURATION_S)
     sched = server()
-    mark = sched.setup(rid.as_uri(), test_id="noephemeris", seconds_ahead=600)
+    mark = sched.setup(tsd.as_uri(), test_id="noephemeris", seconds_ahead=600)
     message, _ = sched.expect_error(mark)
     assert "gnss_ephemeris_file" in message, message
 
 
 def test_a_spoofed_test_runs_through_every_status(server, tmp_path):
     rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S, bandwidth_hz=BANDWIDTH_HZ)
+    tsd = wrap_rid(rid, duration_s=DURATION_S)
     sched = server(start_ahead_s=2.0, config_changes=with_ephemeris)
-    mark = sched.setup(rid.as_uri(), test_id="played", seconds_ahead=6)
+    mark = sched.setup(tsd.as_uri(), test_id="played", seconds_ahead=6)
     sched.expect_no_error(mark, timeout=2.0)
     assert sched.wait_for_log("playback finished: played", timeout=30.0), sched.log
 

@@ -173,12 +173,31 @@ A megfelelő config fileban pl *sisi-stage-mock.json*-ban át kell írni a
 ~~~
 mezőt a saját ip-címedre amin a mosquitto-broker fut.
 
+A TEST_SETUP command names a tsd, and the tsd names the rid of each of its steps by an
+absolute url, so it has to be written for the machine it runs on. A step has to be at
+least as long as the rid it plays, and `test-rid-sisi-stage-1.json` is ten seconds long.
+
+~~~bash
+cat > /tmp/tsd.json <<'EOF'
+{
+    "name": "sisi stage 1",
+    "description": "one step, playing one rid",
+    "steps": [
+        {
+            "duration_seconds": 10.0,
+            "interference": "file:///home/sagax/sgx/scg/assets/rid/test-rid-sisi-stage-1.json"
+        }
+    ]
+}
+EOF
+~~~
+
 ~~~bash
 # Terminal 1
 cd build-sidekiq
 ./scgcommander ../assets/config/sisi-stage-mock.json 
 ## commanderen belül
-> testsetup file:///home/sagax/sgx/scg/assets/rid/test-rid-sisi-stage-1.json 2026-09-21T16:10:00+02:00 1
+> testsetup file:///tmp/tsd.json 2026-09-21T16:10:00+02:00 1
 
 # Terminal 2
 cd build-sidekiq

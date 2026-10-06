@@ -19,8 +19,8 @@ def sched(server):
     return server(start_ahead_s=START_AHEAD)
 
 
-def test_two_tests_far_apart_are_both_accepted(sched, rid_path):
-    url = rid_path.as_uri()
+def test_two_tests_far_apart_are_both_accepted(sched, tsd_path):
+    url = tsd_path.as_uri()
 
     mark = sched.setup(url, test_id="first", seconds_ahead=600)
     sched.expect_no_error(mark, timeout=2.0)
@@ -31,8 +31,8 @@ def test_two_tests_far_apart_are_both_accepted(sched, rid_path):
     assert sched.wait_for_log("test scheduled: second")
 
 
-def test_a_test_inside_the_window_of_another_is_rejected(sched, rid_path):
-    url = rid_path.as_uri()
+def test_a_test_inside_the_window_of_another_is_rejected(sched, tsd_path):
+    url = tsd_path.as_uri()
 
     mark = sched.setup(url, test_id="first", seconds_ahead=600)
     sched.expect_no_error(mark, timeout=2.0)
@@ -45,9 +45,9 @@ def test_a_test_inside_the_window_of_another_is_rejected(sched, rid_path):
     assert '"first"' in message, message
 
 
-def test_the_overlap_is_symmetrical(sched, rid_path):
+def test_the_overlap_is_symmetrical(sched, tsd_path):
     """A test that comes before an already scheduled one is caught the same way."""
-    url = rid_path.as_uri()
+    url = tsd_path.as_uri()
 
     mark = sched.setup(url, test_id="later", seconds_ahead=600)
     sched.expect_no_error(mark, timeout=2.0)
@@ -58,15 +58,15 @@ def test_the_overlap_is_symmetrical(sched, rid_path):
     assert "overlaps test" in message, message
 
 
-def test_a_test_too_soon_to_prepare_is_rejected(sched, rid_path):
+def test_a_test_too_soon_to_prepare_is_rejected(sched, tsd_path):
     """Ten seconds away, and the pipeline needs thirty before that to be free."""
-    mark = sched.setup(rid_path.as_uri(), test_id="toosoon", seconds_ahead=10)
+    mark = sched.setup(tsd_path.as_uri(), test_id="toosoon", seconds_ahead=10)
     message, _ = sched.expect_error(mark)
     assert "cannot be prepared in time" in message, message
 
 
-def test_a_test_far_enough_out_is_prepared(sched, rid_path):
-    mark = sched.setup(rid_path.as_uri(), test_id="intime", seconds_ahead=600)
+def test_a_test_far_enough_out_is_prepared(sched, tsd_path):
+    mark = sched.setup(tsd_path.as_uri(), test_id="intime", seconds_ahead=600)
     sched.expect_no_error(mark, timeout=2.0)
     assert sched.wait_for_log("preparation started: intime")
     assert sched.wait_for_log("preparation finished: intime", timeout=60.0)
@@ -81,8 +81,10 @@ def test_the_queue_of_preparations_is_counted(server, tmp_path):
     one is checked
     """
     from helpers.rid import write_gnss_rid
+    from helpers.tsd import wrap_rid
 
-    url = write_gnss_rid(tmp_path / "long.json", duration_s=60.0, bandwidth_hz=48000).as_uri()
+    rid = write_gnss_rid(tmp_path / "long.json", duration_s=60.0, bandwidth_hz=48000)
+    url = wrap_rid(rid, duration_s=60.0).as_uri()
 
     alone = server(start_ahead_s=START_AHEAD, config_changes=with_ephemeris)
     mark = alone.setup(url, test_id="alone", seconds_ahead=120)
@@ -103,10 +105,10 @@ def test_the_queue_of_preparations_is_counted(server, tmp_path):
     assert crowded.wait_for_log("test scheduled: waiting")
 
 
-def test_jammers_alone_are_not_counted_as_work(server, rid_path):
+def test_jammers_alone_are_not_counted_as_work(server, tsd_path):
     """a test without jobs only needs start_ahead"""
     sched = server(start_ahead_s=START_AHEAD)
-    mark = sched.setup(rid_path.as_uri(), test_id="quick", seconds_ahead=40)
+    mark = sched.setup(tsd_path.as_uri(), test_id="quick", seconds_ahead=40)
     sched.expect_no_error(mark, timeout=2.0)
     assert sched.wait_for_log("test scheduled: quick")
 

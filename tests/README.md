@@ -17,8 +17,8 @@ On linux the same line with the directory that build sits in.
 
 | file | what it covers |
 |---|---|
-| `test_fetch.py` | every way reading a scenario can go, over mqtt and through `scglint` |
-| `test_lint.py` | `scglint`, against the files in `data` and nothing else |
+| `test_fetch.py` | every way reading a tsd and the rid of a step can go, over mqtt and through `scglint` |
+| `test_lint.py` | `scglint`, against the files in `data` and the tsds the tests write |
 | `test_assets.py` | the json files in `assets`, a check on the data rather than on the code |
 | `test_commands.py` | commands the server has to refuse, and cancelling |
 | `test_schedule.py` | the overlap rule and the recording queue rule |
@@ -30,6 +30,7 @@ On linux the same line with the directory that build sits in.
 | `helpers/mqttbroker.py` | a small MQTT 3.1.1 broker that runs in the test process |
 | `helpers/httpmock.py` | an http server that answers badly on purpose |
 | `helpers/rid.py` | writes short rid files so recordings cost nothing |
+| `helpers/tsd.py` | writes the tsd that names those rids, which is what a command points at |
 | `helpers/server.py` | runs one `scgserver` with a config of its own |
 | `data/` | json files written to make the programs say one particular thing, see `data/README.md` |
 
@@ -44,6 +45,18 @@ Nothing in `data` is generated at run time, and nothing in `assets` is used to t
 linter. The rid files the server tests schedule are a third thing again: those are
 written into a temporary directory by `helpers/rid.py`, because their duration and
 sample rate are chosen by the test that needs them.
+
+## Two documents per test
+
+A TEST_SETUP command names a tsd, and every step of the tsd names the rid it plays by
+url. So a test that schedules anything needs two files, and both are written into the
+temporary directory: `helpers/rid.py` writes the rid and `helpers/tsd.py` wraps it in a
+tsd of one step. The `tsd_path` fixture does both and is what most tests pass to
+`setup`.
+
+A step url has to be absolute, which is why these files cannot live under `assets`. The
+tsds the tests write point at a rid in the same temporary directory with a `file://`
+url, so only the document under test travels over http.
 
 ## How a test runs the server
 
