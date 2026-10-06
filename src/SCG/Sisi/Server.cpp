@@ -215,11 +215,20 @@ private:
         client.Push(std::move(message));
     }
 
+    // the only message on the signal topic is this one, so a reason for something going
+    // wrong rides in its description rather than in a message of its own
+    void PublishSignal(SignalStatusMessage::SignalStatus status, std::optional<std::string> reason) {
+        SignalStatusMessage message;
+        message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
+        message.type = status;
+        message.description.errorMessage = std::move(reason);
+        Publish(config.mqtt.signalLogTopic, SerializeSignalStatusMessage(message));
+    }
+
+    // the periodic status is left alone, this is an extra message with a reason on it
     void PublishError(const std::string &text) {
         Common::Logger::Error("{}", text.c_str());
-        ErrorMessage message;
-        message.message = text;
-        Publish(config.mqtt.errorLogTopic, SerializeErrorMessage(message));
+        PublishSignal(CurrentSignalStatus(), text);
     }
 
     void PublishTestStatus(const std::string &testId, TestStatusMessage::TestStatus status) {
@@ -239,10 +248,7 @@ private:
         lastSignalStatus = status;
         nextSignalStatus = now + statusPeriod;
 
-        SignalStatusMessage message;
-        message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
-        message.type = status;
-        Publish(config.mqtt.signalLogTopic, SerializeSignalStatusMessage(message));
+        PublishSignal(status, std::nullopt);
     }
 
     CommandError CancelTest(const CommandMessage::TestCancel &command) {

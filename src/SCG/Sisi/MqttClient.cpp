@@ -45,24 +45,25 @@ namespace Sagax::SCG {
 
         };
 
-        // a payload is bytes, in practice json. one longer than this is named by its
-        // size alone, so a traced message stays a single readable line
-        constexpr std::size_t logPayloadLimit = 128;
+        // a payload is bytes, in practice json. the size is always written, and one
+        // longer than this is left out so that a traced message stays a readable line
+        constexpr std::size_t logPayloadLimit = 256;
 
         std::string DescribePayload(const std::vector<std::uint8_t> &bytes) {
             if(bytes.size() > logPayloadLimit) {
-                return std::format("[{} bytes]", bytes.size());
+                return "[hidden]";
             }
             return std::string(bytes.begin(), bytes.end());
         }
 
         void LogMessage(const char *direction, const MqttClient::Message &message) {
             Common::Logger::Trace(
-                "mqtt {} [{}] qos {} retain {}: {}",
+                "mqtt {} [{}] qos {} retain {} ({} bytes): {}",
                 direction,
                 message.topic,
                 std::int32_t(message.qos),
                 std::int32_t(message.retain),
+                message.bytes.size(),
                 DescribePayload(message.bytes)
             );
         }

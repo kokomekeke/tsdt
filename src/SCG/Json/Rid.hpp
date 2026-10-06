@@ -24,8 +24,6 @@ namespace Sagax::SCG {
     SignalStatusMessage ParseSignalStatusMessage(const std::string &s);
     std::string SerializeSignalStatusMessage(const SignalStatusMessage &s);
 
-    ErrorMessage ParseErrorMessage(const std::string &s);
-    std::string SerializeErrorMessage(const ErrorMessage &s);
 
     SavedTest ParseSavedTest(const std::string &s);
     std::string SerializeSavedTest(const SavedTest &t);

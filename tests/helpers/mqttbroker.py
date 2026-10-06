@@ -222,7 +222,11 @@ class Broker:
             ]
 
     def wait_for_error(self, mark, topic, timeout=6.0):
-        """Waits for a message carrying a reason. Returns (text, seconds) or None."""
+        """Waits for a message carrying a reason. Returns (text, seconds) or None.
+
+        A reason rides in the description of a signal status, there is no message of its
+        own for one.
+        """
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             for ts, _, payload in self.since(mark, topic):
@@ -230,7 +234,10 @@ class Broker:
                     body = json.loads(payload)
                 except ValueError:
                     continue
-                if isinstance(body, dict) and "message" in body:
-                    return body["message"], ts - mark
+                if not isinstance(body, dict):
+                    continue
+                reason = body.get("description", {}).get("error_message")
+                if reason is not None:
+                    return reason, ts - mark
             time.sleep(0.02)
         return None
