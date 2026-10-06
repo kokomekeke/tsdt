@@ -105,6 +105,23 @@ def test_a_duplicate_test_id_is_reported(scgserver, tsd_path):
     assert "test id already scheduled" in message, message
 
 
+# read like any other command and then dropped. they are part of the protocol and do
+# nothing here yet, so the server warns instead of refusing them
+IGNORED = ["INT_START", "TEST_START", "TEST_UPDATE"]
+
+
+@pytest.mark.parametrize("name", IGNORED)
+def test_a_command_that_does_nothing_yet_is_accepted(scgserver, name):
+    mark = scgserver.bare(name)
+    scgserver.expect_no_error(mark, timeout=2.0)
+
+
+@pytest.mark.parametrize("name", IGNORED)
+def test_a_command_that_does_nothing_yet_is_warned_about(scgserver, name):
+    scgserver.bare(name)
+    assert scgserver.wait_for_log(f"as {name}, which does nothing here yet"), scgserver.log
+
+
 def test_cancelling_an_unknown_test_is_reported(scgserver):
     mark = scgserver.cancel("nosuchtest")
     message, _ = scgserver.expect_error(mark)

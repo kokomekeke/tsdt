@@ -138,8 +138,10 @@ namespace Sagax::SCG {
                 }
             };
 
-            struct IntStopParser : Json::JsonObjectParser<CommandMessage::IntStop> {
-                IntStopParser() {
+            // the commands that carry nothing all read the same way
+            template<typename T>
+            struct EmptyParser : Json::JsonObjectParser<T> {
+                EmptyParser() {
                 }
             };
 
@@ -148,7 +150,10 @@ namespace Sagax::SCG {
                     typeTagKey = "command";
                     AddAlt<CommandMessage::TestSetup>("TEST_SETUP", "extras", TestSetupParser{});
                     AddAlt<CommandMessage::TestCancel>("TEST_CANCEL", "extras", TestCancelParser{});
-                    AddAlt<CommandMessage::IntStop>("INT_STOP", "extras", IntStopParser{});
+                    AddAlt<CommandMessage::IntStop>("INT_STOP", "extras", EmptyParser<CommandMessage::IntStop>{});
+                    AddAlt<CommandMessage::IntStart>("INT_START", "extras", EmptyParser<CommandMessage::IntStart>{});
+                    AddAlt<CommandMessage::TestStart>("TEST_START", "extras", EmptyParser<CommandMessage::TestStart>{});
+                    AddAlt<CommandMessage::TestUpdate>("TEST_UPDATE", "extras", EmptyParser<CommandMessage::TestUpdate>{});
                 }
             };
 

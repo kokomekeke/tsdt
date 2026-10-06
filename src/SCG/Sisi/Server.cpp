@@ -422,6 +422,16 @@ private:
         scheduler.EraseFinished();
     }
 
+    // the payload itself is in the line the client writes for every message it reads,
+    // so this only says what the message turned out to be
+    void Interpreted(const std::string &topic, const char *command) {
+        Common::Logger::Info("interpreted [{}] as {}", topic, command);
+    }
+
+    void Ignored(const std::string &topic, const char *command) {
+        Common::Logger::Warn("interpreted [{}] as {}, which does nothing here yet", topic, command);
+    }
+
     void HandleCommand(const MqttClient::Message &msg) {
         std::string payload(msg.bytes.begin(), msg.bytes.end());
         CommandMessage cm;
@@ -431,17 +441,26 @@ private:
         }
         else if(std::holds_alternative<CommandMessage::TestSetup>(cm.variant)) {
             auto &v = std::get<CommandMessage::TestSetup>(cm.variant);
-            Common::Logger::Info("received [{}] TEST_SETUP: scenario_url={} start_time={} test_id={}", msg.topic, v.scenarioUrl, v.startTime, v.testId);
+            Interpreted(msg.topic, "TEST_SETUP");
             error = scheduler.Schedule(v);
         }
         else if(std::holds_alternative<CommandMessage::TestCancel>(cm.variant)) {
             auto &v = std::get<CommandMessage::TestCancel>(cm.variant);
-            Common::Logger::Info("received [{}] TEST_CANCEL: test_id={}", msg.topic, v.testId);
+            Interpreted(msg.topic, "TEST_CANCEL");
             error = CancelTest(v);
         }
         else if(std::holds_alternative<CommandMessage::IntStop>(cm.variant)) {
-            Common::Logger::Info("received [{}] INT_STOP", msg.topic);
+            Interpreted(msg.topic, "INT_STOP");
             error = StopTransmission();
+        }
+        else if(std::holds_alternative<CommandMessage::IntStart>(cm.variant)) {
+            Ignored(msg.topic, "INT_START");
+        }
+        else if(std::holds_alternative<CommandMessage::TestStart>(cm.variant)) {
+            Ignored(msg.topic, "TEST_START");
+        }
+        else if(std::holds_alternative<CommandMessage::TestUpdate>(cm.variant)) {
+            Ignored(msg.topic, "TEST_UPDATE");
         }
         else {
             error = std::format("received [{}]: unknown command", msg.topic);
@@ -528,6 +547,7 @@ private:
             mqttConfig.subscribeTopics = { config.mqtt.commandTopic };
             mqttConfig.keepAlive_s = 60;
             mqttConfig.clientId = "RSG";
+            mqttConfig.logMessages = true;
             mqttConfig.reconnectDelays_ms = { 1000, 2000, 5000, 10000, 30000 };
             mqttConfig.maxQueueSize = 200;
             mqttConfig.onUpdate = [this]() {

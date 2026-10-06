@@ -22,10 +22,24 @@ namespace Sagax::SCG {
         struct IntStop {
         };
 
+        // part of the protocol and read like the rest, but nothing is done with them
+        // yet. none of the three carries any field
+        struct IntStart {
+        };
+
+        struct TestStart {
+        };
+
+        struct TestUpdate {
+        };
+
         using Variant = std::variant<
             TestSetup,
             TestCancel,
-            IntStop
+            IntStop,
+            IntStart,
+            TestStart,
+            TestUpdate
         >;
 
         Variant variant;

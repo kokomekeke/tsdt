@@ -235,6 +235,7 @@ static void PrintHelp() {
     Common::Logger::Info("  testsetup <tsd_url> <time> <test_id>");
     Common::Logger::Info("  testcancel <test_id>");
     Common::Logger::Info("  intstop");
+    Common::Logger::Info("  intstart | teststart | testupdate   (read and ignored)");
     Common::Logger::Info("  help");
     Common::Logger::Info("  quit\n");
     Common::Logger::Info("time is given as 2026-09-02T14:30:00+02:00\n");
@@ -243,9 +244,9 @@ static void PrintHelp() {
 static void DrainIncomingMessages(MqttClient &client, std::atomic<bool> &running) {
     while(true) {
         MqttClient::Message msg;
+        // the client writes a line for every message it reads, so this only takes
+        // them out of the queue
         if(client.Pop(msg)) {
-            std::string payload(msg.bytes.begin(), msg.bytes.end());
-            Common::Logger::Info("received [{}]: {}", msg.topic, payload);
             continue;
         }
 
@@ -339,6 +340,7 @@ int main(int argc, char **argv) {
         }
     }
     cfg.clientId = "Commander";
+    cfg.logMessages = true;
     cfg.reconnectDelays_ms = { 1000, 2000, 5000 };
     cfg.maxQueueSize = 100;
     cfg.onUpdate = []() {};
@@ -421,6 +423,15 @@ int main(int argc, char **argv) {
         }
         else if(cmd == "intstop") {
             cm.variant = CommandMessage::IntStop{};
+        }
+        else if(cmd == "intstart") {
+            cm.variant = CommandMessage::IntStart{};
+        }
+        else if(cmd == "teststart") {
+            cm.variant = CommandMessage::TestStart{};
+        }
+        else if(cmd == "testupdate") {
+            cm.variant = CommandMessage::TestUpdate{};
         }
         else {
             Common::Logger::Warn("unknown command: {}", cmd);

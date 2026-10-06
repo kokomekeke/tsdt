@@ -41,12 +41,16 @@ def cancel_command(test_id):
     })
 
 
-def int_stop_command():
-    """INT_STOP takes nothing, but extras is a field of every command."""
+def bare_command(name):
+    """A command with no arguments. extras is a field of every one of them."""
     return json.dumps({
-        "command": "INT_STOP",
+        "command": name,
         "extras": {},
     })
+
+
+def int_stop_command():
+    return bare_command("INT_STOP")
 
 
 class ScgServer:
@@ -133,6 +137,9 @@ class ScgServer:
 
     def int_stop(self):
         return self.send(int_stop_command())
+
+    def bare(self, name):
+        return self.send(bare_command(name))
 
     def error(self, mark, timeout=6.0):
         return self.broker.wait_for_error(mark, self.error_log_topic, timeout)

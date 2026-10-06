@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstring>
 #include <deque>
+#include <format>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -43,6 +44,28 @@ namespace Sagax::SCG {
             }
 
         };
+
+        // a payload is bytes, in practice json. one longer than this is named by its
+        // size alone, so a traced message stays a single readable line
+        constexpr std::size_t logPayloadLimit = 128;
+
+        std::string DescribePayload(const std::vector<std::uint8_t> &bytes) {
+            if(bytes.size() > logPayloadLimit) {
+                return std::format("[{} bytes]", bytes.size());
+            }
+            return std::string(bytes.begin(), bytes.end());
+        }
+
+        void LogMessage(const char *direction, const MqttClient::Message &message) {
+            Common::Logger::Trace(
+                "mqtt {} [{}] qos {} retain {}: {}",
+                direction,
+                message.topic,
+                std::int32_t(message.qos),
+                std::int32_t(message.retain),
+                DescribePayload(message.bytes)
+            );
+        }
     }
 
     void MqttClient::LibraryInit() {
@@ -98,6 +121,10 @@ namespace Sagax::SCG {
             message.retain = msg->retain;
             if(payloadLen > 0 && msg->payload != nullptr) {
                 std::memcpy(message.bytes.data(), msg->payload, payloadLen);
+            }
+
+            if(config.logMessages) {
+                LogMessage("in", message);
             }
 
             {
@@ -162,6 +189,10 @@ namespace Sagax::SCG {
                 if(publishResult != MOSQ_ERR_SUCCESS) {
                     Common::Logger::Error("failed to publish to {}: {}", message.topic, mosquitto_strerror(publishResult));
                     continue;
+                }
+
+                if(config.logMessages) {
+                    LogMessage("out", message);
                 }
 
                 if(config.onUpdate) {
