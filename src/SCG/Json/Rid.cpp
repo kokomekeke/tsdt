@@ -138,11 +138,17 @@ namespace Sagax::SCG {
                 }
             };
 
+            struct IntStopParser : Json::JsonObjectParser<CommandMessage::IntStop> {
+                IntStopParser() {
+                }
+            };
+
             struct CommandMessageVariantParser : Json::JsonVariantParser<CommandMessage::Variant> {
                 CommandMessageVariantParser() {
                     typeTagKey = "command";
                     AddAlt<CommandMessage::TestSetup>("TEST_SETUP", "extras", TestSetupParser{});
                     AddAlt<CommandMessage::TestCancel>("TEST_CANCEL", "extras", TestCancelParser{});
+                    AddAlt<CommandMessage::IntStop>("INT_STOP", "extras", IntStopParser{});
                 }
             };
 

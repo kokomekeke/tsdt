@@ -18,9 +18,14 @@ namespace Sagax::SCG {
             std::string testId;
         };
 
+        // it carries nothing, it ends whatever is being transmitted
+        struct IntStop {
+        };
+
         using Variant = std::variant<
             TestSetup,
-            TestCancel
+            TestCancel,
+            IntStop
         >;
 
         Variant variant;

@@ -253,6 +253,29 @@ private:
         return scheduler.Cancel(command.testId);
     }
 
+    // the transmission and the test end here, the directory stays where it is. a cancel
+    // removes that as well, which is the difference between the two
+    CommandError StopTransmission() {
+        ScheduledTest *test = scheduler.Running();
+        if(test == nullptr) {
+            return "no test is running";
+        }
+        if(test->state != ScheduledTest::State::playing) {
+            return std::format(
+                "test \"{}\" is being prepared, nothing is being transmitted",
+                test->testId
+            );
+        }
+
+        std::string testId = test->testId;
+        StopPipeline();
+        scheduler.Finished(*test, false);
+        Common::Logger::Info("playback stopped: {}", testId);
+        // the id is free again at once, a setup reusing it may arrive in the same batch
+        scheduler.EraseFinished();
+        return {};
+    }
+
     void StartPreparation(ScheduledTest &test) {
         scheduler.Started(test);
         Common::Logger::Info("preparation started: {}", test.testId);
@@ -415,6 +438,10 @@ private:
             auto &v = std::get<CommandMessage::TestCancel>(cm.variant);
             Common::Logger::Info("received [{}] TEST_CANCEL: test_id={}", msg.topic, v.testId);
             error = CancelTest(v);
+        }
+        else if(std::holds_alternative<CommandMessage::IntStop>(cm.variant)) {
+            Common::Logger::Info("received [{}] INT_STOP", msg.topic);
+            error = StopTransmission();
         }
         else {
             error = std::format("received [{}]: unknown command", msg.topic);

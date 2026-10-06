@@ -21,6 +21,7 @@ On linux the same line with the directory that build sits in.
 | `test_lint.py` | `scglint`, against the files in `data` and the tsds the tests write |
 | `test_assets.py` | the json files in `assets`, a check on the data rather than on the code |
 | `test_commands.py` | commands the server has to refuse, and cancelling |
+| `test_stop.py` | INT_STOP, which ends the transmission and keeps the directory |
 | `test_schedule.py` | the overlap rule and the recording queue rule |
 | `test_startup.py` | exit codes, `--help`, `--version`, bad config files |
 

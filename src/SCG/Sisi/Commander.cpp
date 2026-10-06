@@ -234,6 +234,7 @@ static void PrintHelp() {
     Common::Logger::Info("commands:");
     Common::Logger::Info("  testsetup <tsd_url> <time> <test_id>");
     Common::Logger::Info("  testcancel <test_id>");
+    Common::Logger::Info("  intstop");
     Common::Logger::Info("  help");
     Common::Logger::Info("  quit\n");
     Common::Logger::Info("time is given as 2026-09-02T14:30:00+02:00\n");
@@ -417,6 +418,9 @@ int main(int argc, char **argv) {
             std::string testId;
             iss >> testId;
             cm.variant = CommandMessage::TestCancel{testId};
+        }
+        else if(cmd == "intstop") {
+            cm.variant = CommandMessage::IntStop{};
         }
         else {
             Common::Logger::Warn("unknown command: {}", cmd);

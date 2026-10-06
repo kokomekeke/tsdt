@@ -41,6 +41,14 @@ def cancel_command(test_id):
     })
 
 
+def int_stop_command():
+    """INT_STOP takes nothing, but extras is a field of every command."""
+    return json.dumps({
+        "command": "INT_STOP",
+        "extras": {},
+    })
+
+
 class ScgServer:
 
     def __init__(self, build, broker, work_dir, fetch_timeout_s=2.0,
@@ -122,6 +130,9 @@ class ScgServer:
 
     def cancel(self, test_id):
         return self.send(cancel_command(test_id))
+
+    def int_stop(self):
+        return self.send(int_stop_command())
 
     def error(self, mark, timeout=6.0):
         return self.broker.wait_for_error(mark, self.error_log_topic, timeout)
