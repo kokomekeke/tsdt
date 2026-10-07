@@ -193,13 +193,8 @@ namespace Sagax::SCG {
                 }
             };
 
-            // the IRD leaves the content of the description to us. a reason is only
-            // written into it when there is one
-            struct DescriptionParser : Json::JsonObjectParser<SignalStatusMessage::Description> {
-                DescriptionParser() {
-                    AddParamOpt(&SignalStatusMessage::Description::errorMessage, Json::JsonPrimitiveParser<std::string>{}, "error_message");
-                }
-            };
+            // serializes as an empty object, and any content it arrives with is ignored
+            struct DescriptionParser : Json::JsonObjectParser<SignalStatusMessage::Description> {};
 
             SignalStatusMessageJsonParser() {
                 AddParam(&SignalStatusMessage::timestamp, Json::JsonPrimitiveParser<std::string>{}, "timestamp");
@@ -208,6 +203,11 @@ namespace Sagax::SCG {
             }
         };
 
+        struct ErrorMessageJsonParser : Json::JsonObjectParser<ErrorMessage> {
+            ErrorMessageJsonParser() {
+                AddParam(&ErrorMessage::message, Json::JsonPrimitiveParser<std::string>{}, "message");
+            }
+        };
 
         struct SavedTestJsonParser : Json::JsonObjectParser<SavedTest> {
             SavedTestJsonParser() {
@@ -221,6 +221,7 @@ namespace Sagax::SCG {
         CommandMessageJsonParser commandMessageParser;
         TestStatusMessageJsonParser testStatusMessageParser;
         SignalStatusMessageJsonParser signalStatusMessageParser;
+        ErrorMessageJsonParser errorMessageParser;
         SavedTestJsonParser savedTestParser;
 
     }
@@ -286,6 +287,18 @@ namespace Sagax::SCG {
         return Json::DumpJson(j, false);
     }
 
+    ErrorMessage ParseErrorMessage(const std::string &s) {
+        Json::JsonHandle j = Json::ParseJson(s);
+        ErrorMessage msg;
+        errorMessageParser.Parse(j, msg);
+        return msg;
+    }
+
+    std::string SerializeErrorMessage(const ErrorMessage &t) {
+        Json::JsonHandle j;
+        errorMessageParser.Serialize(t, j);
+        return Json::DumpJson(j, false);
+    }
 
     SavedTest ParseSavedTest(const std::string &s) {
         Json::JsonHandle j = Json::ParseJson(s);

@@ -1,6 +1,5 @@
 #pragma once
 #include <variant>
-#include <optional>
 #include <string>
 #include <cstdint>
 #include <utility>
@@ -70,13 +69,14 @@ namespace Sagax::SCG {
             jamming,
             spoofing
         };
-        struct Description { // IRD allows for any content, we could add an array of active signals for example
-            std::optional<std::string> errorMessage;
-        };
+        struct Description {}; // IRD allows for any content, an array of active signals for example
         std::string timestamp; // iso 8601, utc
         SignalStatus type;
         Description description;
     };
 
+    struct ErrorMessage {
+        std::string message;
+    };
 
 }
