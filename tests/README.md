@@ -71,6 +71,18 @@ A test publishes a command, then waits for a message on its error topic with a d
 A test that expects the command to be accepted waits for no message instead, and then
 looks for the line in the server log that says the test was scheduled.
 
+## The gnss engine
+
+`config.json` sets `mock_gnss`, so a spoofer recording is written as silence of the
+right length and rate without the engine being asked for anything. Every test that
+records relies on that: the suite has no RINEX file at all, and the
+`gnss_ephemeris_file` the fixtures name does not exist. It only has to be a non empty
+string, because the rule that refuses a spoofer without one looks no further.
+
+A test that wants the real engine turns `mock_gnss` off and points
+`gnss_ephemeris_file` at a file that is there. Generating costs about a second per
+second of signal, so nothing in the suite does it.
+
 ## Disk
 
 A test that schedules a test has it recorded, because the server records everything that

@@ -11,7 +11,7 @@ import json
 import pytest
 
 from helpers.binaries import ROOT
-from helpers.rid import make_permuted_rid, make_rid
+from helpers.rid import make_gnss_rid, make_permuted_rid, make_rid
 from helpers.tsd import write_tsd
 
 DATA = ROOT / "tests" / "data"
@@ -318,6 +318,63 @@ def test_an_invalid_config_stops_the_tsd_from_being_looked_at(build, tmp_path):
     code, output = lint(build, ["tsd", DATA / "config-invalid.json", tsd.as_uri()])
     assert code == EXIT_INVALID, output
     assert "skipping tsd validation" in output, output
+
+
+# the gnss spoofer rules that come from what the engine can be asked for. it selects by
+# signal, system and elevation mask, so a named satellite cannot be honoured, and it is
+# told a signal rather than a band, so only mapped centers can be recorded
+
+
+def gnss_config(tmp_path):
+    """config.json with an ephemeris, so the spoofer rules are the only ones left"""
+    config = json.loads(CONFIG.read_text(encoding="utf-8"))
+    config["gnss_ephemeris_file"] = "ephemeris/none.rnx"
+    path = tmp_path / "config-gnss.json"
+    path.write_text(json.dumps(config, indent=4), encoding="utf-8")
+    return path
+
+
+def write_gnss(tmp_path, name, change=None):
+    rid = make_gnss_rid(duration_s=1.0)
+    if change:
+        change(rid)
+    path = tmp_path / name
+    path.write_text(json.dumps(rid, indent=4), encoding="utf-8")
+    return path
+
+
+def test_a_valid_gnss_rid_is_accepted(build, tmp_path):
+    path = write_gnss(tmp_path, "gnss.json")
+    code, output = lint(build, ["rid", gnss_config(tmp_path), path.as_uri()])
+    assert code == EXIT_OK, output
+
+
+def test_a_spoofer_naming_satellites_is_reported(build, tmp_path):
+    def change(rid):
+        rid["interference_sources"][0]["parameters"]["prn_list"] = [1, 3, 6]
+
+    path = write_gnss(tmp_path, "prn-list.json", change)
+    code, output = lint(build, ["rid", gnss_config(tmp_path), path.as_uri()])
+    assert code == EXIT_INVALID, output
+    assert "prn_list has to be empty" in output, output
+
+
+def test_a_spoofer_on_an_unmapped_center_is_reported(build, tmp_path):
+    """ten khz off l1, so it is still inside the channel and only this rule fires"""
+    def change(rid):
+        rid["interference_sources"][0]["center_frequency_hz"] = 1575430000
+
+    path = write_gnss(tmp_path, "center.json", change)
+    code, output = lint(build, ["rid", gnss_config(tmp_path), path.as_uri()])
+    assert code == EXIT_INVALID, output
+    assert "no gnss signal is known at center_frequency_hz" in output, output
+
+
+def test_a_spoofer_without_an_ephemeris_is_reported(build, tmp_path):
+    path = write_gnss(tmp_path, "gnss.json")
+    code, output = lint(build, ["rid", CONFIG, path.as_uri()])
+    assert code == EXIT_INVALID, output
+    assert "no gnss_ephemeris_file is configured" in output, output
 
 
 def test_help_and_version_succeed(build):

@@ -248,6 +248,32 @@ namespace Sagax::SCG {
                     }
                 }
 
+                // the engine selects by signal, system and elevation mask, so there is no
+                // way to honour a list of satellites once the samples are summed
+                if(!v.prnList.empty()) {
+                    res.errors.push_back(std::format(
+                        "interferenceSources[{}]: prn_list has to be empty, the gnss engine has no "
+                        "satellite selection and generates every one in view",
+                        i));
+                }
+
+#ifdef HAVE_SSP
+                if(!GnssCenterIsSupported(v.constellation, source.center_hz)) {
+                    res.errors.push_back(std::format(
+                        "interferenceSources[{}]: no gnss signal is known at center_frequency_hz {}, {}",
+                        i, source.center_hz, GnssSupportedCenters(v.constellation)));
+                }
+#else
+                // the same shape as the rule for a radio this build cannot drive: the test
+                // can still be set up, as long as nothing has to be generated for it
+                if(!cfg.mockGnss) {
+                    res.errors.push_back(std::format(
+                        "interferenceSources[{}]: gnss spoofer, but this build has no gnss engine "
+                        "and mock_gnss is not set",
+                        i));
+                }
+#endif
+
                 if(v.trajectory.empty()) {
                     res.errors.push_back(std::format("interferenceSources[{}]: gnss spoofer without a trajectory", i));
                 }
@@ -360,7 +386,7 @@ namespace Sagax::SCG {
                 auto &v = std::get<Rid::InterferenceSource::Spoofing>(source.variant);
                 auto job = std::make_unique<GnssRecordingJob>();
                 job->constellation = v.constellation;
-                job->prnList = v.pnrList;
+                job->prnList = v.prnList;
                 job->waypoints = v.trajectory;
                 job->startTime = startTime + std::chrono::duration_cast<std::chrono::system_clock::duration>(
                     std::chrono::duration<double>(source.startTime_s)
@@ -370,6 +396,7 @@ namespace Sagax::SCG {
                 job->sampleRate_hz = radioRates[source.radioId];
                 job->duration_s = source.endTime_s - source.startTime_s;
                 job->ephemerisFile = cfg.gnssEphemerisFile;
+                job->mock = cfg.mockGnss;
                 job->fileName = (std::filesystem::path(directory) / std::format("gnss_{:04}.wav", i)).string();
 
                 SignalVariant::IQFile signalV;

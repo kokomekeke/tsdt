@@ -1,6 +1,8 @@
 """the directory a test is prepared into, and the playback from it
 
-the gnss engine is not integrated, a recording is silence of the right length and rate
+the suite sets mock_gnss, so a recording is silence of the right length and rate and
+the engine is never asked for anything. that is what makes the checks on the file
+cheap and what lets them run without an ephemeris
 """
 
 import json

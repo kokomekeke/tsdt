@@ -174,10 +174,10 @@ def make_gnss_rid(duration_s=0.5, radio_id="r0", bandwidth_hz=192000):
                 "end_time_s": duration_s,
                 "parameters": {
                     "constellation": "GPS",
-                    "pnr_list": [1, 2, 3],
+                    "prn_list": [],
                     "trajectory": [
-                        {"t": 0.0, "longitude": 19.015773, "latitude": 47.492721, "altitude": 120.0},
-                        {"t": duration_s, "longitude": 19.015800, "latitude": 47.492740, "altitude": 120.0},
+                        {"t": 0.0, "longitude_deg": 19.015773, "latitude_deg": 47.492721, "altitude_m": 120.0},
+                        {"t": duration_s, "longitude_deg": 19.015800, "latitude_deg": 47.492740, "altitude_m": 120.0},
                     ],
                 },
             }

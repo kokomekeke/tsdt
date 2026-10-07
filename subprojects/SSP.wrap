@@ -1,0 +1,6 @@
+[wrap-git]
+; url = git@10.1.1.50:SAGAX/ssp.git
+; http is needed for CI
+url = http://10.1.1.50:3000/SAGAX/ssp.git
+revision = 6fcb09070bebc5879f92db4b5232fa36570885a9
+depth = 1

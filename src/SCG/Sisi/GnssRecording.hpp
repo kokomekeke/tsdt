@@ -22,10 +22,29 @@ namespace Sagax::SCG {
         double duration_s;
         std::string ephemerisFile;
         std::string fileName;
+        // writes silence instead of asking the engine, from mock_gnss in the config
+        bool mock = false;
 
         std::string Describe() const override;
         double Estimate_s() const override;
         void Run(std::stop_token stop) override;
     };
+
+#ifdef HAVE_SSP
+
+    // the engine names a signal rather than a band, so a spoofer can only be recorded on
+    // a center the mapping knows. ValidateRid asks this before a test is scheduled, so a
+    // center with no signal is refused instead of failing in the preparation
+    bool GnssCenterIsSupported(
+        Rid::InterferenceSource::Spoofing::Constellation constellation,
+        double center_hz
+    );
+
+    // the centers the mapping knows for one constellation, written for an error message
+    std::string GnssSupportedCenters(
+        Rid::InterferenceSource::Spoofing::Constellation constellation
+    );
+
+#endif
 
 }

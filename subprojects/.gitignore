@@ -1,5 +1,6 @@
 *
 !/SSG.wrap
+!/SSP.wrap
 !/cjson.wrap
 !/.gitignore
 !/mosquitto/

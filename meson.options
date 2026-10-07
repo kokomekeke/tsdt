@@ -32,3 +32,10 @@ option(
     value: true,
     description: 'Build scglint.exe, a hardware-free json validation utility'
 )
+
+option(
+    'have_ssp',
+    type: 'boolean',
+    value: true,
+    description: 'Build with the ssp gnss engine. Without it a spoofer can only be mocked'
+)

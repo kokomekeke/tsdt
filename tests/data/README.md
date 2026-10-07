@@ -12,7 +12,7 @@ should say so, or something broke.
 
 | file | what it is |
 |---|---|
-| `config.json` | valid. two radios, `r0` and `r1`, two handlers each, radios mocked. every other file here is written against it |
+| `config.json` | valid. two radios, `r0` and `r1`, two handlers each, radios and gnss mocked. every other file here is written against it |
 | `config-invalid.json` | parses, breaks two rules: the broker host is empty and the fetch timeout is zero |
 | `config-missing-key.json` | does not parse, `broker_port` is missing |
 | `config-two-radios.json` | valid. `r0` drives one channel and `r1` two, so a lookup landing on the wrong radio reads a channel count that does not fit |

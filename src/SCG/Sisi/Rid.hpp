@@ -47,7 +47,7 @@ namespace Sagax::SCG {
                     double altitude;
                 };
                 Constellation constellation;
-                std::vector<std::int32_t> pnrList;
+                std::vector<std::int32_t> prnList;
                 std::vector<TrajectoryItem> trajectory;
             };
 

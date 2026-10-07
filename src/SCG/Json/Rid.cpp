@@ -66,19 +66,19 @@ namespace Sagax::SCG {
                     struct TrajectoryItemParser : public JsonObjectParser<Rid::InterferenceSource::Spoofing::TrajectoryItem> {
                         TrajectoryItemParser() {
                             AddParam(&Rid::InterferenceSource::Spoofing::TrajectoryItem::t, JsonPrimitiveParser<double>{}, "t");
-                            AddParam(&Rid::InterferenceSource::Spoofing::TrajectoryItem::longitude, JsonPrimitiveParser<double>{}, "longitude");
-                            AddParam(&Rid::InterferenceSource::Spoofing::TrajectoryItem::latitude, JsonPrimitiveParser<double>{}, "latitude");
-                            AddParam(&Rid::InterferenceSource::Spoofing::TrajectoryItem::altitude, JsonPrimitiveParser<double>{}, "altitude");
+                            AddParam(&Rid::InterferenceSource::Spoofing::TrajectoryItem::longitude, JsonPrimitiveParser<double>{}, "longitude_deg");
+                            AddParam(&Rid::InterferenceSource::Spoofing::TrajectoryItem::latitude, JsonPrimitiveParser<double>{}, "latitude_deg");
+                            AddParam(&Rid::InterferenceSource::Spoofing::TrajectoryItem::altitude, JsonPrimitiveParser<double>{}, "altitude_m");
                         }
                     };
 
                     SpoofingParser() {
                         AddParam(&Rid::InterferenceSource::Spoofing::constellation, ConstellationParser{}, "constellation");
-                        auto p0 = AddParam(&Rid::InterferenceSource::Spoofing::pnrList, JsonArrayParser<std::int32_t>{}, "pnr_list");
+                        auto p0 = AddParam(&Rid::InterferenceSource::Spoofing::prnList, JsonArrayParser<std::int32_t>{}, "prn_list");
                         auto p1 = AddParam(&Rid::InterferenceSource::Spoofing::trajectory, JsonArrayParser<Rid::InterferenceSource::Spoofing::TrajectoryItem>{}, "trajectory");
 
                         p0->SetItemParser(JsonPrimitiveParser<std::int32_t>{});
-                        p0->SetSizeRange(1, 210);
+                        p0->SetSizeRange(0, 210);
 
                         p1->SetItemParser(TrajectoryItemParser{});
                         p1->SetSizeRange(1, std::nullopt);

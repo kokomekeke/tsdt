@@ -1,6 +1,7 @@
 {
     "recording_directory": "recordings",
     "mock_radios": true,
+    "mock_gnss": true,
     "status_update_period_s": 60.0,
     "start_ahead_s": 2.0,
     "scenario_fetch_timeout_s": 2.0,

@@ -67,6 +67,19 @@ coreLibDep = ssgSub.get_variable('coreLibDep')
 ssgLibDep = ssgSub.get_variable('ssgLibDep')
 ssg_defines = ssgSub.get_variable('ssg_defines')
 
+scg_defines = []
+
+# the gnss engine the spoofer recordings are generated with. without it the subproject
+# is never fetched, and a spoofer that is not mocked is refused by ValidateRid
+if get_option('have_ssp')
+    sspSub = subproject('SSP')
+    sspDeps = [ sspSub.get_variable('sspDep') ]
+    scg_defines += ['-DHAVE_SSP']
+else
+    sspDeps = []
+    message('building without the ssp gnss engine')
+endif
+
 # UHDDlls holds the uhd and the libusb dlls as [ source, name ] pairs, it is not
 # defined at all when the ssg subproject is built without usrp. the copies land in
 # this build directory next to the executables, which the loader searches before
@@ -122,9 +135,10 @@ scgLib = static_library(
         jsonLibDep,
         coreLibDep,
         ssgLibDep,
+        sspDeps,
         beastDeps
     ],
-    cpp_args: cpp_args + ssg_defines,
+    cpp_args: cpp_args + ssg_defines + scg_defines,
     link_args: link_args,
 )
 scgLibDep = declare_dependency(
@@ -148,7 +162,7 @@ if buildScg
             ssgLibDep,
             scgLibDep
         ],
-        cpp_args: cpp_args + ssg_defines,
+        cpp_args: cpp_args + ssg_defines + scg_defines,
         link_args: link_args,
     )
 endif
@@ -167,7 +181,7 @@ if buildScgLint
             ssgLibDep,
             scgLibDep
         ],
-        cpp_args: cpp_args + ssg_defines,
+        cpp_args: cpp_args + ssg_defines + scg_defines,
         link_args: link_args,
     )
 endif
@@ -204,7 +218,7 @@ if buildScgServer or buildMqttExamples
             scgLibDep,
             mosquittoDep
         ],
-        cpp_args: cpp_args + ssg_defines,
+        cpp_args: cpp_args + ssg_defines + scg_defines,
         link_args: link_args,
     )
     executable(
@@ -222,7 +236,7 @@ if buildScgServer or buildMqttExamples
             scgLibDep,
             mosquittoDep
         ],
-        cpp_args: cpp_args + ssg_defines,
+        cpp_args: cpp_args + ssg_defines + scg_defines,
         link_args: link_args,
     )
 endif
