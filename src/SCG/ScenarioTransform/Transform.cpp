@@ -43,6 +43,7 @@ namespace Sagax::SCG {
                 p->sampleRate = s->sampleRate;
                 p->nChannels = 1;
                 p->centers = { s->center };
+                p->bufferSize = mockBufferSizeUsrpB200;
                 basePtr = std::move(p);
             }
             else {
@@ -79,6 +80,7 @@ namespace Sagax::SCG {
                 p->sampleRate = s->sampleRate;
                 p->nChannels = s->nChannels;
                 p->centers = s->centers;
+                p->bufferSize = mockBufferSizeSidekiq;
                 basePtr = std::move(p);
             }
             else {
