@@ -23,7 +23,7 @@
         }
     ],
     "mqtt": {
-        "broker_host": "10.1.1.81",
+        "broker_host": "127.0.0.1",
         "broker_port": 1883,
         "command_topic": "cmd/tms",
         "signal_log_topic": "tm/sg",
