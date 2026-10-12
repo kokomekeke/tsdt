@@ -68,7 +68,10 @@ struct Program {
             buffer << file.rdbuf();
             std::string jsonStr = buffer.str();
 
-            scenario = ParseScenario(jsonStr, scenName);
+            Json::JsonIssues issues;
+            if(!ParseScenario(jsonStr, scenName, scenario, issues)) {
+                throw std::runtime_error(issues.Format());
+            }
         }
         catch(const std::exception &e) {
             throw std::runtime_error(std::format("could not parse scenario file:\n{}", e.what()));

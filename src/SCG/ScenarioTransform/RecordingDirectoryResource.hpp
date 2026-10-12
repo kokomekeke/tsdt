@@ -58,7 +58,14 @@ namespace Sagax::SCG {
                 std::ifstream file(path / "scenario.json");
                 std::stringstream buffer;
                 buffer << file.rdbuf();
-                scenario = ParseScenario(buffer.str(), std::nullopt);
+                Json::JsonIssues issues;
+                if(!ParseScenario(buffer.str(), std::nullopt, scenario, issues)) {
+                    throw std::runtime_error(std::format(
+                        "could not parse {}:\n{}",
+                        (path / "scenario.json").string(),
+                        issues.Format()
+                    ));
+                }
             }
         }
 
@@ -97,9 +104,15 @@ namespace Sagax::SCG {
                 }
 
                 {
-                    std::string str = SerializeScenario(scenario);
+                    Json::JsonIssues issues;
+                    std::optional<std::string> str = SerializeScenario(scenario, issues);
+                    if(!str.has_value()) {
+                        throw std::runtime_error(std::format(
+                            "could not write the scenario:\n{}", issues.Format()
+                        ));
+                    }
                     std::ofstream scenFile(path / "scenario.json");
-                    scenFile << str;
+                    scenFile << str.value();
                 }
 
                 logFile.open(path / "log.txt");

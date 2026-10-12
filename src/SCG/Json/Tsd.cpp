@@ -26,17 +26,12 @@ namespace Sagax::SCG {
 
     }
 
-    Tsd ParseTsd(const std::string &s) {
-        Json::JsonHandle j = Json::ParseJson(s);
-        Tsd tsd;
-        tsdParser.Parse(j, tsd);
-        return tsd;
+    bool ParseTsd(const std::string &s, Tsd &out, Json::JsonIssues &e) {
+        return Json::ParseDocument<Tsd>(tsdParser, s, out, e);
     }
 
-    std::string SerializeTsd(const Tsd &t) {
-        Json::JsonHandle j;
-        tsdParser.Serialize(t, j);
-        return Json::DumpJson(j, true);
+    std::optional<std::string> SerializeTsd(const Tsd &t, Json::JsonIssues &e) {
+        return Json::SerializeDocument<Tsd>(tsdParser, t, true, e);
     }
 
 }

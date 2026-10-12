@@ -1,12 +1,13 @@
 #pragma once
+#include <optional>
+#include <string>
+#include "Json/JsonParser.hpp"
 #include "SCG/Sisi/ServerConfig.hpp"
 
 namespace Sagax::SCG {
 
-    ServerConfig ParseServerConfig(const std::string &s);
+    bool ParseServerConfig(const std::string &s, ServerConfig &out, Json::JsonIssues &e);
 
-    std::string SerializeServerConfig(const ServerConfig &t);
+    std::optional<std::string> SerializeServerConfig(const ServerConfig &t, Json::JsonIssues &e);
 
 }
-
-

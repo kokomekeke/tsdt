@@ -82,11 +82,9 @@ namespace Sagax::SCG {
         }
 
         CommandError ReadRid(const std::string &json, Rid &out) {
-            try {
-                out = ParseRid(json);
-            }
-            catch(const std::exception &e) {
-                return std::format("failed to parse RID: {}", e.what());
+            Json::JsonIssues issues;
+            if(!ParseRid(json, out, issues)) {
+                return std::format("failed to parse RID:\n{}", issues.Format());
             }
             return {};
         }
@@ -124,11 +122,9 @@ namespace Sagax::SCG {
         CommandError ReadSavedTest(const std::filesystem::path &directory, SavedTest &out) {
             std::string json;
             SCG_CHECK(ReadTextFile(directory / testFileName, json));
-            try {
-                out = ParseSavedTest(json);
-            }
-            catch(const std::exception &e) {
-                return std::format("could not parse {}: {}", testFileName, e.what());
+            Json::JsonIssues issues;
+            if(!ParseSavedTest(json, out, issues)) {
+                return std::format("could not parse {}:\n{}", testFileName, issues.Format());
             }
             if(out.command.testId != directory.filename().string()) {
                 return std::format("the test id in {} is \"{}\"", testFileName, out.command.testId);
@@ -193,7 +189,16 @@ namespace Sagax::SCG {
             SavedTest saved;
             saved.command = test.command;
             saved.status = ReportedStatus(test.state);
-            WriteTextFile(path, SerializeSavedTest(saved));
+
+            Json::JsonIssues issues;
+            std::optional<std::string> json = SerializeSavedTest(saved, issues);
+            if(!json.has_value()) {
+                Common::Logger::Warn(
+                    "could not save the state of test \"{}\":\n{}", test.testId, issues.Format()
+                );
+                return;
+            }
+            WriteTextFile(path, json.value());
         }
         catch(const std::exception &e) {
             Common::Logger::Warn("could not save the state of test \"{}\": {}", test.testId, e.what());
@@ -348,11 +353,13 @@ namespace Sagax::SCG {
         SCG_CHECK(MergeTsd(sources.tsd, sources.rids, merged));
 
         std::string json;
-        try {
-            json = SerializeRid(merged);
-        }
-        catch(const std::exception &e) {
-            return std::format("failed to write the merged RID: {}", e.what());
+        {
+            Json::JsonIssues issues;
+            std::optional<std::string> text = SerializeRid(merged, issues);
+            if(!text.has_value()) {
+                return std::format("failed to write the merged RID:\n{}", issues.Format());
+            }
+            json = std::move(text.value());
         }
 
         std::unique_ptr<ScheduledTest> test;
@@ -559,7 +566,15 @@ namespace Sagax::SCG {
             std::filesystem::remove_all(path);
         }
 
-        WriteTextFile(directory / "scenario.json", SerializeScenario(test.scenario));
+        {
+            Json::JsonIssues issues;
+            std::optional<std::string> json = SerializeScenario(test.scenario, issues);
+            if(!json.has_value()) {
+                Common::Logger::Error("could not write the scenario:\n{}", issues.Format());
+                return;
+            }
+            WriteTextFile(directory / "scenario.json", json.value());
+        }
 
         for(auto &job : test.jobs) {
             if(stop.stop_requested()) {

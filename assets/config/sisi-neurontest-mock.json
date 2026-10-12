@@ -26,7 +26,8 @@
         "broker_host": "10.1.2.44",
         "broker_port": 1883,
         "command_topic": "cmd/tms",
-        "log_topic": "tm/sg",
-        "error_topic": "tm/sg"
+        "signal_log_topic": "tm/sg",
+        "test_log_topic": "tm/sg/test",
+        "error_log_topic": "tm/sg"
     }
 }

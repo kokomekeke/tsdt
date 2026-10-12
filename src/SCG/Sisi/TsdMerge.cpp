@@ -53,21 +53,17 @@ namespace Sagax::SCG {
         }
 
         CommandError ReadTsd(const std::string &json, Tsd &out) {
-            try {
-                out = ParseTsd(json);
-            }
-            catch(const std::exception &e) {
-                return std::format("failed to parse TSD: {}", e.what());
+            Json::JsonIssues issues;
+            if(!ParseTsd(json, out, issues)) {
+                return std::format("failed to parse TSD:\n{}", issues.Format());
             }
             return {};
         }
 
         CommandError ReadRid(const std::string &json, Rid &out) {
-            try {
-                out = ParseRid(json);
-            }
-            catch(const std::exception &e) {
-                return std::format("failed to parse RID: {}", e.what());
+            Json::JsonIssues issues;
+            if(!ParseRid(json, out, issues)) {
+                return std::format("failed to parse RID:\n{}", issues.Format());
             }
             return {};
         }
