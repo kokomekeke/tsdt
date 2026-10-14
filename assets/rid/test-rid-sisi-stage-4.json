@@ -1,0 +1,79 @@
+{
+    // both cards, both channels on each. the sources overlap in time so more than one
+    // event is active at once, which is what the status messages report
+    "metadata": {
+        "version": "1.0.0",
+        "scenario_name": "sisi-stage-2",
+        "created_utc": "2026-09-08T00:00:00Z",
+        "author": "sagax",
+        "description": "two cards dual channel, overlapping jammers"
+    },
+    "global_settings": {
+        "duration_s": 12.0
+    },
+    "radio_settings": [
+        {
+            "radio_id": "r0",
+            "channels": 2,
+            "bandwidth_hz": 1920000,
+            "center_frequencies_hz": [ 1575420000, 1227600000 ],
+            "gains_db": [ 10.0, 10.0 ]
+        },
+        {
+            "radio_id": "r1",
+            "channels": 2,
+            "bandwidth_hz": 1920000,
+            "center_frequencies_hz": [ 1575420000, 1227600000 ],
+            "gains_db": [ 8.0, 8.0 ]
+        }
+    ],
+    "interference_sources": [
+        {
+            "type": "cw_jammer",
+            "radio_id": "r0",
+            "channel_id": 0,
+            "center_frequency_hz": 1575620000,
+            "power_dbm": -10.0,
+            "start_time_s": 1.0,
+            "end_time_s": 6.0,
+            "parameters": {}
+        },
+        {
+            "type": "noise_jammer",
+            "radio_id": "r0",
+            "channel_id": 1,
+            "center_frequency_hz": 1227600000,
+            "power_dbm": -14.0,
+            "start_time_s": 3.0,
+            "end_time_s": 10.0,
+            "parameters": {
+                "span_hz": 500000
+            }
+        },
+        {
+            // sweeps 400 kHz every 50 ms
+            "type": "chirp_jammer",
+            "radio_id": "r1",
+            "channel_id": 0,
+            "center_frequency_hz": 1575120000,
+            "power_dbm": -11.0,
+            "start_time_s": 2.0,
+            "end_time_s": 7.0,
+            "parameters": {
+                "span_hz": 400000,
+                "sweep_time_s": 0.05
+            }
+        },
+        {
+            // starts after the chirp on the other card has ended
+            "type": "cw_jammer",
+            "radio_id": "r1",
+            "channel_id": 1,
+            "center_frequency_hz": 1227700000,
+            "power_dbm": -13.0,
+            "start_time_s": 7.5,
+            "end_time_s": 11.5,
+            "parameters": {}
+        }
+    ]
+}

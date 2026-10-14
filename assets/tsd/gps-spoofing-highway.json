@@ -1,0 +1,35 @@
+{
+  "name": "GPS Spoofing — Highway Position Offset",
+  "description": "## GPS Spoofing — Highway Position Offset\n\nEvaluates receiver behaviour when a **GNSS spoofer** introduces a 500 m position offset (NE direction) during a highway drive.\n\nThe spoofer targets GPS L1 C/A on the most visible PRNs, transmitting counterfeit signals with a synthesised position offset of approximately 354 m East and 354 m North (~500 m total displacement).\n\n**Route:** Dual-carriageway access road, approx. 6 km straight section.\n\n**Expected outcome:** The receiver's reported position drifts up to 500 m from the ground-truth track. The GT system records the true position throughout, enabling post-run KPI analysis.",
+  "image": "assets/gps-spoofing-highway-overview.svg",
+  "steps": [
+    {
+      "summary": "Highway baseline — pre-spoofing",
+      "duration_seconds": 60,
+      "driver_instructions": "Enter the highway and accelerate to the **test speed of 90 km/h**. Maintain steady speed in the right lane.\n\nConfirm that both the VDL and GT systems are publishing data. The RSG is armed but not yet transmitting.",
+      "image": "assets/step-baseline.svg",
+      "interference": null
+    },
+    {
+      "summary": "Spoofer activated — position drift begins",
+      "duration_seconds": 180,
+      "driver_instructions": "The RSG activates the GPS spoofer targeting PRNs 1, 3, 6, 11, 17, 22 at −10 dBm. A **500 m NE position offset** is introduced gradually.\n\nMaintain 90 km/h. The receiver's displayed position will begin to diverge from the true vehicle position. Do not adjust speed or lane.",
+      "image": "assets/step-spoofing.svg",
+      "interference": "rid/gps_spoofer_l1.json"
+    },
+    {
+      "summary": "Full offset sustained",
+      "duration_seconds": 120,
+      "driver_instructions": "The spoofer continues transmitting with the full 500 m offset active. **Maintain 90 km/h** and continue driving straight.\n\nNote any receiver integrity flags (NMEA `GBS` or `GRS` sentences). The GT track and VDL track divergence should be clearly visible in Grafana.",
+      "image": "assets/step-spoofing.svg",
+      "interference": "rid/gps_spoofer_l1.json"
+    },
+    {
+      "summary": "Spoofer deactivated — recovery monitoring",
+      "duration_seconds": 60,
+      "driver_instructions": "The RSG disables the spoofer. **Reduce speed to 30 km/h** and prepare to exit the highway at the next junction.\n\nMonitor the receiver for re-convergence with the true position. Record the time taken for the reported position to return within 10 m of the GT reference.",
+      "image": "assets/step-recovery.svg",
+      "interference": null
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "name": "L1/L2 Jamming — Urban Route",
+  "description": "## L1/L2 Jamming — Urban Route\n\nTests GNSS receiver robustness against **CW, noise and chirp jammers** on GPS L1 (1575.42 MHz) and L2 (1227.60 MHz) during an urban drive.\n\nThe RSG first runs a single card with one jammer per channel, then escalates to both cards with overlapping jammers, and finally stops emitting to observe receiver recovery time.\n\n**Route:** City centre ring road, approx. 4 km loop (same as Baseline scenario).\n\n**Expected outcome:** Progressive degradation of fix quality, potential loss of 3D fix while the jammers overlap. Recovery within 30 s of jammer deactivation.",
+  "image": "assets/l1-jamming-urban-overview.svg",
+  "steps": [
+    {
+      "summary": "Baseline lock acquisition",
+      "duration_seconds": 60,
+      "driver_instructions": "**Park the vehicle** at the designated start point. Wait for a stable 3D fix before proceeding.\n\nVerify that the RSG is online and responsive on the `tm/sg` MQTT topic.",
+      "image": "assets/step-baseline.svg",
+      "interference": null
+    },
+    {
+      "summary": "Jammer activation — single card",
+      "duration_seconds": 60,
+      "driver_instructions": "Begin driving the urban loop at 30 km/h. The RSG activates **one card**: a CW jammer on GPS L1 (−10 dBm) and a noise jammer on L2 (−12 dBm).\n\nObserve the receiver's satellite count and HDOP. Note the onset time of any fix degradation.",
+      "image": "assets/step-jamming.svg",
+      "interference": "FILE:///home/sagax/sgx/scg/assets/rid/test-rid-sisi-stage-1.json"
+    },
+    {
+      "summary": "Jammer escalated — both cards, overlapping",
+      "duration_seconds": 120,
+      "driver_instructions": "Continue driving. The RSG escalates to **both cards**: CW, noise and chirp jammers on L1 and L2, overlapping in time.\n\nRecord whether the receiver loses its 3D fix entirely. If the display goes blank, note the GPS time of fix loss.",
+      "image": "assets/step-jamming.svg",
+      "interference": "FILE:///home/sagax/sgx/scg/assets/rid//test-rid-sisi-stage-2.json"
+    },
+    {
+      "summary": "Jammer deactivated — recovery monitoring",
+      "duration_seconds": 60,
+      "driver_instructions": "The RSG will deactivate all jamming. **Remain stationary** at the end of the loop and monitor the receiver.\n\nRecord the time-to-first-fix (TTFF) after jamming stops. Test is complete once a stable 3D fix is re-acquired or 60 s have elapsed.",
+      "image": "assets/step-recovery.svg",
+      "interference": null
+    }
+  ]
+}

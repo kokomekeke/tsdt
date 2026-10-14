@@ -1,0 +1,28 @@
+{
+  "name": "Urban Canyon Baseline",
+  "description": "## Urban Canyon Baseline\n\nA clean-signal reference run through a dense urban area. No interference is applied at any point.\n\nThis scenario establishes the **baseline GNSS performance** of the vehicle receiver under challenging multipath conditions caused by tall buildings. Use the collected data as the ground-truth reference for comparing degraded-signal scenarios.\n\n**Route:** City centre ring road, approx. 4 km loop.\n\n**Expected outcome:** Stable 3D fix throughout, HDOP < 2.5 in open sections, possible fix fluctuations in the canyon sections.",
+  "image": "assets/urban-canyon-baseline-overview.svg",
+  "steps": [
+    {
+      "summary": "Pre-drive lock acquisition",
+      "duration_seconds": 60,
+      "driver_instructions": "**Park the vehicle** at the designated start point (open-sky parking area). Wait for the GNSS receiver to acquire a stable 3D fix with at least 6 satellites before proceeding.\n\nConfirm in the TMI that the VDL is publishing data on the `tm/vdl` topic.",
+      "image": "assets/step-baseline.svg",
+      "interference": null
+    },
+    {
+      "summary": "Urban canyon drive — north sector",
+      "duration_seconds": 120,
+      "driver_instructions": "Drive **north** along the canyon section at a steady 30 km/h. Maintain a consistent speed — do not stop unless required by traffic.\n\nNote any visible signal quality drops on the receiver display as you pass between tall buildings.",
+      "image": "assets/step-baseline.svg",
+      "interference": null
+    },
+    {
+      "summary": "Urban canyon drive — south sector and return",
+      "duration_seconds": 120,
+      "driver_instructions": "Continue the loop **south** and return to the start point. Maintain 30 km/h.\n\nOnce back at the start point, remain stationary for 15 seconds before signalling test completion.",
+      "image": "assets/step-baseline.svg",
+      "interference": null
+    }
+  ]
+}
