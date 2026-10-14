@@ -10,7 +10,7 @@
         "description": "dual card dual channel, one jammer per channel..."
     },
     "global_settings": {
-        "duration_s": 10.0
+        "duration_s": 300.0
     },
     "radio_settings": [
         {
