@@ -23,9 +23,10 @@ to, so put it in `broker_host` of the config:
 
 ## The test document
 
-`TEST_SETUP` names a TSD, and every step of the TSD names its rid by an absolute url. An
-absolute url only holds on the machine it was written for, which is why no tsd ships with
-the repository. Write one next to the rids it plays.
+`TEST_SETUP` names a TSD, and every step of the TSD names its rid by an absolute url,
+`file://` or `http://`. An absolute url only holds on the machine it was written for, so
+the tsds under `assets/tsd` work on the stage machine only. Elsewhere write one next to the
+rids it plays.
 
 A step has to be at least as long as the rid it plays, and
 `test-rid-sisi-stage-1.json` is ten seconds long.
@@ -63,7 +64,8 @@ cd build-sidekiq
 ~~~
 
 `sisi-stage-mock.json` sets `mock_radios`, so nothing is transmitted and no hardware is
-needed, and every radio of a rid is reported with a warning. `sisi-stage-live.json` is the same configuration driving the radios.
+needed, and every radio of a rid is reported with a warning. `sisi-stage-live.json` is the
+same configuration driving the radios.
 
 ## Commander commands
 
@@ -81,8 +83,8 @@ sends arrive in its own output. [mqtt-protocol.md](mqtt-protocol.md) has the mes
 
 ## What happens to a test
 
-The command is answered at once, with a reason on the error topic if it is refused. An
-accepted test is recorded into `recording_directory` as soon as there is room in the
+The command is answered at once, with a reason on the error topic if it is refused. The
+warnings of the checks only go to the server log. An accepted test is recorded into `recording_directory` as soon as there is room in the
 queue, and the pipeline starts `start_ahead_s` before the start time with its output held
 back until the exact moment.
 

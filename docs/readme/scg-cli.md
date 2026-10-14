@@ -32,9 +32,9 @@ scg.exe -s ..\assets\scenario\test-3.json
 Streaming asks the machine to generate in real time, recording does not, so a scenario
 too heavy to stream can still be recorded and played back.
 
-A recording is the duration times the sample rate, so it grows quickly: the rids under
-`assets/rid` are ten seconds at 1.92 megasamples a second, which is three hundred
-megabytes.
+A recording is the duration times the sample rate, so it grows quickly: the sisi rids
+under `assets/rid` run at 1.92 megasamples a second, and ten seconds of two channels is
+three hundred megabytes.
 
 `scglint scenario <path>` parses and validates a scenario without running anything.
 

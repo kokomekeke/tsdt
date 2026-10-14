@@ -11,8 +11,12 @@ name. `meson configure <build dir>` lists the current value of every one of them
 | `build_scgserver` | true | build `scgserver` and `scgcommander` |
 | `build_scg_lint` | true | build `scglint`, the hardware free json validator |
 | `build_mqtt_examples` | true | build `mqtt_publisher` and `mqtt_subscriber` |
-| `have_ssp` | true | build with the ssp gnss engine. Without it a rid with a gnss spoofer is refused unless `mock_gnss` is set in the config |
+| `have_ssp` | true | build with the ssp gnss engine. Without it a rid with a gnss spoofer is refused unless `mock_gnss` is set in the config, and `scg` asserts on a `GnssSpoofing` signal |
 | `devenv_paths` | empty | directories `meson devenv` puts on `PATH`, which is how the dlls are found on windows |
+
+With `have_ssp` the engine is fetched by `subprojects/SSP.wrap` from the internal git
+server when the build is set up. It spreads its work over threads with OpenMP when the
+compiler has it, and runs single threaded otherwise.
 
 ## SSG, the pipeline subproject
 
