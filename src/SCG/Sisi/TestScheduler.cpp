@@ -36,7 +36,7 @@ namespace Sagax::SCG {
             return {};
         }
 
-        // test.json holds the setup command and the status while the test is not over,
+        // test.json holds the setup command and the last status of the test,
         // rid.json the merged rid the test plays, tsd.json the tsd the command named and
         // rid_000.json the rid of every step that named one
         constexpr const char *testFileName = "test.json";
@@ -132,6 +132,28 @@ namespace Sagax::SCG {
             return {};
         }
 
+        void WriteSavedTest(const std::filesystem::path &directory, const SavedTest &saved) {
+            try {
+                Json::JsonIssues issues;
+                std::optional<std::string> json = SerializeSavedTest(saved, issues);
+                if(!json.has_value()) {
+                    Common::Logger::Warn(
+                        "could not save the state of test \"{}\":\n{}", saved.command.testId, issues.Format()
+                    );
+                    return;
+                }
+                WriteTextFile(directory / testFileName, json.value());
+            }
+            catch(const std::exception &e) {
+                Common::Logger::Warn("could not save the state of test \"{}\": {}", saved.command.testId, e.what());
+            }
+        }
+
+        bool IsOver(TestStatusMessage::TestStatus status) {
+            return status == TestStatusMessage::TestStatus::TEST_COMPLETED
+                || status == TestStatusMessage::TestStatus::TEST_FAILED;
+        }
+
     }
 
     static TestStatusMessage::TestStatus ReportedStatus(ScheduledTest::State state) {
@@ -145,6 +167,19 @@ namespace Sagax::SCG {
         }
         Common::Assert(false, "unhandled test state");
         return TestStatusMessage::TestStatus::TEST_FAILED;
+    }
+
+    static const char *StateName(ScheduledTest::State state) {
+        switch(state) {
+            case ScheduledTest::State::pending:   return "pending";
+            case ScheduledTest::State::preparing: return "preparing";
+            case ScheduledTest::State::ready:     return "ready";
+            case ScheduledTest::State::playing:   return "playing";
+            case ScheduledTest::State::done:      return "done";
+            case ScheduledTest::State::failed:    return "failed";
+        }
+        Common::Assert(false, "unhandled test state");
+        return "";
     }
 
     static void RemoveDirectory(const ScheduledTest &test) {
@@ -175,34 +210,22 @@ namespace Sagax::SCG {
         test.state = state;
         PublishStatus(test);
         SaveState(test);
+        LogTests();
     }
 
-    // the test.json of a test that is over is removed
-    void TestScheduler::SaveState(const ScheduledTest &test) {
-        auto path = std::filesystem::path(test.directory) / testFileName;
-        if(test.state == ScheduledTest::State::done || test.state == ScheduledTest::State::failed) {
-            std::error_code ec;
-            std::filesystem::remove(path, ec);
-            return;
+    void TestScheduler::LogTests() {
+        std::string text = std::format("scheduled tests: {}", tests.size());
+        for(auto &t : tests) {
+            text += std::format("\n  {} {} {}", t->testId, FormatIsoTime(t->time), StateName(t->state));
         }
-        try {
-            SavedTest saved;
-            saved.command = test.command;
-            saved.status = ReportedStatus(test.state);
+        Common::Logger::Info("{}", text);
+    }
 
-            Json::JsonIssues issues;
-            std::optional<std::string> json = SerializeSavedTest(saved, issues);
-            if(!json.has_value()) {
-                Common::Logger::Warn(
-                    "could not save the state of test \"{}\":\n{}", test.testId, issues.Format()
-                );
-                return;
-            }
-            WriteTextFile(path, json.value());
-        }
-        catch(const std::exception &e) {
-            Common::Logger::Warn("could not save the state of test \"{}\": {}", test.testId, e.what());
-        }
+    void TestScheduler::SaveState(const ScheduledTest &test) {
+        SavedTest saved;
+        saved.command = test.command;
+        saved.status = ReportedStatus(test.state);
+        WriteSavedTest(test.directory, saved);
     }
 
     // tsd.json and the rid of every step are a record of what the test was built from,
@@ -370,6 +393,7 @@ namespace Sagax::SCG {
         PublishStatus(*test);
         tests.push_back(std::move(test));
         Common::Logger::Info("test scheduled: {}", command.testId);
+        LogTests();
         return {};
     }
 
@@ -381,15 +405,16 @@ namespace Sagax::SCG {
             return std::format("unknown test id: \"{}\"", testId);
         }
         Common::Assert(running != it->get(), "a running test cannot be cancelled");
-        RemoveDirectory(**it);
         SetState(**it, ScheduledTest::State::failed);
+        RemoveDirectory(**it);
         tests.erase(it);
         Common::Logger::Info("test cancelled: {}", testId);
+        LogTests();
         return {};
     }
 
-    // in the order they start. a test that cannot be restored is failed and its test.json
-    // is removed
+    // in the order they start. a test that is over is skipped, a test that cannot be
+    // restored is failed
     void TestScheduler::Restore() {
         std::filesystem::path root = std::filesystem::absolute(config.recordingDir);
         std::error_code ec;
@@ -411,14 +436,19 @@ namespace Sagax::SCG {
             Found f;
             f.directory = entry.path();
             CommandError error = ReadSavedTest(f.directory, f.saved);
-            if(error.empty()) {
-                error = ParseStartTime(f.saved.command.startTime, f.time);
+            if(!error.empty()) {
+                DropSavedTest(f.directory, error);
+                continue;
             }
+            if(IsOver(f.saved.status)) {
+                continue;
+            }
+            error = ParseStartTime(f.saved.command.startTime, f.time);
             if(error.empty() && f.time <= now) {
                 error = "it missed its starting time while the server was down";
             }
             if(!error.empty()) {
-                DropSavedTest(f.directory, error);
+                FailSavedTest(f.directory, f.saved, error);
                 continue;
             }
             found.push_back(std::move(f));
@@ -430,7 +460,7 @@ namespace Sagax::SCG {
         for(auto &f : found) {
             CommandError error = RestoreTest(f.directory, f.saved);
             if(!error.empty()) {
-                DropSavedTest(f.directory, error);
+                FailSavedTest(f.directory, f.saved, error);
             }
         }
     }
@@ -448,7 +478,7 @@ namespace Sagax::SCG {
                 state = ScheduledTest::State::ready;
                 break;
             default:
-                return "it is already over";
+                Common::Assert(false, "a test that is over is not restored");
         }
 
         std::chrono::system_clock::time_point time;
@@ -465,6 +495,7 @@ namespace Sagax::SCG {
         PublishStatus(*test);
         Common::Logger::Info("test restored: {}", test->testId);
         tests.push_back(std::move(test));
+        LogTests();
         return {};
     }
 
@@ -473,8 +504,12 @@ namespace Sagax::SCG {
         std::string testId = directory.filename().string();
         onError(std::format("could not restore test \"{}\": {}", testId, error));
         onStatus(testId, TestStatusMessage::TestStatus::TEST_FAILED);
-        std::error_code ec;
-        std::filesystem::remove(directory / testFileName, ec);
+    }
+
+    void TestScheduler::FailSavedTest(const std::filesystem::path &directory, SavedTest saved, const std::string &error) {
+        DropSavedTest(directory, error);
+        saved.status = TestStatusMessage::TestStatus::TEST_FAILED;
+        WriteSavedTest(directory, saved);
     }
 
     // the playback starts start_ahead early, the sink holds the output until the exact time
@@ -548,10 +583,13 @@ namespace Sagax::SCG {
     }
 
     void TestScheduler::EraseFinished() {
-        std::erase_if(tests, [](const std::unique_ptr<ScheduledTest> &t) {
+        auto erased = std::erase_if(tests, [](const std::unique_ptr<ScheduledTest> &t) {
             return t->state == ScheduledTest::State::done
                 || t->state == ScheduledTest::State::failed;
         });
+        if(erased > 0) {
+            LogTests();
+        }
     }
 
     void TestScheduler::Prepare(const ScheduledTest &test, std::stop_token stop) {

@@ -108,15 +108,17 @@ def test_a_stopped_test_is_reported_as_failed(server, tmp_path):
 
 
 def test_a_stopped_test_keeps_its_directory(server, tmp_path):
-    """the documents it was built from stay, only test.json goes, because it is over"""
+    """the documents it was built from stay, test.json holds the failed status"""
     instance = playing(server, tmp_path)
     instance.int_stop()
     assert instance.wait_for_log("playback stopped: running"), instance.log
 
     directory = tmp_path / "recordings" / "running"
     assert sorted(p.name for p in directory.iterdir()) == [
-        "rid.json", "rid_000.json", "scenario.json", "tsd.json",
+        "rid.json", "rid_000.json", "scenario.json", "test.json", "tsd.json",
     ]
+    content = json.loads((directory / "test.json").read_text(encoding="utf-8"))
+    assert content["status"] == "TEST_FAILED"
 
 
 def test_the_signal_status_goes_back_to_none(server, tmp_path):

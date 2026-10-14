@@ -71,6 +71,8 @@ namespace Sagax::SCG {
 
         CommandError RestoreTest(const std::filesystem::path &directory, const SavedTest &saved);
         void DropSavedTest(const std::filesystem::path &directory, const std::string &error);
+        void FailSavedTest(const std::filesystem::path &directory, SavedTest saved, const std::string &error);
+        void LogTests();
 
     public:
         std::function<void(const std::string &testId, TestStatusMessage::TestStatus status)> onStatus;

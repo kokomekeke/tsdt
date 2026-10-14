@@ -1,10 +1,13 @@
-"""the tests that are not over are saved and restored when the server starts again
+"""every test is saved with its last status, the ones that are not over are restored
+when the server starts again
 
 a second server started in the same directory stands in for the restart
 """
 
 import json
 import time
+
+import pytest
 
 from helpers.rid import write_gnss_rid
 from helpers.server import utc_string
@@ -18,7 +21,7 @@ def with_ephemeris(config):
 
 
 def write_saved(tmp_path, test_id, rid, seconds_ahead, status="TEST_INIT", saved_id=None):
-    """the files the server leaves for a test that is not over, written by hand
+    """the files the server leaves for a test, written by hand
 
     only these two are read back. the server also leaves the tsd and the rid of every
     step beside them, as a record of what the test was built from, and the url in the
@@ -132,17 +135,41 @@ def test_a_test_missed_while_the_server_was_down_fails(server, broker, tmp_path,
     assert "missed its starting time" in message, message
     assert '"missed"' in message, message
     assert wait_until(lambda: statuses(second, mark, "missed") == ["TEST_FAILED"])
-    assert not (tmp_path / "recordings" / "missed" / "test.json").exists()
+    assert saved(tmp_path, "missed")["status"] == "TEST_FAILED"
 
 
-def test_a_finished_test_is_not_saved(server, tmp_path, tsd_path):
+def test_a_finished_test_is_saved_as_completed(server, tmp_path, tsd_path):
     first = server(start_ahead_s=2.0)
     first.setup(tsd_path.as_uri(), test_id="finished", seconds_ahead=5)
     assert first.wait_for_log("playback finished: finished", timeout=30.0), first.log
 
-    directory = tmp_path / "recordings" / "finished"
-    assert wait_until(lambda: not (directory / "test.json").exists())
-    assert (directory / "rid.json").is_file()
+    assert wait_until(lambda: saved(tmp_path, "finished")["status"] == "TEST_COMPLETED")
+    assert (tmp_path / "recordings" / "finished" / "rid.json").is_file()
+
+
+@pytest.mark.parametrize("status", ["TEST_COMPLETED", "TEST_FAILED"])
+def test_a_test_that_is_over_is_not_restored(server, broker, tmp_path, rid_path, status):
+    write_saved(tmp_path, "over", rid_path, seconds_ahead=600, status=status)
+
+    mark = broker.mark()
+    restarted = server()
+    assert restarted.wait_for_log("server running"), restarted.log
+    restarted.expect_no_error(mark)
+    assert statuses(restarted, mark, "over") == []
+    assert "test restored" not in restarted.log
+    assert saved(tmp_path, "over")["status"] == status
+
+
+def test_a_directory_without_test_json_is_skipped(server, broker, tmp_path, rid_path):
+    directory = write_saved(tmp_path, "plain", rid_path, seconds_ahead=600)
+    (directory / "test.json").unlink()
+
+    mark = broker.mark()
+    restarted = server()
+    assert restarted.wait_for_log("server running"), restarted.log
+    restarted.expect_no_error(mark)
+    assert statuses(restarted, mark, "plain") == []
+    assert "test restored" not in restarted.log
 
 
 def test_an_unreadable_saved_test_is_dropped(server, broker, tmp_path):
@@ -155,7 +182,7 @@ def test_an_unreadable_saved_test_is_dropped(server, broker, tmp_path):
     message, _ = second.expect_error(mark)
     assert '"broken"' in message, message
     assert wait_until(lambda: statuses(second, mark, "broken") == ["TEST_FAILED"])
-    assert not (directory / "test.json").exists()
+    assert (directory / "test.json").read_text(encoding="utf-8") == "not json"
 
 
 def test_a_running_test_is_played_again(server, broker, tmp_path, rid_path):
@@ -182,8 +209,8 @@ def test_the_later_of_two_overlapping_tests_is_dropped(server, broker, tmp_path,
     assert "overlaps test" in message and '"earlier"' in message, message
     assert wait_until(lambda: statuses(restarted, mark, "later") == ["TEST_FAILED"])
     assert statuses(restarted, mark, "earlier") == ["TEST_READY"]
-    assert not (tmp_path / "recordings" / "later" / "test.json").exists()
-    assert (tmp_path / "recordings" / "earlier" / "test.json").exists()
+    assert saved(tmp_path, "later")["status"] == "TEST_FAILED"
+    assert saved(tmp_path, "earlier")["status"] == "TEST_READY"
 
 
 def test_a_test_that_can_no_longer_be_prepared_in_time_is_dropped(server, broker, tmp_path):
@@ -208,7 +235,7 @@ def test_a_test_the_new_config_rejects_is_dropped(server, broker, tmp_path):
     message, _ = restarted.expect_error(mark)
     assert '"spoofed"' in message and "gnss_ephemeris_file" in message, message
     assert wait_until(lambda: statuses(restarted, mark, "spoofed") == ["TEST_FAILED"])
-    assert not (tmp_path / "recordings" / "spoofed" / "test.json").exists()
+    assert saved(tmp_path, "spoofed")["status"] == "TEST_FAILED"
 
 
 def test_a_test_without_its_rid_is_dropped(server, broker, tmp_path, rid_path):
@@ -234,7 +261,7 @@ def test_a_test_in_the_wrong_directory_is_dropped(server, broker, tmp_path, rid_
 
 
 def test_the_state_is_saved_on_every_change(server, tmp_path):
-    """the status in test.json follows the test up to the playback, then the file goes away"""
+    """the status in test.json follows the test to its end"""
     rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S)
     tsd = wrap_rid(rid, duration_s=DURATION_S)
     sched = server(start_ahead_s=2.0, config_changes=with_ephemeris)
@@ -255,4 +282,4 @@ def test_the_state_is_saved_on_every_change(server, tmp_path):
     assert wait_until(status_changed, timeout=2.0), running
 
     assert sched.wait_for_log("playback finished: followed", timeout=30.0), sched.log
-    assert wait_until(lambda: not (tmp_path / "recordings" / "followed" / "test.json").exists())
+    assert wait_until(lambda: saved(tmp_path, "followed")["status"] == "TEST_COMPLETED")
