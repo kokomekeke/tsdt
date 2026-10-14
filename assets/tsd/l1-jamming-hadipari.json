@@ -1,0 +1,28 @@
+{
+  "name": "L1/L2 Jamming — Urban Route",
+  "description": "## L1/L2 Jamming — Urban Route\n\nTests GNSS receiver robustness against **CW, noise and chirp jammers** on GPS L1 (1575.42 MHz) and L2 (1227.60 MHz) during an urban drive.\n\nThe RSG first runs a single card with one jammer per channel, then escalates to both cards with overlapping jammers, and finally stops emitting to observe receiver recovery time.\n\n**Route:** City centre ring road, approx. 4 km loop (same as Baseline scenario).\n\n**Expected outcome:** Progressive degradation of fix quality, potential loss of 3D fix while the jammers overlap. Recovery within 30 s of jammer deactivation.",
+  "image": "assets/l1-jamming-urban-overview.svg",
+  "steps": [
+    {
+      "summary": "Baseline lock acquisition",
+      "duration_seconds": 10,
+      "driver_instructions": "**Park the vehicle** at the designated start point. Wait for a stable 3D fix before proceeding.\n\nVerify that the RSG is online and responsive on the `tm/sg` MQTT topic.",
+      "image": "assets/step-baseline.svg",
+      "interference": null
+    },
+    {
+      "summary": "Jammer activation — both cards, overlapping jamming + spoofing",
+      "duration_seconds": 300,
+      "driver_instructions": "Spoofing on 1575.42 MHz and jamming on 1.2276 MHz will be activated. **Remain stationary** at the end of the loop and monitor the receiver.\n\nRecord the time-to-first-fix (TTFF) after jamming starts. Test is complete once a stable 3D fix is re-acquired or 60 s have elapsed.",
+      "image": "assets/step-jamming.svg",
+      "interference": "FILE:///home/sagax/sgx/scg/assets/rid/test-rid-sisi-hadipari.json"
+    },
+    {
+      "summary": "Jammer deactivated — recovery monitoring",
+      "duration_seconds": 60,
+      "driver_instructions": "The RSG will deactivate all jamming. **Remain stationary** at the end of the loop and monitor the receiver.\n\nRecord the time-to-first-fix (TTFF) after jamming stops. Test is complete once a stable 3D fix is re-acquired or 60 s have elapsed.",
+      "image": "assets/step-recovery.svg",
+      "interference": null
+    }
+  ]
+}
