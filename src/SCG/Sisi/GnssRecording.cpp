@@ -102,8 +102,24 @@ namespace Sagax::SCG {
             IfGenParams params;
             params.time = ToIfGenTime(job.startTime);
 
-            params.waypoints.reserve(job.waypoints.size());
-            for(const auto &w : job.waypoints) {
+            // the engine counts time from the first waypoint and stops after the last one.
+            // the first is repeated at the start of the file and the last at its end, so the
+            // position holds at both ends and the file is generated for its whole length
+            Common::Assert(!job.waypoints.empty(), std::format("gnss recording {} has no waypoints", job.fileName));
+            std::vector<GnssRecordingJob::Waypoint> waypoints = job.waypoints;
+            if(waypoints.front().t > 0.0) {
+                GnssRecordingJob::Waypoint first = waypoints.front();
+                first.t = 0.0;
+                waypoints.insert(waypoints.begin(), first);
+            }
+            if(waypoints.back().t < job.duration_s) {
+                GnssRecordingJob::Waypoint last = waypoints.back();
+                last.t = job.duration_s;
+                waypoints.push_back(last);
+            }
+
+            params.waypoints.reserve(waypoints.size());
+            for(const auto &w : waypoints) {
                 IfGenWaypoint point;
                 point.latitudeDeg = w.latitude;
                 point.longitudeDeg = w.longitude;

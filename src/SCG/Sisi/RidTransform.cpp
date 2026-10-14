@@ -124,6 +124,11 @@ namespace Sagax::SCG {
                 res.errors.push_back(std::format("radioSettings[{}]: unknown radioId: {}", i, radioSetting.radioId.c_str()));
             }
 
+            if(cfg.mockRadios) {
+                res.warnings.push_back(std::format(
+                    "radioSettings[{}]: mock_radios is set, radio {} transmits nothing", i, radioSetting.radioId.c_str()));
+            }
+
             if(usedRadioSettings.count(radioSetting.radioId)) {
                 res.errors.push_back(std::format("radioSettings[{}]: duplicate radioId: {}", i, radioSetting.radioId.c_str()));
             }
@@ -230,8 +235,10 @@ namespace Sagax::SCG {
             else if(std::holds_alternative<Rid::InterferenceSource::Spoofing>(source.variant)) {
                 const auto &v = std::get<Rid::InterferenceSource::Spoofing>(source.variant);
 
-                res.warnings.push_back(std::format(
-                    "interferenceSources[{}]: gnss generation is not integrated yet, the spoofer is recorded as silence", i));
+                if(cfg.mockGnss) {
+                    res.warnings.push_back(std::format(
+                        "interferenceSources[{}]: mock_gnss is set, the spoofer is recorded as silence", i));
+                }
 
                 if(cfg.gnssEphemerisFile.empty()) {
                     res.errors.push_back(std::format(
@@ -285,11 +292,20 @@ namespace Sagax::SCG {
                     if(w.longitude < -180.0 || w.longitude > 180.0) {
                         res.errors.push_back(std::format("interferenceSources[{}]: trajectory[{}]: longitude out of range", i, iw));
                     }
+                    if(w.t < 0.0) {
+                        res.errors.push_back(std::format("interferenceSources[{}]: trajectory[{}]: time must be >= 0", i, iw));
+                    }
                     if(iw > 0 && w.t <= v.trajectory[iw - 1].t) {
                         res.errors.push_back(std::format("interferenceSources[{}]: trajectory[{}]: time does not advance", i, iw));
                     }
                 }
 
+                if(!v.trajectory.empty() && v.trajectory.front().t > 0.0) {
+                    res.warnings.push_back(std::format(
+                        "interferenceSources[{}]: the trajectory starts at {} s, "
+                        "the position holds at the first waypoint until then",
+                        i, v.trajectory.front().t));
+                }
                 double duration_s = source.endTime_s - source.startTime_s;
                 if(!v.trajectory.empty() && v.trajectory.back().t < duration_s) {
                     res.warnings.push_back(std::format(

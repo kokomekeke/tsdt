@@ -65,6 +65,7 @@ class LinuxPlatform(Platform):
     def meson_flags(self):
         return [
             "-Db_lto=true",
+            "-Dhave_ssp=true",
             "-DSSG:use_oneapi=true",
             "-DSSG:have_usrp=true",
             "-DSSG:build_tests=false",
@@ -89,6 +90,7 @@ class WindowsPlatform(Platform):
         vcpkg_dir = "S:/temp/3rdparty/scg_vcpkg_deps/vcpkg_installed/x64-windows"
         return [
             "-Db_vscrt=static_from_buildtype",
+            "-Dhave_ssp=true",
             "-DSSG:use_oneapi=true",
             "-DSSG:have_usrp=true",
             "-DSSG:build_tests=false",
@@ -121,6 +123,7 @@ class MacOSPlatform(Platform):
     def meson_flags(self):
         return [
             "-DSSG:use_oneapi=false",
+            "-Dhave_ssp=true",
             "-DSSG:build_tests=false",
         ]
     def executables(self):
