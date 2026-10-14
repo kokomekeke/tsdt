@@ -210,6 +210,11 @@ namespace Sagax::SCG {
             if(source.endTime_s < source.startTime_s) {
                 res.errors.push_back(std::format("interferenceSources[{}]: endTime_s must be >= startTime_s", i));
             }
+            if(source.endTime_s > rid.globalSettings.duration_s) {
+                res.errors.push_back(std::format(
+                    "interferenceSources[{}]: endTime_s {} is past globalSettings.duration_s {}",
+                    i, source.endTime_s, rid.globalSettings.duration_s));
+            }
             if(source.center_hz <= 0.0) {
                 res.errors.push_back(std::format("interferenceSources[{}]: center_hz must be positive", i));
             }
