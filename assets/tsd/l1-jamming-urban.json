@@ -22,7 +22,7 @@
       "duration_seconds": 120,
       "driver_instructions": "Continue driving. The RSG escalates to **both cards**: CW, noise and chirp jammers on L1 and L2, overlapping in time.\n\nRecord whether the receiver loses its 3D fix entirely. If the display goes blank, note the GPS time of fix loss.",
       "image": "assets/step-jamming.svg",
-      "interference": "FILE:///home/sagax/sgx/scg/assets/rid//test-rid-sisi-stage-2.json"
+      "interference": "FILE:///home/sagax/sgx/scg/assets/rid/test-rid-sisi-stage-1.json"
     },
     {
       "summary": "Jammer deactivated — recovery monitoring",
