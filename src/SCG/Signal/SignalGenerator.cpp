@@ -244,7 +244,7 @@ namespace Sagax::SCG {
         impl->resampler.Setup(impl->meta.sampleRate.value(), sampleRate);
         mod->Reset();
 
-        impl->worker.Setup((SSG::IO::SampleFileIn<SCGSampleBase>*)(&impl->file), SSG::IO::FilePlaybackMode::Infinite{}, 5, scgPacketSize, true);
+        impl->worker.Setup((SSG::IO::SampleFileIn<SCGSampleBase>*)(&impl->file), SSG::IO::FilePlaybackMode::Infinite{}, 5, scgPacketSize, false);
         impl->worker.Start();
     }
 
@@ -316,7 +316,7 @@ namespace Sagax::SCG {
         if(!loop) {
             mode = SSG::IO::FilePlaybackMode::File{};
         }
-        impl->worker.Setup((SSG::IO::SampleFileIn<SCGSample>*)(&impl->file), mode, 5, scgPacketSize, true);
+        impl->worker.Setup((SSG::IO::SampleFileIn<SCGSample>*)(&impl->file), mode, 5, scgPacketSize, false);
         impl->worker.Start();
     }
 
