@@ -2,11 +2,14 @@
 
 the suite sets mock_gnss, so a recording is silence of the right length and rate and
 the engine is never asked for anything. that is what makes the checks on the file
-cheap and what lets them run without an ephemeris
+cheap and what lets them run without an ephemeris. with prerecord_gnss off nothing is
+recorded, and a mocked spoofer plays as a Zero signal instead
 """
 
 import json
 import time
+
+import pytest
 
 from helpers.rid import write_gnss_rid
 from helpers.tsd import wrap_rid
@@ -18,6 +21,16 @@ DURATION_S = 0.5
 
 def with_ephemeris(config):
     config["gnss_ephemeris_file"] = "ephemeris/none.rnx"
+
+
+def live(config):
+    with_ephemeris(config)
+    config["prerecord_gnss"] = False
+
+
+def live_unmocked(config):
+    live(config)
+    config["mock_gnss"] = False
 
 
 def test_a_spoofer_is_recorded_into_the_directory_of_its_test(server, tmp_path):
@@ -53,6 +66,43 @@ def test_the_scenario_plays_the_recording_once(server, tmp_path):
     assert len(files) == 1, scenario["signals"]
     assert files[0]["loop"] is False
     assert files[0]["file"].replace("\\", "/").endswith("spoofed/gnss_0000.wav"), files[0]["file"]
+
+
+def test_a_live_mocked_spoofer_is_a_zero_signal(server, tmp_path):
+    rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S, bandwidth_hz=BANDWIDTH_HZ)
+    tsd = wrap_rid(rid, duration_s=DURATION_S)
+    sched = server(config_changes=live)
+    sched.setup(tsd.as_uri(), test_id="live", seconds_ahead=600)
+    assert sched.wait_for_log("preparation finished: live", timeout=30.0), sched.log
+
+    directory = tmp_path / "recordings" / "live"
+    assert sorted(p.name for p in directory.iterdir()) == [
+        "rid.json", "rid_000.json", "scenario.json", "test.json", "tsd.json",
+    ]
+    scenario = json.loads((directory / "scenario.json").read_text(encoding="utf-8"))
+    assert [s["type"] for s in scenario["signals"]] == ["Zero"], scenario["signals"]
+
+
+def test_a_live_spoofer_is_left_to_the_engine(build, server, tmp_path):
+    """only prepared, playing it would ask the engine for samples"""
+    rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S, bandwidth_hz=BANDWIDTH_HZ)
+    tsd = wrap_rid(rid, duration_s=DURATION_S)
+    sched = server(config_changes=live_unmocked)
+    sched.setup(tsd.as_uri(), test_id="live", seconds_ahead=600)
+    assert sched.wait_for_log("preparation finished: live", timeout=30.0), sched.log
+
+    directory = tmp_path / "recordings" / "live"
+    assert not (directory / "gnss_0000.wav").exists()
+    scenario = json.loads((directory / "scenario.json").read_text(encoding="utf-8"))
+    signals = scenario["signals"]
+    assert [s["type"] for s in signals] == ["GnssSpoofing"], signals
+    assert signals[0]["signal"] == "GPS_L1CA", signals
+    assert signals[0]["ephemerisFile"] == "ephemeris/none.rnx", signals
+    assert [w["t"] for w in signals[0]["trajectory"]] == [0.0, DURATION_S], signals
+
+    # the start time is written back in a form the parser reads
+    result = build.run("scglint", ["scenario", directory / "scenario.json"])
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_jammers_alone_leave_no_recording(server, tmp_path, tsd_path):
@@ -91,10 +141,11 @@ def test_a_spoofer_needs_an_ephemeris(server, tmp_path):
     assert "gnss_ephemeris_file" in message, message
 
 
-def test_a_spoofed_test_runs_through_every_status(server, tmp_path):
+@pytest.mark.parametrize("config_changes", [with_ephemeris, live], ids=["prerecorded", "live"])
+def test_a_spoofed_test_runs_through_every_status(server, tmp_path, config_changes):
     rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S, bandwidth_hz=BANDWIDTH_HZ)
     tsd = wrap_rid(rid, duration_s=DURATION_S)
-    sched = server(start_ahead_s=2.0, config_changes=with_ephemeris)
+    sched = server(start_ahead_s=2.0, config_changes=config_changes)
     mark = sched.setup(tsd.as_uri(), test_id="played", seconds_ahead=6)
     sched.expect_no_error(mark, timeout=2.0)
     assert sched.wait_for_log("playback finished: played", timeout=30.0), sched.log

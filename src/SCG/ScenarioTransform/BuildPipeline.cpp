@@ -188,7 +188,7 @@ namespace Sagax::SCG {
             src.generators.clear();
             for(auto &ie : line.events) {
                 auto &e = scen.events[ie];
-                auto [gen, rsc] = GetSignalGenerator(config, scen.scen.signals[e.iSignal].variant);
+                auto [gen, rsc] = GetSignalGenerator(config, scen.scen.signals[e.iSignal].variant, e.event);
                 gen->SetSampleRate(output.params.sampleRate);
                 src.generators.push_back(std::move(gen));
                 resources.insert(resources.end(), rsc.begin(), rsc.end());

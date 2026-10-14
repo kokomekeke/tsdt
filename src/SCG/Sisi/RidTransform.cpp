@@ -242,7 +242,7 @@ namespace Sagax::SCG {
 
                 if(cfg.mockGnss) {
                     res.warnings.push_back(std::format(
-                        "interferenceSources[{}]: mock_gnss is set, the spoofer is recorded as silence", i));
+                        "interferenceSources[{}]: mock_gnss is set, the spoofer is replaced by silence", i));
                 }
 
                 if(cfg.gnssEphemerisFile.empty()) {
@@ -269,13 +269,13 @@ namespace Sagax::SCG {
                         i));
                 }
 
-#ifdef HAVE_SSP
-                if(!GnssCenterIsSupported(v.constellation, source.center_hz)) {
+                if(!GnssSignalAt(v.constellation, source.center_hz).has_value()) {
                     res.errors.push_back(std::format(
                         "interferenceSources[{}]: no gnss signal is known at center_frequency_hz {}, {}",
                         i, source.center_hz, GnssSupportedCenters(v.constellation)));
                 }
-#else
+
+#ifndef HAVE_SSP
                 // the same shape as the rule for a radio this build cannot drive: the test
                 // can still be set up, as long as nothing has to be generated for it
                 if(!cfg.mockGnss) {
@@ -289,6 +289,9 @@ namespace Sagax::SCG {
                 if(v.trajectory.empty()) {
                     res.errors.push_back(std::format("interferenceSources[{}]: gnss spoofer without a trajectory", i));
                 }
+                else if(v.trajectory.front().t != 0.0) {
+                    res.errors.push_back(std::format("interferenceSources[{}]: the first waypoint has to be at t = 0", i));
+                }
                 for(std::size_t iw = 0; iw < v.trajectory.size(); ++iw) {
                     const auto &w = v.trajectory[iw];
                     if(w.latitude < -90.0 || w.latitude > 90.0) {
@@ -297,20 +300,11 @@ namespace Sagax::SCG {
                     if(w.longitude < -180.0 || w.longitude > 180.0) {
                         res.errors.push_back(std::format("interferenceSources[{}]: trajectory[{}]: longitude out of range", i, iw));
                     }
-                    if(w.t < 0.0) {
-                        res.errors.push_back(std::format("interferenceSources[{}]: trajectory[{}]: time must be >= 0", i, iw));
-                    }
                     if(iw > 0 && w.t <= v.trajectory[iw - 1].t) {
                         res.errors.push_back(std::format("interferenceSources[{}]: trajectory[{}]: time does not advance", i, iw));
                     }
                 }
 
-                if(!v.trajectory.empty() && v.trajectory.front().t > 0.0) {
-                    res.warnings.push_back(std::format(
-                        "interferenceSources[{}]: the trajectory starts at {} s, "
-                        "the position holds at the first waypoint until then",
-                        i, v.trajectory.front().t));
-                }
                 double duration_s = source.endTime_s - source.startTime_s;
                 if(!v.trajectory.empty() && v.trajectory.back().t < duration_s) {
                     res.warnings.push_back(std::format(
@@ -405,27 +399,40 @@ namespace Sagax::SCG {
             }
             else if(std::holds_alternative<Rid::InterferenceSource::Spoofing>(source.variant)) {
                 auto &v = std::get<Rid::InterferenceSource::Spoofing>(source.variant);
-                auto job = std::make_unique<GnssRecordingJob>();
-                job->constellation = v.constellation;
-                job->prnList = v.prnList;
-                job->waypoints = v.trajectory;
-                job->startTime = startTime + std::chrono::duration_cast<std::chrono::system_clock::duration>(
+                auto gnssSignal = GnssSignalAt(v.constellation, source.center_hz);
+                Common::Assert(gnssSignal.has_value(), "ValidateRid lets no unknown gnss center through");
+
+                SignalVariant::GnssSpoofing spoofing;
+                spoofing.signal = gnssSignal.value();
+                spoofing.startTime = startTime + std::chrono::duration_cast<std::chrono::system_clock::duration>(
                     std::chrono::duration<double>(source.startTime_s)
                 );
+                spoofing.ephemerisFile = cfg.gnssEphemerisFile;
+                for(const auto &w : v.trajectory) {
+                    spoofing.trajectory.push_back({ w.t, w.latitude, w.longitude, w.altitude });
+                }
 
-                job->center_hz = source.center_hz;
-                job->sampleRate_hz = radioRates[source.radioId];
-                job->duration_s = source.endTime_s - source.startTime_s;
-                job->ephemerisFile = cfg.gnssEphemerisFile;
-                job->mock = cfg.mockGnss;
-                job->fileName = (std::filesystem::path(directory) / std::format("gnss_{:04}.wav", i)).string();
+                if(cfg.prerecordGnss) {
+                    auto job = std::make_unique<GnssRecordingJob>();
+                    job->spoofing = spoofing;
+                    job->sampleRate_hz = radioRates[source.radioId];
+                    job->duration_s = source.endTime_s - source.startTime_s;
+                    job->mock = cfg.mockGnss;
+                    job->fileName = (std::filesystem::path(directory) / std::format("gnss_{:04}.wav", i)).string();
 
-                SignalVariant::IQFile signalV;
-                signalV.fileName = job->fileName;
-                signalV.loop = false;
-                signal.variant.variant = signalV;
+                    SignalVariant::IQFile signalV;
+                    signalV.fileName = job->fileName;
+                    signalV.loop = false;
+                    signal.variant.variant = signalV;
 
-                jobs.push_back(std::move(job));
+                    jobs.push_back(std::move(job));
+                }
+                else if(cfg.mockGnss) {
+                    signal.variant.variant = SignalVariant::Zero{};
+                }
+                else {
+                    signal.variant.variant = spoofing;
+                }
             }
             else {
                 Common::Assert(false, "unknown interference source type");

@@ -24,9 +24,11 @@ namespace Sagax::SCG {
         std::unique_ptr<SignalGenerator>,
         std::vector<Resource*>
     >
+    // the generator plays v for event
     GetSignalGenerator(
         const PipelineConfig &config,
-        const SignalVariant &v
+        const SignalVariant &v,
+        const Scenario::Event &event
     );
 
 }

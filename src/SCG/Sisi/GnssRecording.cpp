@@ -1,30 +1,21 @@
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <format>
 #include <string>
-#include <vector>
-#ifdef HAVE_SSP
-#include "gnss/IfGenEngine.h"
-#endif
 #include "Common/Assert.hpp"
 #include "Common/Logger.hpp"
 #include "SSG/IO/IQFileOut.hpp"
 #include "SCG/Modules/Packets.hpp"
+#include "SCG/Signal/Gnss.hpp"
 #include "GnssRecording.hpp"
 
 namespace Sagax::SCG {
 
-#ifdef HAVE_SSP
-
     namespace {
 
         using Constellation = Rid::InterferenceSource::Spoofing::Constellation;
+        using Signal = SignalVariant::GnssSpoofing::Signal;
 
-        // the engine is told which signal to generate, not which band, so a center has to
-        // name one. the numbers are the FREQ_ defines of the engine's ConstVal.h, in the
-        // pairing its own SignalCenterFreq table uses
-        //
         // where two signals of one system share a center the older one is taken: L1CA
         // rather than L1C, L2C rather than the encrypted L2P, B2I rather than B2b. two of
         // the engine's signals are left out, GLO_G3 because its validator refuses it in
@@ -32,32 +23,30 @@ namespace Sagax::SCG {
         // select with it
         struct Band {
             Constellation constellation;
-            double center_hz;
-            IfGenSignal signal;
-            IfGenSystem system;
+            Signal signal;
         };
 
         constexpr Band bands[] = {
-            { Constellation::gps, 1575420000.0, IfGenSignal::GPS_L1CA, IfGenSystem::GPS },
-            { Constellation::gps, 1227600000.0, IfGenSignal::GPS_L2C, IfGenSystem::GPS },
-            { Constellation::gps, 1176450000.0, IfGenSignal::GPS_L5, IfGenSystem::GPS },
+            { Constellation::gps, Signal::gpsL1ca },
+            { Constellation::gps, Signal::gpsL2c },
+            { Constellation::gps, Signal::gpsL5 },
 
-            { Constellation::galileo, 1575420000.0, IfGenSignal::GAL_E1, IfGenSystem::Galileo },
-            { Constellation::galileo, 1278750000.0, IfGenSignal::GAL_E6, IfGenSystem::Galileo },
-            { Constellation::galileo, 1207140000.0, IfGenSignal::GAL_E5b, IfGenSystem::Galileo },
-            { Constellation::galileo, 1191795000.0, IfGenSignal::GAL_E5, IfGenSystem::Galileo },
-            { Constellation::galileo, 1176450000.0, IfGenSignal::GAL_E5a, IfGenSystem::Galileo },
+            { Constellation::galileo, Signal::galE1 },
+            { Constellation::galileo, Signal::galE6 },
+            { Constellation::galileo, Signal::galE5b },
+            { Constellation::galileo, Signal::galE5 },
+            { Constellation::galileo, Signal::galE5a },
 
-            { Constellation::beidou, 1575420000.0, IfGenSignal::BDS_B1C, IfGenSystem::BDS },
-            { Constellation::beidou, 1561098000.0, IfGenSignal::BDS_B1I, IfGenSystem::BDS },
-            { Constellation::beidou, 1268520000.0, IfGenSignal::BDS_B3I, IfGenSystem::BDS },
-            { Constellation::beidou, 1207140000.0, IfGenSignal::BDS_B2I, IfGenSystem::BDS },
-            { Constellation::beidou, 1176450000.0, IfGenSignal::BDS_B2a, IfGenSystem::BDS },
+            { Constellation::beidou, Signal::bdsB1c },
+            { Constellation::beidou, Signal::bdsB1i },
+            { Constellation::beidou, Signal::bdsB3i },
+            { Constellation::beidou, Signal::bdsB2i },
+            { Constellation::beidou, Signal::bdsB2a },
 
-            // glonass is fdma, these are the band centers and the satellites sit at
-            // offsets from them, so a narrow bandwidth holds only a few of the channels
-            { Constellation::glonass, 1602000000.0, IfGenSignal::GLO_G1, IfGenSystem::GLONASS },
-            { Constellation::glonass, 1246000000.0, IfGenSignal::GLO_G2, IfGenSystem::GLONASS },
+            // glonass is fdma, the satellites sit at offsets from these centers, so a
+            // narrow bandwidth holds only a few of the channels
+            { Constellation::glonass, Signal::gloG1 },
+            { Constellation::glonass, Signal::gloG2 },
         };
 
         const char *NameOf(Constellation constellation) {
@@ -70,79 +59,16 @@ namespace Sagax::SCG {
             return "unknown";
         }
 
-        // the centers in a rid are the nominal ones, so a whole hz is close enough
-        const Band *FindBand(Constellation constellation, double center_hz) {
-            for(const auto &band : bands) {
-                if(band.constellation == constellation && std::abs(band.center_hz - center_hz) < 1.0) {
-                    return &band;
-                }
-            }
-            return nullptr;
-        }
-
-        IfGenTime ToIfGenTime(std::chrono::system_clock::time_point t) {
-            auto seconds = std::chrono::floor<std::chrono::seconds>(t);
-            auto days = std::chrono::floor<std::chrono::days>(seconds);
-            std::chrono::year_month_day date{days};
-            std::chrono::hh_mm_ss<std::chrono::seconds> timeOfDay{seconds - days};
-
-            IfGenTime out;
-            out.year = int(date.year());
-            out.month = int(unsigned(date.month()));
-            out.day = int(unsigned(date.day()));
-            out.hour = int(timeOfDay.hours().count());
-            out.minute = int(timeOfDay.minutes().count());
-            // the floor above dropped the fraction of a second, it is put back here
-            out.second = double(timeOfDay.seconds().count())
-                + std::chrono::duration<double>(t - seconds).count();
-            return out;
-        }
-
-        IfGenParams BuildParams(const GnssRecordingJob &job, const Band &band) {
-            IfGenParams params;
-            params.time = ToIfGenTime(job.startTime);
-
-            // the engine counts time from the first waypoint and stops after the last one.
-            // the first is repeated at the start of the file and the last at its end, so the
-            // position holds at both ends and the file is generated for its whole length
-            Common::Assert(!job.waypoints.empty(), std::format("gnss recording {} has no waypoints", job.fileName));
-            std::vector<GnssRecordingJob::Waypoint> waypoints = job.waypoints;
-            if(waypoints.front().t > 0.0) {
-                GnssRecordingJob::Waypoint first = waypoints.front();
-                first.t = 0.0;
-                waypoints.insert(waypoints.begin(), first);
-            }
-            if(waypoints.back().t < job.duration_s) {
-                GnssRecordingJob::Waypoint last = waypoints.back();
-                last.t = job.duration_s;
-                waypoints.push_back(last);
-            }
-
-            params.waypoints.reserve(waypoints.size());
-            for(const auto &w : waypoints) {
-                IfGenWaypoint point;
-                point.latitudeDeg = w.latitude;
-                point.longitudeDeg = w.longitude;
-                point.altitudeM = w.altitude;
-                point.timeS = w.t;
-                params.waypoints.push_back(point);
-            }
-            // a trajectory is a list of places and times, not a curve drawn through them
-            params.waypointInterp = IfGenWaypointInterp::Linear;
-
-            params.ephemerisFile = job.ephemerisFile;
-            params.signals = { { band.signal, band.system, true } };
-            params.output.sampleRateHz = job.sampleRate_hz;
-            params.output.centerFreqHz = job.center_hz;
-            // the samples are pulled with Read, the engine writes nothing itself
-            params.writeBin = false;
-            return params;
-        }
-
     }
 
-    bool GnssCenterIsSupported(Constellation constellation, double center_hz) {
-        return FindBand(constellation, center_hz) != nullptr;
+    // the centers in a rid are the nominal ones, so a whole hz is close enough
+    std::optional<Signal> GnssSignalAt(Constellation constellation, double center_hz) {
+        for(const auto &band : bands) {
+            if(band.constellation == constellation && std::abs(GnssSignalCenter(band.signal) - center_hz) < 1.0) {
+                return band.signal;
+            }
+        }
+        return std::nullopt;
     }
 
     // written out of the table, so a center added there needs no second edit
@@ -153,13 +79,11 @@ namespace Sagax::SCG {
             if(band.constellation != constellation) {
                 continue;
             }
-            out += std::format("{}{}", separator, band.center_hz);
+            out += std::format("{}{}", separator, GnssSignalCenter(band.signal));
             separator = ", ";
         }
         return out;
     }
-
-#endif
 
     std::string GnssRecordingJob::Describe() const {
         return std::format("gnss recording {}", fileName);
@@ -173,52 +97,24 @@ namespace Sagax::SCG {
     }
 
     void GnssRecordingJob::Run(std::stop_token stop) {
-        // a recording that reads nothing stays silent through the pad in the loop below.
-        // it is still the length and the rate the scenario expects, which is what lets a
-        // test be prepared and played with no engine and no ephemeris
-        bool silent = mock;
-
-#ifdef HAVE_SSP
-        IfGenEngine engine;
+        // a mocked recording reads nothing and stays silent through the pad in the loop
+        // below. it is still the length and the rate the scenario expects, which is what
+        // lets a test be prepared and played with no engine and no ephemeris
+        GnssEngine engine;
         if(mock) {
             Common::Logger::Info("gnss recording {} is mocked, the file will be silence", fileName);
         }
         else {
-            const Band *band = FindBand(constellation, center_hz);
-            Common::Assert(band != nullptr, std::format(
-                "no gnss signal is known at {} hz, {}",
-                center_hz, GnssSupportedCenters(constellation)));
-
-            IfGenParams params = BuildParams(*this, *band);
-            std::vector<std::string> paramErrors;
-            if(!ValidateIfGenParams(params, paramErrors)) {
-                Common::Assert(false, std::format(
-                    "the gnss engine refused the parameters of {}: {}",
-                    fileName, paramErrors.empty() ? std::string("no reason given") : paramErrors.front()));
-            }
-
-            // building the sky reads the ephemeris and places every satellite, which is
-            // the one slow step that is not per sample
-            engine.Init(params);
-            Common::Assert(engine.IsOpen(), std::format("the gnss engine did not open for {}", fileName));
-            Common::Logger::Info(
-                "gnss engine ready for {}, {} samples per block",
-                fileName, engine.Info().samplesPerBlock
-            );
+            Common::Logger::Info("opening the gnss engine for {}", fileName);
+            engine.Open(spoofing, sampleRate_hz, duration_s, 0);
         }
-#else
-        // ValidateRid refuses a spoofer that is not mocked in a build without the engine,
-        // so reaching this with mock unset means a test got past it somehow
-        silent = true;
-        Common::Logger::Warn("gnss recording {} is silence, this build has no gnss engine", fileName);
-#endif
 
         SSG::IO::IQFileOut<SCGSampleBase> file;
 
         SCGIQPacket packet;
         packet.Reshape(sampleRate_hz, 1, 0, true);
         auto &m = packet.meta.AddEntry<SSG::Packets::MFrequency>();
-        m.frequency = center_hz;
+        m.frequency = GnssSignalCenter(spoofing.signal);
         file.Open(fileName, packet);
         Common::Assert(file.IsOpen(), std::format("could not open {}", fileName));
 
@@ -229,30 +125,22 @@ namespace Sagax::SCG {
             packet.meta.Clear();
             packet.Reshape(sampleRate_hz, 1, n, false);
 
-            // a read shorter than it was asked for is the trajectory running out. the file
+            // a read shorter than it was asked for is the end of the signal. the file
             // keeps the length the scenario expects, so the rest of it is silence
             std::size_t nRead = 0;
-#ifdef HAVE_SSP
-            if(!silent) {
+            if(!mock) {
                 nRead = engine.Read(packet.data.data(), n);
             }
-#endif
-            if(nRead < n) {
-                std::fill(
-                    packet.data.begin() + std::ptrdiff_t(nRead),
-                    packet.data.end(),
-                    SCGSample{ 0.0f, 0.0f }
-                );
-            }
+            std::fill(
+                packet.data.begin() + std::ptrdiff_t(nRead),
+                packet.data.end(),
+                SCGSample{ 0.0f, 0.0f }
+            );
 
             file.WritePacket(packet);
             nWritten += n;
         }
-#ifdef HAVE_SSP
-        if(!silent) {
-            engine.Close();
-        }
-#endif
+        engine.Close();
 
         bool failed = file.HasError();
         file.Close();

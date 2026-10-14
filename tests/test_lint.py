@@ -375,27 +375,18 @@ def test_mocked_radios_and_gnss_are_reported(build, tmp_path):
     code, output = lint(build, ["rid", gnss_config(tmp_path), path.as_uri()])
     assert code == EXIT_OK, output
     assert "mock_radios is set, radio r0 transmits nothing" in output, output
-    assert "mock_gnss is set, the spoofer is recorded as silence" in output, output
+    assert "mock_gnss is set, the spoofer is replaced by silence" in output, output
 
 
-def test_a_trajectory_starting_late_is_held_at_its_first_waypoint(build, tmp_path):
+@pytest.mark.parametrize("t", [0.2, -0.5], ids=["late", "negative"])
+def test_a_trajectory_not_starting_at_zero_is_reported(build, tmp_path, t):
     def change(rid):
-        rid["interference_sources"][0]["parameters"]["trajectory"][0]["t"] = 0.2
+        rid["interference_sources"][0]["parameters"]["trajectory"][0]["t"] = t
 
-    path = write_gnss(tmp_path, "late-start.json", change)
-    code, output = lint(build, ["rid", gnss_config(tmp_path), path.as_uri()])
-    assert code == EXIT_OK, output
-    assert "the position holds at the first waypoint" in output, output
-
-
-def test_a_trajectory_with_a_negative_time_is_reported(build, tmp_path):
-    def change(rid):
-        rid["interference_sources"][0]["parameters"]["trajectory"][0]["t"] = -0.5
-
-    path = write_gnss(tmp_path, "negative-time.json", change)
+    path = write_gnss(tmp_path, "first-waypoint.json", change)
     code, output = lint(build, ["rid", gnss_config(tmp_path), path.as_uri()])
     assert code == EXIT_INVALID, output
-    assert "trajectory[0]: time must be >= 0" in output, output
+    assert "the first waypoint has to be at t = 0" in output, output
 
 
 def test_a_spoofer_without_an_ephemeris_is_reported(build, tmp_path):

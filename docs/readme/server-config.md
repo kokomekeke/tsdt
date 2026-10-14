@@ -15,7 +15,8 @@ these files.
 | `start_ahead_s` | yes | how early the pipeline starts, its output held back until the exact time |
 | `scenario_fetch_timeout_s` | no, 2.0 | the whole exchange with the machine a tsd or rid is read from |
 | `gnss_ephemeris_file` | no, empty | rinex navigation file, needed by any rid with a gnss spoofer |
-| `mock_gnss` | no, false | a gnss spoofer is recorded as silence instead of being generated |
+| `mock_gnss` | no, false | a gnss spoofer is replaced by silence instead of being generated |
+| `prerecord_gnss` | no, true | a gnss spoofer is recorded while the test is prepared. When false the engine generates it while the test plays, with one thread |
 | `radios` | yes | the radios this machine has, see below |
 | `mqtt` | yes | broker and topics, see below |
 

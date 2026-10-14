@@ -361,5 +361,58 @@ namespace Sagax::SCG {
     }
 
 
+
+
+    void ZeroGenerator::Start() {
+    }
+
+    void ZeroGenerator::Stop() {
+    }
+
+    void ZeroGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
+        packet.Reshape(sampleRate, 1, nSamplesMax, false);
+        packet.meta.Clear();
+        for(auto &s : packet.data) {
+            s = { SCGSampleBase(0.0), SCGSampleBase(0.0) };
+        }
+    }
+
+    void ZeroGenerator::SetSampleRate(double sampleRate_) {
+        sampleRate = sampleRate_;
+    }
+
+
+
+
+    void GnssSpoofingGenerator::Setup(const SignalVariant::GnssSpoofing &spoofing_, double duration_s_) {
+        spoofing = spoofing_;
+        duration_s = duration_s_;
+    }
+
+    void GnssSpoofingGenerator::Start() {
+        engine.Open(spoofing, sampleRate, duration_s, 1);
+    }
+
+    void GnssSpoofingGenerator::Stop() {
+        engine.Close();
+    }
+
+    void GnssSpoofingGenerator::Generate(SCGIQPacket &packet, std::size_t nSamplesMax) {
+        packet.Reshape(sampleRate, 1, nSamplesMax, false);
+        packet.meta.Clear();
+        std::size_t nRead = engine.Read(packet.data.data(), nSamplesMax);
+        // a read shorter than asked for is the end of the signal
+        std::fill(
+            packet.data.begin() + std::ptrdiff_t(nRead),
+            packet.data.end(),
+            SCGSample{ SCGSampleBase(0.0), SCGSampleBase(0.0) }
+        );
+    }
+
+    void GnssSpoofingGenerator::SetSampleRate(double sampleRate_) {
+        sampleRate = sampleRate_;
+    }
+
+
 }
 

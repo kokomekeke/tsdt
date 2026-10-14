@@ -81,7 +81,8 @@ string, because the rule that refuses a spoofer without one looks no further.
 
 A test that wants the real engine turns `mock_gnss` off and points
 `gnss_ephemeris_file` at a file that is there. Generating costs about a second per
-second of signal, so nothing in the suite does it.
+second of signal, so only `test_gnss.py` does it, through `scg` with a scenario of a
+second at 1 MHz and the RINEX file under `assets/rinex`.
 
 ## Disk
 

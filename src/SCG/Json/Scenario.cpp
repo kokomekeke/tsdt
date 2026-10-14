@@ -1,7 +1,10 @@
+#include <chrono>
+#include <format>
 #include <variant>
 #include <stdexcept>
 #include <string>
 #include "Json/JsonParser.hpp"
+#include "SCG/Sisi/TimeFormat.hpp"
 #include "Scenario.hpp"
 
 using namespace Sagax::Json;
@@ -61,6 +64,27 @@ namespace Sagax::SCG {
             }
         };
 
+        // an iso 8601 time with an utc offset, written back in utc with the fraction kept
+        struct UtcTimeParser : public JsonParser<std::chrono::system_clock::time_point> {
+            void Parse(const JsonView &j, std::chrono::system_clock::time_point &t, JsonIssues &e) const override {
+                std::string s;
+                if(!IsPrimitive(j)) {
+                    e.AddError(std::format("expected a primitive, found {}", TypeName(j)));
+                    return;
+                }
+                if(!GetValue<std::string>(j, s, e)) {
+                    return;
+                }
+                std::string error = ParseStartTime(s, t);
+                if(!error.empty()) {
+                    e.AddError(error);
+                }
+            }
+            void Serialize(const std::chrono::system_clock::time_point &t, const JsonView &j, JsonIssues &) const override {
+                SetValue<std::string>(j, std::format("{:%FT%TZ}", t));
+            }
+        };
+
         struct SignalParser : public JsonObjectParser<Scenario::Signal> {
             struct NoiseParser : public JsonObjectParser<SignalVariant::Noise> {
                 NoiseParser() {
@@ -105,6 +129,49 @@ namespace Sagax::SCG {
                 }
             };
 
+            struct ZeroParser : public JsonObjectParser<SignalVariant::Zero> {
+                ZeroParser() {
+                    // no parameters
+                }
+            };
+            struct GnssSpoofingParser : public JsonObjectParser<SignalVariant::GnssSpoofing> {
+                struct GnssSignalParser : public JsonEnumParser<SignalVariant::GnssSpoofing::Signal> {
+                    GnssSignalParser() {
+                        using Signal = SignalVariant::GnssSpoofing::Signal;
+                        AddEnumerator(Signal::gpsL1ca, "GPS_L1CA");
+                        AddEnumerator(Signal::gpsL2c, "GPS_L2C");
+                        AddEnumerator(Signal::gpsL5, "GPS_L5");
+                        AddEnumerator(Signal::galE1, "GAL_E1");
+                        AddEnumerator(Signal::galE6, "GAL_E6");
+                        AddEnumerator(Signal::galE5b, "GAL_E5b");
+                        AddEnumerator(Signal::galE5, "GAL_E5");
+                        AddEnumerator(Signal::galE5a, "GAL_E5a");
+                        AddEnumerator(Signal::bdsB1c, "BDS_B1C");
+                        AddEnumerator(Signal::bdsB1i, "BDS_B1I");
+                        AddEnumerator(Signal::bdsB3i, "BDS_B3I");
+                        AddEnumerator(Signal::bdsB2i, "BDS_B2I");
+                        AddEnumerator(Signal::bdsB2a, "BDS_B2a");
+                        AddEnumerator(Signal::gloG1, "GLO_G1");
+                        AddEnumerator(Signal::gloG2, "GLO_G2");
+                    }
+                };
+                struct WaypointParser : public JsonObjectParser<SignalVariant::GnssSpoofing::Waypoint> {
+                    WaypointParser() {
+                        AddParam(&SignalVariant::GnssSpoofing::Waypoint::t, JsonPrimitiveParser<double>{}, "t");
+                        AddParam(&SignalVariant::GnssSpoofing::Waypoint::latitude, JsonPrimitiveParser<double>{}, "latitude");
+                        AddParam(&SignalVariant::GnssSpoofing::Waypoint::longitude, JsonPrimitiveParser<double>{}, "longitude");
+                        AddParam(&SignalVariant::GnssSpoofing::Waypoint::altitude, JsonPrimitiveParser<double>{}, "altitude");
+                    }
+                };
+                GnssSpoofingParser() {
+                    AddParam(&SignalVariant::GnssSpoofing::signal, GnssSignalParser{}, "signal");
+                    AddParam(&SignalVariant::GnssSpoofing::startTime, UtcTimeParser{}, "startTime");
+                    AddParam(&SignalVariant::GnssSpoofing::ephemerisFile, JsonPrimitiveParser<std::string>{}, "ephemerisFile");
+                    auto p = AddParam(&SignalVariant::GnssSpoofing::trajectory, JsonArrayParser<SignalVariant::GnssSpoofing::Waypoint>{}, "trajectory");
+                    p->SetItemParser(WaypointParser{});
+                }
+            };
+
             struct SignalVariantParser : public JsonObjectParser<SignalVariant> {
                 struct VariantParser : public JsonVariantParser<SignalVariant::T> {
                     VariantParser() {
@@ -115,6 +182,8 @@ namespace Sagax::SCG {
                         AddAlt<SignalVariant::Noise>("Noise", std::nullopt, NoiseParser{});
                         AddAlt<SignalVariant::IQFile>("IQFile", std::nullopt, IQFileParser{});
                         AddAlt<SignalVariant::AudioFile>("AudioFile", std::nullopt, AudioFileParser{});
+                        AddAlt<SignalVariant::Zero>("Zero", std::nullopt, ZeroParser{});
+                        AddAlt<SignalVariant::GnssSpoofing>("GnssSpoofing", std::nullopt, GnssSpoofingParser{});
                     }
                 };
                 SignalVariantParser() {

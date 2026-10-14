@@ -6,6 +6,7 @@
 #include "SSG/Modulators/Analog.hpp"
 #include "SCG/Modules/Packets.hpp"
 #include "SCG/Scenario/SignalVariant.hpp"
+#include "Gnss.hpp"
 
 namespace Sagax::SCG {
 
@@ -110,5 +111,31 @@ namespace Sagax::SCG {
         void SetSampleRate(double sampleRate_) override;
     };
 
-}
+    struct ZeroGenerator : public SignalGenerator {
+        double sampleRate;
 
+        void Start() override;
+        void Stop() override;
+        void Generate(SCGIQPacket &packet, std::size_t nSamplesMax) override;
+        void SetSampleRate(double sampleRate_) override;
+    };
+
+    // asks the gnss engine for every packet, with one thread, so it keeps up only as long
+    // as the engine is faster than real time
+    struct GnssSpoofingGenerator : public SignalGenerator {
+        GnssEngine engine;
+
+        SignalVariant::GnssSpoofing spoofing;
+        double duration_s;
+        double sampleRate;
+
+        // duration_s is how long the signal plays, past it the generator gives silence
+        void Setup(const SignalVariant::GnssSpoofing &spoofing_, double duration_s_);
+
+        void Start() override;
+        void Stop() override;
+        void Generate(SCGIQPacket &packet, std::size_t nSamplesMax) override;
+        void SetSampleRate(double sampleRate_) override;
+    };
+
+}

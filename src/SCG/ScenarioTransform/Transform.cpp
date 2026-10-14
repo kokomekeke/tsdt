@@ -121,7 +121,8 @@ namespace Sagax::SCG {
     >
     GetSignalGenerator(
         [[maybe_unused]] const PipelineConfig &config,
-        const SignalVariant &v
+        const SignalVariant &v,
+        const Scenario::Event &event
     ) {
         std::unique_ptr<SignalGenerator> basePtr;
         std::vector<Resource*> resources;
@@ -184,6 +185,15 @@ namespace Sagax::SCG {
             auto p = std::make_unique<IQFileGenerator>();
             p->fileName = s->fileName;
             p->loop = s->loop;
+            basePtr = std::move(p);
+        }
+        if([[maybe_unused]] auto *s = std::get_if<SignalVariant::Zero>(&v.variant)) {
+            auto p = std::make_unique<ZeroGenerator>();
+            basePtr = std::move(p);
+        }
+        if(auto *s = std::get_if<SignalVariant::GnssSpoofing>(&v.variant)) {
+            auto p = std::make_unique<GnssSpoofingGenerator>();
+            p->Setup(*s, event.end - event.start);
             basePtr = std::move(p);
         }
 

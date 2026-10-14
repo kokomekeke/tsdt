@@ -1,3 +1,4 @@
+#include <cmath>
 #include <cstdint>
 #include <utility>
 #include <format>
@@ -13,6 +14,29 @@ namespace Sagax::SCG {
             auto &sig = scen.signals[i];
             if(std::holds_alternative<SignalVariant::Null>(sig.variant.variant)) {
                 res.errors.push_back(std::format("signal[{}]: null signal variant", i));
+            }
+            else if(auto *v = std::get_if<SignalVariant::GnssSpoofing>(&sig.variant.variant)) {
+                if(v->ephemerisFile.empty()) {
+                    res.errors.push_back(std::format("signal[{}]: gnss spoofing without an ephemeris file", i));
+                }
+                if(v->trajectory.empty()) {
+                    res.errors.push_back(std::format("signal[{}]: gnss spoofing without a trajectory", i));
+                }
+                else if(v->trajectory.front().t != 0.0) {
+                    res.errors.push_back(std::format("signal[{}]: the first waypoint has to be at t = 0", i));
+                }
+                for(std::size_t iw = 0; iw < v->trajectory.size(); ++iw) {
+                    const auto &w = v->trajectory[iw];
+                    if(w.latitude < -90.0 || w.latitude > 90.0) {
+                        res.errors.push_back(std::format("signal[{}]: trajectory[{}]: latitude out of range", i, iw));
+                    }
+                    if(w.longitude < -180.0 || w.longitude > 180.0) {
+                        res.errors.push_back(std::format("signal[{}]: trajectory[{}]: longitude out of range", i, iw));
+                    }
+                    if(iw > 0 && w.t <= v->trajectory[iw - 1].t) {
+                        res.errors.push_back(std::format("signal[{}]: trajectory[{}]: time does not advance", i, iw));
+                    }
+                }
             }
             // else if(std::holds_alternative<) ...
         }
@@ -81,9 +105,18 @@ namespace Sagax::SCG {
                 }
 
                 auto &out = scen.outputs[idxOut[v.outputName]];
-                // auto &sig = scen.signals[idxSig[v.signalName]];
+                auto &sig = scen.signals[idxSig[v.signalName]];
 
                 auto outP = out.variant.GetCommonParams();
+
+                // the gnss engine generates at the rate of the output
+                if(std::holds_alternative<SignalVariant::GnssSpoofing>(sig.variant.variant)
+                    && std::fmod(outP.sampleRate, 1000.0) != 0.0
+                ) {
+                    res.errors.push_back(std::format(
+                        "event[{}]: gnss spoofing needs an output sample rate of whole khz, {} has {}",
+                        i, v.outputName.c_str(), outP.sampleRate));
+                }
 
                 if(v.iChannel >= outP.nChannels) {
                     res.errors.push_back(std::format("events[{}]: channel index out of range", i));
