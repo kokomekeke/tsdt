@@ -64,17 +64,12 @@ namespace Sagax::SCG {
         ServerConfigParser serverConfigParser;
     }
 
-    ServerConfig ParseServerConfig(const std::string &s) {
-        JsonHandle j = Json::ParseJson(s);
-        ServerConfig cfg;
-        serverConfigParser.Parse(j, cfg);
-        return cfg;
+    bool ParseServerConfig(const std::string &s, ServerConfig &out, Json::JsonIssues &e) {
+        return Json::ParseDocument<ServerConfig>(serverConfigParser, s, out, e);
     }
 
-    std::string SerializeServerConfig(const ServerConfig &t) {
-        JsonHandle j;
-        serverConfigParser.Serialize(t, j);
-        return Json::DumpJson(j, true);
+    std::optional<std::string> SerializeServerConfig(const ServerConfig &t, Json::JsonIssues &e) {
+        return Json::SerializeDocument<ServerConfig>(serverConfigParser, t, true, e);
     }
 
 

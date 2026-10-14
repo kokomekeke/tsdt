@@ -1,5 +1,7 @@
 #pragma once
+#include <optional>
 #include <string>
+#include "Json/JsonParser.hpp"
 #include "SCG/Sisi/Rid.hpp"
 #include "SCG/Sisi/Messages.hpp"
 #include "SCG/Sisi/SavedTest.hpp"
@@ -7,28 +9,31 @@
 namespace Sagax::SCG {
 
 
-    Rid ParseRid(const std::string &s);
-    std::string SerializeRid(const Rid &t);
+    bool ParseRid(const std::string &s, Rid &out, Json::JsonIssues &e);
+    std::optional<std::string> SerializeRid(const Rid &t, Json::JsonIssues &e);
 
-    std::string SerializeRidInterferenceSource(const Rid &t, std::int32_t i);
+    std::optional<std::string> SerializeRidInterferenceSource(
+        const Rid &t,
+        std::int32_t i,
+        Json::JsonIssues &e
+    );
 
 
     // these are here because log messages need to include part of the RID
 
-    CommandMessage ParseCommandMessage(const std::string &s);
-    std::string SerializeCommandMessage(const CommandMessage &t);
+    bool ParseCommandMessage(const std::string &s, CommandMessage &out, Json::JsonIssues &e);
+    std::optional<std::string> SerializeCommandMessage(const CommandMessage &t, Json::JsonIssues &e);
 
-    TestStatusMessage ParseTestStatusMessage(const std::string &s);
-    std::string SerializeTestStatusMessage(const TestStatusMessage &s);
+    bool ParseTestStatusMessage(const std::string &s, TestStatusMessage &out, Json::JsonIssues &e);
+    std::optional<std::string> SerializeTestStatusMessage(const TestStatusMessage &t, Json::JsonIssues &e);
 
-    SignalStatusMessage ParseSignalStatusMessage(const std::string &s);
-    std::string SerializeSignalStatusMessage(const SignalStatusMessage &s);
+    bool ParseSignalStatusMessage(const std::string &s, SignalStatusMessage &out, Json::JsonIssues &e);
+    std::optional<std::string> SerializeSignalStatusMessage(const SignalStatusMessage &t, Json::JsonIssues &e);
 
+    bool ParseErrorMessage(const std::string &s, ErrorMessage &out, Json::JsonIssues &e);
+    std::optional<std::string> SerializeErrorMessage(const ErrorMessage &t, Json::JsonIssues &e);
 
-    SavedTest ParseSavedTest(const std::string &s);
-    std::string SerializeSavedTest(const SavedTest &t);
+    bool ParseSavedTest(const std::string &s, SavedTest &out, Json::JsonIssues &e);
+    std::optional<std::string> SerializeSavedTest(const SavedTest &t, Json::JsonIssues &e);
 
 }
-
-
-

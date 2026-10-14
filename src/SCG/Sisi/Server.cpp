@@ -44,11 +44,9 @@ using namespace Sagax;
 using namespace Sagax::SCG;
 
 static CommandError ReadCommand(const std::string &payload, CommandMessage &out) {
-    try {
-        out = SCG::ParseCommandMessage(payload);
-    }
-    catch(const std::exception &e) {
-        return std::format("could not parse command: {}", e.what());
+    Json::JsonIssues issues;
+    if(!SCG::ParseCommandMessage(payload, out, issues)) {
+        return std::format("could not parse command:\n{}", issues.Format());
     }
     return {};
 }
@@ -215,20 +213,25 @@ private:
         client.Push(std::move(message));
     }
 
-    // the only message on the signal topic is this one, so a reason for something going
-    // wrong rides in its description rather than in a message of its own
-    void PublishSignal(SignalStatusMessage::SignalStatus status, std::optional<std::string> reason) {
-        SignalStatusMessage message;
-        message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
-        message.type = status;
-        message.description.errorMessage = std::move(reason);
-        Publish(config.mqtt.signalLogTopic, SerializeSignalStatusMessage(message));
+    // logs instead of publishing when the message could not be written
+    void PublishPayload(
+        const std::string &topic,
+        const std::optional<std::string> &payload,
+        const Json::JsonIssues &issues
+    ) {
+        if(!payload.has_value()) {
+            Common::Logger::Error("could not write a message for {}:\n{}", topic, issues.Format());
+            return;
+        }
+        Publish(topic, payload.value());
     }
 
-    // the periodic status is left alone, this is an extra message with a reason on it
     void PublishError(const std::string &text) {
         Common::Logger::Error("{}", text.c_str());
-        PublishSignal(CurrentSignalStatus(), text);
+        ErrorMessage message;
+        message.message = text;
+        Json::JsonIssues issues;
+        PublishPayload(config.mqtt.errorLogTopic, SerializeErrorMessage(message, issues), issues);
     }
 
     void PublishTestStatus(const std::string &testId, TestStatusMessage::TestStatus status) {
@@ -236,7 +239,8 @@ private:
         message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
         message.testId = testId;
         message.testStatus = status;
-        Publish(config.mqtt.testLogTopic, SerializeTestStatusMessage(message));
+        Json::JsonIssues issues;
+        PublishPayload(config.mqtt.testLogTopic, SerializeTestStatusMessage(message, issues), issues);
     }
 
     void PublishSignalStatus() {
@@ -248,7 +252,11 @@ private:
         lastSignalStatus = status;
         nextSignalStatus = now + statusPeriod;
 
-        PublishSignal(status, std::nullopt);
+        SignalStatusMessage message;
+        message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
+        message.type = status;
+        Json::JsonIssues issues;
+        PublishPayload(config.mqtt.signalLogTopic, SerializeSignalStatusMessage(message, issues), issues);
     }
 
     CommandError CancelTest(const CommandMessage::TestCancel &command) {
@@ -501,15 +509,19 @@ private:
         }
         std::stringstream buf;
         buf << file.rdbuf();
-        try {
-            config = ParseServerConfig(buf.str());
-        }
-        catch(const std::exception &e) {
-            Common::Logger::Error("\nfailed to parse config:\n{}", e.what());
+        Json::JsonIssues issues;
+        if(!ParseServerConfig(buf.str(), config, issues)) {
+            Common::Logger::Error("\nfailed to parse config:\n{}", issues.Format());
             return false;
         }
 
-        Common::Logger::Info("using this configuration:\n{}", SerializeServerConfig(config));
+        Json::JsonIssues writeIssues;
+        if(std::optional<std::string> text = SerializeServerConfig(config, writeIssues); text.has_value()) {
+            Common::Logger::Info("using this configuration:\n{}", text.value());
+        }
+        else {
+            Common::Logger::Error("could not write the configuration back:\n{}", writeIssues.Format());
+        }
 
         Common::Logger::Info("validating configuration..");
         CommandError error = CheckValidity(SCG::ValidateConfig(config), "configuration");

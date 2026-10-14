@@ -170,33 +170,29 @@ namespace Sagax::SCG {
     }
 
 
-    Scenario ParseScenario(
+    bool ParseScenario(
         const std::string &str,
-        std::optional<std::string> scenarioNameFallback
+        std::optional<std::string> scenarioNameFallback,
+        Scenario &out,
+        Json::JsonIssues &e
     ) {
-        Scenario scen;
-
-        JsonHandle j = ParseJson(str);
-        scenarioParser.Parse(j, scen);
-
-        if(scen.name == "" && scenarioNameFallback.has_value()) {
-            scen.name = scenarioNameFallback.value();
+        if(!Json::ParseDocument<Scenario>(scenarioParser, str, out, e)) {
+            return false;
         }
 
-        return scen;
+        if(out.name == "" && scenarioNameFallback.has_value()) {
+            out.name = scenarioNameFallback.value();
+        }
+
+        return true;
     };
 
 
-    std::string SerializeScenario(
-        const Scenario &scen
+    std::optional<std::string> SerializeScenario(
+        const Scenario &scen,
+        Json::JsonIssues &e
     ) {
-        std::string str;
-
-        JsonHandle j;
-        scenarioParser.Serialize(scen, j);
-        str = DumpJson(j, true);
-
-        return str;
+        return Json::SerializeDocument<Scenario>(scenarioParser, scen, true, e);
     }
 
 

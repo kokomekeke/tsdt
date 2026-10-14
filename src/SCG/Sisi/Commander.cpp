@@ -305,12 +305,12 @@ int main(int argc, char **argv) {
     buf << file.rdbuf();
 
     ServerConfig config;
-    try {
-        config = ParseServerConfig(buf.str());
-    }
-    catch(const std::exception &e) {
-        Common::Logger::Error("\nfailed to parse config:\n{}", e.what());
-        return 1;
+    {
+        Json::JsonIssues issues;
+        if(!ParseServerConfig(buf.str(), config, issues)) {
+            Common::Logger::Error("\nfailed to parse config:\n{}", issues.Format());
+            return 1;
+        }
     }
 
     // watched by the input loop and by the thread draining the incoming messages. it is
@@ -445,7 +445,14 @@ int main(int argc, char **argv) {
             continue;
         }
 
-        std::string payload = Sagax::SCG::SerializeCommandMessage(cm);
+        Json::JsonIssues issues;
+        std::optional<std::string> written = Sagax::SCG::SerializeCommandMessage(cm, issues);
+        if(!written.has_value()) {
+            Common::Logger::Error("could not write the command:\n{}", issues.Format());
+            continue;
+        }
+        const std::string &payload = written.value();
+
         MqttClient::Message out;
         out.topic = config.mqtt.commandTopic;
         out.bytes.assign(payload.begin(), payload.end());

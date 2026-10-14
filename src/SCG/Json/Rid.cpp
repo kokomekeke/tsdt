@@ -193,13 +193,8 @@ namespace Sagax::SCG {
                 }
             };
 
-            // the IRD leaves the content of the description to us. a reason is only
-            // written into it when there is one
-            struct DescriptionParser : Json::JsonObjectParser<SignalStatusMessage::Description> {
-                DescriptionParser() {
-                    AddParamOpt(&SignalStatusMessage::Description::errorMessage, Json::JsonPrimitiveParser<std::string>{}, "error_message");
-                }
-            };
+            // serializes as an empty object, and any content it arrives with is ignored
+            struct DescriptionParser : Json::JsonObjectParser<SignalStatusMessage::Description> {};
 
             SignalStatusMessageJsonParser() {
                 AddParam(&SignalStatusMessage::timestamp, Json::JsonPrimitiveParser<std::string>{}, "timestamp");
@@ -208,6 +203,11 @@ namespace Sagax::SCG {
             }
         };
 
+        struct ErrorMessageJsonParser : Json::JsonObjectParser<ErrorMessage> {
+            ErrorMessageJsonParser() {
+                AddParam(&ErrorMessage::message, Json::JsonPrimitiveParser<std::string>{}, "message");
+            }
+        };
 
         struct SavedTestJsonParser : Json::JsonObjectParser<SavedTest> {
             SavedTestJsonParser() {
@@ -221,83 +221,74 @@ namespace Sagax::SCG {
         CommandMessageJsonParser commandMessageParser;
         TestStatusMessageJsonParser testStatusMessageParser;
         SignalStatusMessageJsonParser signalStatusMessageParser;
+        ErrorMessageJsonParser errorMessageParser;
         SavedTestJsonParser savedTestParser;
 
     }
 
 
-    Rid ParseRid(const std::string &s) {
-        Json::JsonHandle j = Json::ParseJson(s);
-        Rid rid;
-        ridParser.Parse(j, rid);
-        return rid;
+    bool ParseRid(const std::string &s, Rid &out, Json::JsonIssues &e) {
+        return Json::ParseDocument<Rid>(ridParser, s, out, e);
     }
 
-    std::string SerializeRid(const Rid &t) {
-        Json::JsonHandle j;
-        ridParser.Serialize(t, j);
-        return Json::DumpJson(j, true);
+    std::optional<std::string> SerializeRid(const Rid &t, Json::JsonIssues &e) {
+        return Json::SerializeDocument<Rid>(ridParser, t, true, e);
     }
 
-    std::string SerializeRidInterferenceSource(const Rid &t, std::int32_t i) {
-        Json::JsonHandle j;
-        interferenceSourceParser.Serialize(t.interferenceSources[i], j);
-        return Json::DumpJson(j, false);
-    }
-
-
-
-    CommandMessage ParseCommandMessage(const std::string &s) {
-        Json::JsonHandle j = Json::ParseJson(s);
-        CommandMessage msg;
-        commandMessageParser.Parse(j, msg);
-        return msg;
-    }
-
-    std::string SerializeCommandMessage(const CommandMessage &t) {
-        Json::JsonHandle j;
-        commandMessageParser.Serialize(t, j);
-        return Json::DumpJson(j, false);
-    }
-
-    TestStatusMessage ParseTestStatusMessage(const std::string &s) {
-        Json::JsonHandle j = Json::ParseJson(s);
-        TestStatusMessage msg;
-        testStatusMessageParser.Parse(j, msg);
-        return msg;
-    }
-
-    std::string SerializeTestStatusMessage(const TestStatusMessage &t) {
-        Json::JsonHandle j;
-        testStatusMessageParser.Serialize(t, j);
-        return Json::DumpJson(j, false);
-    }
-
-    SignalStatusMessage ParseSignalStatusMessage(const std::string &s) {
-        Json::JsonHandle j = Json::ParseJson(s);
-        SignalStatusMessage msg;
-        signalStatusMessageParser.Parse(j, msg);
-        return msg;
-    }
-
-    std::string SerializeSignalStatusMessage(const SignalStatusMessage &t) {
-        Json::JsonHandle j;
-        signalStatusMessageParser.Serialize(t, j);
-        return Json::DumpJson(j, false);
+    std::optional<std::string> SerializeRidInterferenceSource(
+        const Rid &t,
+        std::int32_t i,
+        Json::JsonIssues &e
+    ) {
+        if(i < 0 || std::size_t(i) >= t.interferenceSources.size()) {
+            e.AddError(std::format("no interference source at index {}", i));
+            return std::nullopt;
+        }
+        return Json::SerializeDocument<Rid::InterferenceSource>(
+            interferenceSourceParser, t.interferenceSources[i], false, e
+        );
     }
 
 
-    SavedTest ParseSavedTest(const std::string &s) {
-        Json::JsonHandle j = Json::ParseJson(s);
-        SavedTest t;
-        savedTestParser.Parse(j, t);
-        return t;
+
+    bool ParseCommandMessage(const std::string &s, CommandMessage &out, Json::JsonIssues &e) {
+        return Json::ParseDocument<CommandMessage>(commandMessageParser, s, out, e);
     }
 
-    std::string SerializeSavedTest(const SavedTest &t) {
-        Json::JsonHandle j;
-        savedTestParser.Serialize(t, j);
-        return Json::DumpJson(j, true);
+    std::optional<std::string> SerializeCommandMessage(const CommandMessage &t, Json::JsonIssues &e) {
+        return Json::SerializeDocument<CommandMessage>(commandMessageParser, t, false, e);
+    }
+
+    bool ParseTestStatusMessage(const std::string &s, TestStatusMessage &out, Json::JsonIssues &e) {
+        return Json::ParseDocument<TestStatusMessage>(testStatusMessageParser, s, out, e);
+    }
+
+    std::optional<std::string> SerializeTestStatusMessage(const TestStatusMessage &t, Json::JsonIssues &e) {
+        return Json::SerializeDocument<TestStatusMessage>(testStatusMessageParser, t, false, e);
+    }
+
+    bool ParseSignalStatusMessage(const std::string &s, SignalStatusMessage &out, Json::JsonIssues &e) {
+        return Json::ParseDocument<SignalStatusMessage>(signalStatusMessageParser, s, out, e);
+    }
+
+    std::optional<std::string> SerializeSignalStatusMessage(const SignalStatusMessage &t, Json::JsonIssues &e) {
+        return Json::SerializeDocument<SignalStatusMessage>(signalStatusMessageParser, t, false, e);
+    }
+
+    bool ParseErrorMessage(const std::string &s, ErrorMessage &out, Json::JsonIssues &e) {
+        return Json::ParseDocument<ErrorMessage>(errorMessageParser, s, out, e);
+    }
+
+    std::optional<std::string> SerializeErrorMessage(const ErrorMessage &t, Json::JsonIssues &e) {
+        return Json::SerializeDocument<ErrorMessage>(errorMessageParser, t, false, e);
+    }
+
+    bool ParseSavedTest(const std::string &s, SavedTest &out, Json::JsonIssues &e) {
+        return Json::ParseDocument<SavedTest>(savedTestParser, s, out, e);
+    }
+
+    std::optional<std::string> SerializeSavedTest(const SavedTest &t, Json::JsonIssues &e) {
+        return Json::SerializeDocument<SavedTest>(savedTestParser, t, true, e);
     }
 
 }

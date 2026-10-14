@@ -72,15 +72,40 @@ namespace {
         }
     }
 
-    int LintScenario(const std::string &scenarioPath) {
-        Scenario scenario;
+    bool ReadConfig(const std::string &configPath, ServerConfig &out) {
+        std::string jsonStr;
         try {
-            std::string jsonStr = ReadFile(scenarioPath);
-            std::string scenName = std::filesystem::absolute(scenarioPath).filename().stem().string();
-            scenario = ParseScenario(jsonStr, scenName);
+            jsonStr = ReadFile(configPath);
         }
         catch(const std::exception &e) {
-            Common::Logger::Error("failed to parse scenario file:\n{}", e.what());
+            Common::Logger::Error("failed to read config file:\n{}", e.what());
+            return false;
+        }
+
+        Json::JsonIssues issues;
+        if(!ParseServerConfig(jsonStr, out, issues)) {
+            Common::Logger::Error("failed to parse config file:\n{}", issues.Format());
+            return false;
+        }
+        return true;
+    }
+
+    int LintScenario(const std::string &scenarioPath) {
+        std::string jsonStr;
+        std::string scenName;
+        try {
+            jsonStr = ReadFile(scenarioPath);
+            scenName = std::filesystem::absolute(scenarioPath).filename().stem().string();
+        }
+        catch(const std::exception &e) {
+            Common::Logger::Error("failed to read scenario file:\n{}", e.what());
+            return EXIT_ERROR;
+        }
+
+        Scenario scenario;
+        Json::JsonIssues issues;
+        if(!ParseScenario(jsonStr, scenName, scenario, issues)) {
+            Common::Logger::Error("failed to parse scenario file:\n{}", issues.Format());
             return EXIT_ERROR;
         }
 
@@ -90,12 +115,7 @@ namespace {
 
     int LintConfig(const std::string &configPath) {
         ServerConfig config;
-        try {
-            std::string jsonStr = ReadFile(configPath);
-            config = ParseServerConfig(jsonStr);
-        }
-        catch(const std::exception &e) {
-            Common::Logger::Error("failed to parse config file:\n{}", e.what());
+        if(!ReadConfig(configPath, config)) {
             return EXIT_ERROR;
         }
 
@@ -105,12 +125,7 @@ namespace {
 
     int LintRid(const std::string &configPath, const std::string &ridPath) {
         ServerConfig config;
-        try {
-            std::string jsonStr = ReadFile(configPath);
-            config = ParseServerConfig(jsonStr);
-        }
-        catch(const std::exception &e) {
-            Common::Logger::Error("failed to parse config file:\n{}", e.what());
+        if(!ReadConfig(configPath, config)) {
             return EXIT_ERROR;
         }
 
@@ -132,12 +147,12 @@ namespace {
         }
 
         Rid rid;
-        try {
-            rid = ParseRid(jsonStr);
-        }
-        catch(const std::exception &e) {
-            Common::Logger::Error("failed to parse rid file:\n{}", e.what());
-            return EXIT_ERROR;
+        {
+            Json::JsonIssues issues;
+            if(!ParseRid(jsonStr, rid, issues)) {
+                Common::Logger::Error("failed to parse rid file:\n{}", issues.Format());
+                return EXIT_ERROR;
+            }
         }
 
         auto res = ValidateRid(config, rid);
@@ -146,12 +161,7 @@ namespace {
 
     int LintTsd(const std::string &configPath, const std::string &tsdPath) {
         ServerConfig config;
-        try {
-            std::string jsonStr = ReadFile(configPath);
-            config = ParseServerConfig(jsonStr);
-        }
-        catch(const std::exception &e) {
-            Common::Logger::Error("failed to parse config file:\n{}", e.what());
+        if(!ReadConfig(configPath, config)) {
             return EXIT_ERROR;
         }
 

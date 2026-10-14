@@ -1,0 +1,90 @@
+# RUNNING SCGSERVER
+
+`scgserver <config>` connects to the broker its config names, reads commands from the
+command topic and publishes what it is doing. `scgcommander <config>` takes the same
+config, so it reaches the same broker and topics, and sends the commands typed at its
+prompt.
+
+Three things have to run: a broker, the server, and the commander.
+
+## The broker
+
+~~~bash
+cd tools/mosquitto-broker
+docker compose up
+~~~
+
+This can be on another machine. The address that matters is the one the clients connect
+to, so put it in `broker_host` of the config:
+
+~~~json
+"broker_host": "10.1.2.40",
+~~~
+
+## The test document
+
+`TEST_SETUP` names a TSD, and every step of the TSD names its rid by an absolute url. An
+absolute url only holds on the machine it was written for, which is why no tsd ships with
+the repository. Write one next to the rids it plays.
+
+A step has to be at least as long as the rid it plays, and
+`test-rid-sisi-stage-1.json` is ten seconds long.
+
+~~~bash
+cat > /tmp/tsd.json <<'TSD'
+{
+    "name": "sisi stage 1",
+    "description": "one step, playing one rid",
+    "steps": [
+        {
+            "duration_seconds": 10.0,
+            "interference": "file:///home/sagax/sgx/scg/assets/rid/test-rid-sisi-stage-1.json"
+        }
+    ]
+}
+TSD
+~~~
+
+`scglint tsd <config> <url>` reads the tsd and every rid it names, merges them and
+validates the result, which is the same work the server does when the command arrives.
+Running it first turns a failure at test time into a message now.
+
+## A run
+
+~~~bash
+# terminal 1, the server
+cd build-sidekiq
+./scgserver ../assets/config/sisi-stage-mock.json
+
+# terminal 2, the commander
+cd build-sidekiq
+./scgcommander ../assets/config/sisi-stage-mock.json
+> testsetup file:///tmp/tsd.json 2026-09-21T16:10:00+02:00 1
+~~~
+
+`sisi-stage-mock.json` sets `mock_radios`, so nothing is transmitted and no hardware is
+needed. `sisi-stage-live.json` is the same configuration driving the radios.
+
+## Commander commands
+
+| command | what it sends |
+|---|---|
+| `testsetup <tsd_url> <time> <test_id>` | TEST_SETUP |
+| `testcancel <test_id>` | TEST_CANCEL |
+| `intstop` | INT_STOP |
+| `intstart`, `teststart`, `testupdate`, `testend` | the commands the server reads and ignores |
+| `help` | the same list |
+| `quit`, `exit` | leaves |
+
+The commander subscribes to the test and error topics as well, so the answers to what it
+sends arrive in its own output. [mqtt-protocol.md](mqtt-protocol.md) has the messages.
+
+## What happens to a test
+
+The command is answered at once, with a reason on the error topic if it is refused. An
+accepted test is recorded into `recording_directory` as soon as there is room in the
+queue, and the pipeline starts `start_ahead_s` before the start time with its output held
+back until the exact moment.
+
+A gnss spoofer is recorded as silence on this branch. The engine is not integrated yet, so
+a rid with one is accepted with a warning.
