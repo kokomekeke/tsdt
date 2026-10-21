@@ -8,6 +8,7 @@ Only a transmission can be stopped. A test that is merely scheduled, or one whos
 recordings are still being made, is reported back rather than touched.
 """
 
+import datetime
 import json
 import time
 
@@ -106,6 +107,44 @@ def test_a_stopped_test_is_reported_as_failed(server, tmp_path):
         "TEST_RUNNING",
         "TEST_FAILED",
     ], statuses(instance)
+
+
+def test_the_running_status_is_not_before_the_start_time(server, tmp_path):
+    """TEST_RUNNING is published when the first samples go to the radio, which the sink
+    holds back until the time of the test. the timestamp is that moment"""
+    instance = playing(server, tmp_path)
+
+    directory = tmp_path / "recordings" / "running"
+    content = json.loads((directory / "test.json").read_text(encoding="utf-8"))
+    start = datetime.datetime.fromisoformat(content["command"]["start_time"])
+
+    messages = [json.loads(p) for _, _, p in instance.broker.since(0.0, instance.test_log_topic)]
+    running = [m for m in messages if m["test_id"] == "running" and m["test_status"] == "TEST_RUNNING"]
+    assert len(running) == 1, messages
+    assert datetime.datetime.fromisoformat(running[0]["timestamp"]) >= start, (running, start)
+
+
+def test_a_stop_during_the_hold_fails_the_test_without_transmitting(server, tmp_path):
+    """the pipeline starts start_ahead before the time of the test. a stop before that
+    time ends the test before anything went to the radio"""
+    rid = write_rid(tmp_path / "long.json", duration_s=PLAYING_S)
+    tsd = write_tsd(tmp_path / "long-tsd.json", [(PLAYING_S, rid.as_uri())])
+    instance = server(start_ahead_s=10.0)
+    instance.setup(tsd.as_uri(), test_id="held", seconds_ahead=15)
+    assert instance.wait_for_log("playback started: held", timeout=30.0), instance.log
+
+    mark = instance.int_stop()
+    instance.expect_no_error(mark, timeout=2.0)
+    assert instance.wait_for_log("playback stopped: held"), instance.log
+
+    assert wait_until(lambda: statuses(instance, "held")[-1:] == ["TEST_FAILED"]), statuses(instance, "held")
+    assert statuses(instance, "held") == [
+        "TEST_INIT",
+        "TEST_PREPARE",
+        "TEST_READY",
+        "TEST_FAILED",
+    ], statuses(instance, "held")
+    assert "jamming" not in signal_types(instance), signal_types(instance)
 
 
 def test_a_stopped_test_keeps_its_directory(server, tmp_path):
