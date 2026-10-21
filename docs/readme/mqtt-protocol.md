@@ -47,7 +47,7 @@ Published on the test log topic whenever a test changes state.
 | `TEST_INIT` | the command was accepted |
 | `TEST_PREPARE` | the recordings are being written |
 | `TEST_READY` | prepared, waiting for its start time |
-| `TEST_RUNNING` | being transmitted |
+| `TEST_RUNNING` | the first samples went to the radio, the timestamp is that moment |
 | `TEST_COMPLETED` | finished |
 | `TEST_FAILED` | gave up, the reason went out as an error message |
 

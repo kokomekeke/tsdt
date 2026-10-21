@@ -151,6 +151,7 @@ namespace Sagax::SCG {
             sink.dev = std::move(dev);
             sink.eventStart = config.events.eventStart;
             sink.eventEnd = config.events.eventEnd;
+            sink.transmissionStart = config.events.transmissionStart;
             sink.startTime = config.events.startTime;
             return { std::move(b), &sink.inP, rsc };
         }

@@ -161,6 +161,7 @@ namespace Sagax::SCG {
             case ScheduledTest::State::pending:   return TestStatusMessage::TestStatus::TEST_INIT;
             case ScheduledTest::State::preparing: return TestStatusMessage::TestStatus::TEST_PREPARE;
             case ScheduledTest::State::ready:     return TestStatusMessage::TestStatus::TEST_READY;
+            case ScheduledTest::State::starting:  return TestStatusMessage::TestStatus::TEST_READY;
             case ScheduledTest::State::playing:   return TestStatusMessage::TestStatus::TEST_RUNNING;
             case ScheduledTest::State::done:      return TestStatusMessage::TestStatus::TEST_COMPLETED;
             case ScheduledTest::State::failed:    return TestStatusMessage::TestStatus::TEST_FAILED;
@@ -174,6 +175,7 @@ namespace Sagax::SCG {
             case ScheduledTest::State::pending:   return "pending";
             case ScheduledTest::State::preparing: return "preparing";
             case ScheduledTest::State::ready:     return "ready";
+            case ScheduledTest::State::starting:  return "starting";
             case ScheduledTest::State::playing:   return "playing";
             case ScheduledTest::State::done:      return "done";
             case ScheduledTest::State::failed:    return "failed";
@@ -198,17 +200,21 @@ namespace Sagax::SCG {
         return running;
     }
 
-    void TestScheduler::PublishStatus(const ScheduledTest &test) {
-        onStatus(test.testId, ReportedStatus(test.state));
+    void TestScheduler::PublishStatus(const ScheduledTest &test, std::chrono::system_clock::time_point time) {
+        onStatus(test.testId, ReportedStatus(test.state), time);
     }
 
-    // every state change after the test is scheduled goes through here
-    void TestScheduler::SetState(ScheduledTest &test, ScheduledTest::State state) {
+    // every state change after the test is scheduled goes through here. the status is
+    // published only when the reported status changes
+    void TestScheduler::SetState(ScheduledTest &test, ScheduledTest::State state, std::chrono::system_clock::time_point time) {
         if(test.state == state) {
             return;
         }
+        auto reported = ReportedStatus(test.state);
         test.state = state;
-        PublishStatus(test);
+        if(ReportedStatus(state) != reported) {
+            PublishStatus(test, time);
+        }
         SaveState(test);
         LogTests();
     }
@@ -390,7 +396,7 @@ namespace Sagax::SCG {
         SCG_CHECK(SaveTest(*test, json));
         SaveSources(*test, sources);
 
-        PublishStatus(*test);
+        PublishStatus(*test, std::chrono::system_clock::now());
         tests.push_back(std::move(test));
         Common::Logger::Info("test scheduled: {}", command.testId);
         LogTests();
@@ -405,7 +411,7 @@ namespace Sagax::SCG {
             return std::format("unknown test id: \"{}\"", testId);
         }
         Common::Assert(running != it->get(), "a running test cannot be cancelled");
-        SetState(**it, ScheduledTest::State::failed);
+        SetState(**it, ScheduledTest::State::failed, std::chrono::system_clock::now());
         RemoveDirectory(**it);
         tests.erase(it);
         Common::Logger::Info("test cancelled: {}", testId);
@@ -492,7 +498,7 @@ namespace Sagax::SCG {
         SCG_CHECK(CreateTest(saved.command, time, std::move(rid), state, test));
 
         SaveState(*test);
-        PublishStatus(*test);
+        PublishStatus(*test, std::chrono::system_clock::now());
         Common::Logger::Info("test restored: {}", test->testId);
         tests.push_back(std::move(test));
         LogTests();
@@ -503,7 +509,7 @@ namespace Sagax::SCG {
     void TestScheduler::DropSavedTest(const std::filesystem::path &directory, const std::string &error) {
         std::string testId = directory.filename().string();
         onError(std::format("could not restore test \"{}\": {}", testId, error));
-        onStatus(testId, TestStatusMessage::TestStatus::TEST_FAILED);
+        onStatus(testId, TestStatusMessage::TestStatus::TEST_FAILED, std::chrono::system_clock::now());
     }
 
     void TestScheduler::FailSavedTest(const std::filesystem::path &directory, SavedTest saved, const std::string &error) {
@@ -525,12 +531,12 @@ namespace Sagax::SCG {
             }
             if(now >= test.time) {
                 onError(std::format("test \"{}\" missed its starting time", test.testId));
-                SetState(test, ScheduledTest::State::failed);
+                SetState(test, ScheduledTest::State::failed, std::chrono::system_clock::now());
                 continue;
             }
             if(running != nullptr) {
                 onError(std::format("test \"{}\" cannot start, test \"{}\" is still running", test.testId, running->testId));
-                SetState(test, ScheduledTest::State::failed);
+                SetState(test, ScheduledTest::State::failed, std::chrono::system_clock::now());
                 continue;
             }
             return &test;
@@ -554,25 +560,31 @@ namespace Sagax::SCG {
         Common::Assert(running == nullptr, "a test is already running");
         running = &test;
         if(test.state == ScheduledTest::State::pending) {
-            SetState(test, ScheduledTest::State::preparing);
+            SetState(test, ScheduledTest::State::preparing, std::chrono::system_clock::now());
         }
         else if(test.state == ScheduledTest::State::ready) {
-            SetState(test, ScheduledTest::State::playing);
+            SetState(test, ScheduledTest::State::starting, std::chrono::system_clock::now());
         }
+    }
+
+    void TestScheduler::Transmitting(ScheduledTest &test, std::chrono::system_clock::time_point time) {
+        Common::Assert(test.state == ScheduledTest::State::starting, "only a starting test begins transmitting");
+        SetState(test, ScheduledTest::State::playing, time);
     }
 
     void TestScheduler::Finished(ScheduledTest &test, bool success) {
         if(running == &test) {
             running = nullptr;
         }
+        Common::Assert(!success || test.state != ScheduledTest::State::starting, "a test that transmitted nothing cannot succeed");
         if(!success) {
-            SetState(test, ScheduledTest::State::failed);
+            SetState(test, ScheduledTest::State::failed, std::chrono::system_clock::now());
         }
         else if(test.state == ScheduledTest::State::preparing) {
-            SetState(test, ScheduledTest::State::ready);
+            SetState(test, ScheduledTest::State::ready, std::chrono::system_clock::now());
         }
         else if(test.state == ScheduledTest::State::playing) {
-            SetState(test, ScheduledTest::State::done);
+            SetState(test, ScheduledTest::State::done, std::chrono::system_clock::now());
         }
     }
 

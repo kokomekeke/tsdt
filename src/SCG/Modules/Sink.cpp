@@ -72,11 +72,20 @@ namespace Sagax::SCG {
 
         // the first packet is held back until the starting time, the packets behind it
         // collect in the pipeline queues while this waits. the controller notifies cvMdl
-        // and flips cbReturn when it stops, which releases the wait early
-        if(firstPacket && startTime.has_value()) {
-            cvMdl.wait_until(*lckMdl, startTime.value(), [this](){
-                return this->cbReturn();
-            });
+        // and flips cbReturn when it stops, which releases the wait early and drops the
+        // packet without sending it
+        if(firstPacket) {
+            if(startTime.has_value()) {
+                bool stopped = cvMdl.wait_until(*lckMdl, startTime.value(), [this](){
+                    return this->cbReturn();
+                });
+                if(stopped) {
+                    return;
+                }
+            }
+            if(transmissionStart) {
+                transmissionStart(std::chrono::system_clock::now());
+            }
         }
         firstPacket = false;
 

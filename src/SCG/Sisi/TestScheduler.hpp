@@ -20,11 +20,14 @@ namespace Sagax::SCG {
 
     struct ScheduledTest {
         // preparing: the directory is set up and the jobs run
+        // starting: the pipeline runs and the sink holds the first packet until the starting time
+        // playing: the first packet went to the device
         // done, failed: erased from the list by EraseFinished
         enum struct State {
             pending,
             preparing,
             ready,
+            starting,
             playing,
             done,
             failed
@@ -44,7 +47,7 @@ namespace Sagax::SCG {
 
     // the tests from their setup until they are over. state changes are published with
     // onStatus and saved to the test directory. the caller runs the preparation and the
-    // playback and reports them with Started, Finished and Stopped
+    // playback and reports them with Started, Transmitting, Finished and Stopped
     struct TestScheduler {
     private:
         ServerConfig config;
@@ -52,8 +55,8 @@ namespace Sagax::SCG {
         std::vector<std::unique_ptr<ScheduledTest>> tests;
         ScheduledTest *running = nullptr;
 
-        void SetState(ScheduledTest &test, ScheduledTest::State state);
-        void PublishStatus(const ScheduledTest &test);
+        void SetState(ScheduledTest &test, ScheduledTest::State state, std::chrono::system_clock::time_point time);
+        void PublishStatus(const ScheduledTest &test, std::chrono::system_clock::time_point time);
         void SaveState(const ScheduledTest &test);
         CommandError SaveTest(const ScheduledTest &test, const std::string &json);
         void SaveSources(const ScheduledTest &test, const TsdSources &sources);
@@ -75,7 +78,8 @@ namespace Sagax::SCG {
         void LogTests();
 
     public:
-        std::function<void(const std::string &testId, TestStatusMessage::TestStatus status)> onStatus;
+        // time is when the state changed
+        std::function<void(const std::string &testId, TestStatusMessage::TestStatus status, std::chrono::system_clock::time_point time)> onStatus;
         std::function<void(const std::string &text)> onError;
 
         void Configure(const ServerConfig &config_);
@@ -93,8 +97,10 @@ namespace Sagax::SCG {
         // the next pending test, while nothing is running
         ScheduledTest *DueForPreparation();
 
-        // pending -> preparing, ready -> playing
+        // pending -> preparing, ready -> starting
         void Started(ScheduledTest &test);
+        // starting -> playing, time is when the first packet went to the device
+        void Transmitting(ScheduledTest &test, std::chrono::system_clock::time_point time);
         // preparing -> ready, playing -> done, or failed from any state
         void Finished(ScheduledTest &test, bool success);
         // the test keeps its state

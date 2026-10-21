@@ -279,7 +279,7 @@ def test_the_state_is_saved_on_every_change(server, tmp_path):
         return "TEST_RUNNING" in running
 
     assert sched.wait_for_log("playback started: followed", timeout=30.0), sched.log
-    assert wait_until(status_changed, timeout=2.0), running
+    assert wait_until(status_changed, timeout=10.0), running
 
     assert sched.wait_for_log("playback finished: followed", timeout=30.0), sched.log
     assert wait_until(lambda: saved(tmp_path, "followed")["status"] == "TEST_COMPLETED")

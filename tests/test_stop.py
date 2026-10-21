@@ -30,6 +30,7 @@ def playing(server, tmp_path, test_id="running"):
     instance = server(start_ahead_s=2.0)
     instance.setup(tsd.as_uri(), test_id=test_id, seconds_ahead=4)
     assert instance.wait_for_log(f"playback started: {test_id}", timeout=30.0), instance.log
+    assert wait_until(lambda: "TEST_RUNNING" in statuses(instance, test_id), timeout=10.0), statuses(instance, test_id)
     return instance
 
 

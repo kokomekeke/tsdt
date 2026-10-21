@@ -9,7 +9,7 @@ namespace Sagax::SCG {
     // Z means a zero offset and the colon in the offset is optional
     CommandError ParseStartTime(const std::string &s, std::chrono::system_clock::time_point &out);
 
-    // utc to the second, for example 2026-09-02T12:30:00Z
+    // utc to the millisecond, for example 2026-09-02T12:30:00.000Z
     std::string FormatIsoTime(std::chrono::system_clock::time_point t);
 
 }

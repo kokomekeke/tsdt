@@ -38,6 +38,7 @@ namespace Sagax::SCG {
         struct EventLogConfig {
             std::function<void(std::int32_t)> eventStart;
             std::function<void(std::int32_t)> eventEnd;
+            std::function<void(std::chrono::system_clock::time_point)> transmissionStart;
             std::optional<std::chrono::system_clock::time_point> startTime;
         };
 

@@ -83,6 +83,8 @@ private:
     // mtxSignal and never mtx
     std::mutex mtxSignal;
     std::set<std::int32_t> activeEventIds;
+    // every stream sink reports its first packet, the earliest one is kept
+    std::optional<std::chrono::system_clock::time_point> transmissionStart;
 
     // only the main loop touches these
     std::optional<SignalStatusMessage::SignalStatus> lastSignalStatus;
@@ -134,6 +136,9 @@ private:
         pipelineConfig.events.eventEnd = [this](std::int32_t eventId) {
             this->SetEventActive(eventId, false);
         };
+        pipelineConfig.events.transmissionStart = [this](std::chrono::system_clock::time_point time) {
+            this->SetTransmissionStart(time);
+        };
     }
 
     // tracked per event, a source can have more than one
@@ -153,6 +158,26 @@ private:
     void ClearActiveEvents() {
         std::unique_lock lck(mtxSignal);
         activeEventIds.clear();
+    }
+
+    void SetTransmissionStart(std::chrono::system_clock::time_point time) {
+        {
+            std::unique_lock lck(mtxSignal);
+            if(!transmissionStart.has_value() || time < transmissionStart.value()) {
+                transmissionStart = time;
+            }
+        }
+        cv.notify_all();
+    }
+
+    std::optional<std::chrono::system_clock::time_point> GetTransmissionStart() {
+        std::unique_lock lck(mtxSignal);
+        return transmissionStart;
+    }
+
+    void ClearTransmissionStart() {
+        std::unique_lock lck(mtxSignal);
+        transmissionStart.reset();
     }
 
     // the active events are mapped to the sources of the test that is playing
@@ -234,9 +259,9 @@ private:
         PublishPayload(config.mqtt.errorLogTopic, SerializeErrorMessage(message, issues), issues);
     }
 
-    void PublishTestStatus(const std::string &testId, TestStatusMessage::TestStatus status) {
+    void PublishTestStatus(const std::string &testId, TestStatusMessage::TestStatus status, std::chrono::system_clock::time_point time) {
         TestStatusMessage message;
-        message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
+        message.timestamp = FormatIsoTime(time);
         message.testId = testId;
         message.testStatus = status;
         Json::JsonIssues issues;
@@ -274,7 +299,7 @@ private:
         if(test == nullptr) {
             return "no test is running";
         }
-        if(test->state != ScheduledTest::State::playing) {
+        if(test->state == ScheduledTest::State::preparing) {
             return std::format(
                 "test \"{}\" is being prepared, nothing is being transmitted",
                 test->testId
@@ -378,6 +403,7 @@ private:
         }
 
         ClearActiveEvents();
+        ClearTransmissionStart();
         scheduler.Started(test);
         ctx.controller->Start();
         Common::Logger::Info("playback started: {}", test.testId);
@@ -408,6 +434,10 @@ private:
         ctx.controller.reset();
         ClearActiveEvents();
 
+        if(!failed && test.state == ScheduledTest::State::starting) {
+            PublishError(std::format("the pipeline of test \"{}\" ended before anything was transmitted", test.testId));
+            failed = true;
+        }
         scheduler.Finished(test, !failed);
         if(!failed) {
             Common::Logger::Info("playback finished: {}", test.testId);
@@ -422,8 +452,15 @@ private:
                     FinishPreparation(*test);
                 }
             }
-            else if(ctx.controller->GetState() != Sagax::Pipeline::Controller::RunState::running) {
-                FinishPipeline(*test);
+            else {
+                if(test->state == ScheduledTest::State::starting) {
+                    if(auto time = GetTransmissionStart()) {
+                        scheduler.Transmitting(*test, time.value());
+                    }
+                }
+                if(ctx.controller->GetState() != Sagax::Pipeline::Controller::RunState::running) {
+                    FinishPipeline(*test);
+                }
             }
         }
 
@@ -531,8 +568,8 @@ private:
         Common::Logger::Info("validation successful");
 
         scheduler.Configure(config);
-        scheduler.onStatus = [this](const std::string &testId, TestStatusMessage::TestStatus status) {
-            PublishTestStatus(testId, status);
+        scheduler.onStatus = [this](const std::string &testId, TestStatusMessage::TestStatus status, std::chrono::system_clock::time_point time) {
+            PublishTestStatus(testId, status, time);
         };
         scheduler.onError = [this](const std::string &text) {
             PublishError(text);

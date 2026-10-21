@@ -20,6 +20,8 @@ namespace Sagax::SCG {
 
         std::function<void(std::int32_t)> eventStart;
         std::function<void(std::int32_t)> eventEnd;
+        // called once, right before the first packet goes to the device
+        std::function<void(std::chrono::system_clock::time_point)> transmissionStart;
         std::optional<std::chrono::system_clock::time_point> startTime;
 
         void Reset() override;

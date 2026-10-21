@@ -116,19 +116,20 @@ namespace Sagax::SCG {
     }
 
     std::string FormatIsoTime(std::chrono::system_clock::time_point t) {
-        auto seconds = std::chrono::floor<std::chrono::seconds>(t);
-        auto days = std::chrono::floor<std::chrono::days>(seconds);
+        auto milliseconds = std::chrono::floor<std::chrono::milliseconds>(t);
+        auto days = std::chrono::floor<std::chrono::days>(milliseconds);
         std::chrono::year_month_day date{days};
-        std::chrono::hh_mm_ss<std::chrono::seconds> timeOfDay{seconds - days};
+        std::chrono::hh_mm_ss<std::chrono::milliseconds> timeOfDay{milliseconds - days};
 
         return std::format(
-            "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+            "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
             int(date.year()),
             unsigned(date.month()),
             unsigned(date.day()),
             timeOfDay.hours().count(),
             timeOfDay.minutes().count(),
-            timeOfDay.seconds().count()
+            timeOfDay.seconds().count(),
+            timeOfDay.subseconds().count()
         );
     }
 
