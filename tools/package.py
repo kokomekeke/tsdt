@@ -77,8 +77,6 @@ class LinuxPlatform(Platform):
             "scg",
             "scgserver",
             "scgcommander",
-            "mqtt_publisher",
-            "mqtt_subscriber",
         ]
 
 
@@ -111,8 +109,6 @@ class WindowsPlatform(Platform):
             "scg.exe",
             "scgserver.exe",
             "scgcommander.exe",
-            "mqtt_publisher.exe",
-            "mqtt_subscriber.exe",
             "*.dll"
         ]
 
@@ -131,8 +127,6 @@ class MacOSPlatform(Platform):
             "scg",
             "scgserver",
             "scgcommander",
-            "mqtt_publisher",
-            "mqtt_subscriber",
         ]
 
 

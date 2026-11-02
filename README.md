@@ -9,7 +9,6 @@ They are both here because they share the underlying engine.
 | `scgserver` | MQTT server, reads commands, prepares and plays tests, publishes status |
 | `scgcommander` | console client that sends those commands through a broker |
 | `scglint` | parses and validates scenario, config, rid and tsd json, without hardware |
-| `mqtt_publisher`, `mqtt_subscriber` | examples that send and read plain text on a topic |
 
 ## Documentation
 

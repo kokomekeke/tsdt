@@ -4,7 +4,7 @@
 #include <complex>
 #include <string>
 #include "SSG/IO/IQFileOut.hpp"
-#include "SCG/Signal/Sample.hpp"
+#include "SCG/Scenario/Sample.hpp"
 #include "OutputDevice.hpp"
 
 namespace Sagax::SCG {

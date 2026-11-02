@@ -20,13 +20,6 @@ option(
 )
 
 option(
-    'build_mqtt_examples',
-    type: 'boolean',
-    value: true,
-    description: 'Build mqtt examples from'
-)
-
-option(
     'build_scg_lint',
     type: 'boolean',
     value: true,

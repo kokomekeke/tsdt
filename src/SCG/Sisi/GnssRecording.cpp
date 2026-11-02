@@ -5,7 +5,7 @@
 #include "Common/Assert.hpp"
 #include "Common/Logger.hpp"
 #include "SSG/IO/IQFileOut.hpp"
-#include "SCG/Signal/Sample.hpp"
+#include "SCG/Scenario/Sample.hpp"
 #include "SCG/Signal/Gnss.hpp"
 #include "GnssRecording.hpp"
 

@@ -3,7 +3,7 @@
 #include <string>
 #include <chrono>
 #include <cstddef>
-#include "SCG/Signal/Sample.hpp"
+#include "SCG/Scenario/Sample.hpp"
 #include "OutputDevice.hpp"
 
 namespace Sagax::SCG {

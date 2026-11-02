@@ -24,72 +24,35 @@
 #include "SCG/Scenario/Scenario.hpp"
 #include "SCG/Scenario/Validate.hpp"
 #include "SCG/Json/Scenario.hpp"
-#include "SCG/ScenarioTransform/BuildPipeline.hpp"
-#include "SCG/ScenarioTransform/ScenarioPipeline.hpp"
-#include "SCG/ScenarioTransform/Transform.hpp"
+#include "SCG/Scenario/BuildPipeline.hpp"
+#include "SCG/Scenario/ScenarioPipeline.hpp"
 #include "SCG/Json/Rid.hpp"
 #include "SCG/Json/ServerConfig.hpp"
 #include "SCG/Utility/Fetch.hpp"
 #include "SCG/Utility/SignalHandler.hpp"
-#include "CommandError.hpp"
-#include "MqttClient.hpp"
-#include "ServerArguments.hpp"
-#include "RidTransform.hpp"
-#include "TestScheduler.hpp"
+#include "SCG/Sisi/RidTransform.hpp"
 #include "SCG/Utility/TimeFormat.hpp"
 
-using namespace Sagax;
-using namespace Sagax::SCG;
+#include "Server.hpp"
 
-static CommandError ReadCommand(const std::string &payload, CommandMessage &out) {
-    Json::JsonIssues issues;
-    if(!SCG::ParseCommandMessage(payload, out, issues)) {
-        return std::format("could not parse command:\n{}", issues.Format());
+namespace Sagax::SCG::Server {
+
+    namespace {
+
+        CommandError ReadCommand(const std::string &payload, CommandMessage &out) {
+            Json::JsonIssues issues;
+            if(!SCG::ParseCommandMessage(payload, out, issues)) {
+                return std::format("could not parse command:\n{}", issues.Format());
+            }
+            return {};
+        }
+
+        // the main loop runs at least this often
+        constexpr std::chrono::milliseconds scheduleTick{50};
+
     }
-    return {};
-}
 
-// the main loop runs at least this often
-constexpr std::chrono::milliseconds scheduleTick{50};
-
-struct Program {
-private:
-    static Program instance;
-
-    // cleared by the signal callback under mtx. it starts true, so a signal that arrives
-    // before the loop still stops it
-    bool programRunning = true;
-    std::mutex mtx;
-    std::condition_variable cv;
-
-    ProgramParser parser;
-    MqttClient client;
-    SCG::ServerConfig config;
-    SCG::PipelineConfig pipelineConfig;
-
-    // declared before threadPool, the preparation running there reads the tests
-    TestScheduler scheduler;
-    std::stop_source preparationStop;
-    std::future<std::string> preparation;
-
-    // declared before ctx, so it outlives the engine in ctx
-    Common::ThreadPool threadPool{4};
-    SCG::ScenarioPipeline ctx;
-
-    // the event callbacks run on a sink stage while it holds its stage mutex, and the
-    // engine takes the stage mutexes while stopping, so the callbacks only take
-    // mtxSignal and never mtx
-    std::mutex mtxSignal;
-    std::set<std::int32_t> activeEventIds;
-    // every stream sink reports its first packet, the earliest one is kept
-    std::optional<std::chrono::system_clock::time_point> transmissionStart;
-
-    // only the main loop touches these
-    std::optional<SignalStatusMessage::SignalStatus> lastSignalStatus;
-    std::chrono::steady_clock::duration statusPeriod{};
-    std::chrono::steady_clock::time_point nextSignalStatus;
-
-    void Configure() {
+    void Program::Configure() {
         pipelineConfig = SCG::PipelineConfig{};
         pipelineConfig.mockRadios = config.mockRadios;
         // a mock device needs nothing opened
@@ -143,7 +106,7 @@ private:
     }
 
     // tracked per event, a source can have more than one
-    void SetEventActive(std::int32_t eventId, bool active) {
+    void Program::SetEventActive(std::int32_t eventId, bool active) {
         {
             std::unique_lock lck(mtxSignal);
             if(active) {
@@ -156,12 +119,12 @@ private:
         cv.notify_all();
     }
 
-    void ClearActiveEvents() {
+    void Program::ClearActiveEvents() {
         std::unique_lock lck(mtxSignal);
         activeEventIds.clear();
     }
 
-    void SetTransmissionStart(std::chrono::system_clock::time_point time) {
+    void Program::SetTransmissionStart(std::chrono::system_clock::time_point time) {
         {
             std::unique_lock lck(mtxSignal);
             if(!transmissionStart.has_value() || time < transmissionStart.value()) {
@@ -171,18 +134,18 @@ private:
         cv.notify_all();
     }
 
-    std::optional<std::chrono::system_clock::time_point> GetTransmissionStart() {
+    std::optional<std::chrono::system_clock::time_point> Program::GetTransmissionStart() {
         std::unique_lock lck(mtxSignal);
         return transmissionStart;
     }
 
-    void ClearTransmissionStart() {
+    void Program::ClearTransmissionStart() {
         std::unique_lock lck(mtxSignal);
         transmissionStart.reset();
     }
 
     // the active events are mapped to the sources of the test that is playing
-    SignalStatusMessage::SignalStatus CurrentSignalStatus() {
+    SignalStatusMessage::SignalStatus Program::CurrentSignalStatus() {
         std::set<std::int32_t> eventIds;
         {
             std::unique_lock lck(mtxSignal);
@@ -212,7 +175,7 @@ private:
     }
 
     // only called once the pipeline is down, it holds the devices while it runs
-    void ReleaseRadios() {
+    void Program::ReleaseRadios() {
 #ifdef HAVE_USRP
         pipelineConfig.preinit.usrp.devices.clear();
         // uhd keeps dispatching log records on its own thread after the devices are gone
@@ -225,12 +188,12 @@ private:
 #endif
     }
 
-    bool StopRequested() {
+    bool Program::StopRequested() {
         std::unique_lock lck(mtx);
         return !programRunning;
     }
 
-    void Publish(const std::string &topic, const std::string &payload) {
+    void Program::Publish(const std::string &topic, const std::string &payload) {
         MqttClient::Message message;
         message.bytes.assign(payload.begin(), payload.end());
         message.qos = 2;
@@ -240,7 +203,7 @@ private:
     }
 
     // logs instead of publishing when the message could not be written
-    void PublishPayload(
+    void Program::PublishPayload(
         const std::string &topic,
         const std::optional<std::string> &payload,
         const Json::JsonIssues &issues
@@ -252,7 +215,7 @@ private:
         Publish(topic, payload.value());
     }
 
-    void PublishError(const std::string &text) {
+    void Program::PublishError(const std::string &text) {
         Common::Logger::Error("{}", text.c_str());
         ErrorMessage message;
         message.message = text;
@@ -260,7 +223,7 @@ private:
         PublishPayload(config.mqtt.errorLogTopic, SerializeErrorMessage(message, issues), issues);
     }
 
-    void PublishTestStatus(const std::string &testId, TestStatusMessage::TestStatus status, std::chrono::system_clock::time_point time) {
+    void Program::PublishTestStatus(const std::string &testId, TestStatusMessage::TestStatus status, std::chrono::system_clock::time_point time) {
         TestStatusMessage message;
         message.timestamp = FormatIsoTime(time);
         message.testId = testId;
@@ -269,7 +232,7 @@ private:
         PublishPayload(config.mqtt.testLogTopic, SerializeTestStatusMessage(message, issues), issues);
     }
 
-    void PublishSignalStatus() {
+    void Program::PublishSignalStatus() {
         auto status = CurrentSignalStatus();
         auto now = std::chrono::steady_clock::now();
         if(lastSignalStatus == status && now < nextSignalStatus) {
@@ -285,7 +248,7 @@ private:
         PublishPayload(config.mqtt.signalLogTopic, SerializeSignalStatusMessage(message, issues), issues);
     }
 
-    CommandError CancelTest(const CommandMessage::TestCancel &command) {
+    CommandError Program::CancelTest(const CommandMessage::TestCancel &command) {
         ScheduledTest *running = scheduler.Running();
         if(running != nullptr && running->testId == command.testId) {
             StopRunning();
@@ -295,7 +258,7 @@ private:
 
     // the transmission and the test end here, the directory stays where it is. a cancel
     // removes that as well, which is the difference between the two
-    CommandError StopTransmission() {
+    CommandError Program::StopTransmission() {
         ScheduledTest *test = scheduler.Running();
         if(test == nullptr) {
             return "no test is running";
@@ -316,7 +279,7 @@ private:
         return {};
     }
 
-    void StartPreparation(ScheduledTest &test) {
+    void Program::StartPreparation(ScheduledTest &test) {
         scheduler.Started(test);
         Common::Logger::Info("preparation started: {}", test.testId);
 
@@ -334,14 +297,14 @@ private:
         });
     }
 
-    bool PreparationDone() {
+    bool Program::PreparationDone() {
         return (
             preparation.valid() &&
             preparation.wait_for(std::chrono::seconds(0)) == std::future_status::ready
         );
     }
 
-    void FinishPreparation(ScheduledTest &test) {
+    void Program::FinishPreparation(ScheduledTest &test) {
         std::string error = preparation.get();
         if(!error.empty()) {
             PublishError(std::format("could not prepare test \"{}\": {}", test.testId, error));
@@ -353,7 +316,7 @@ private:
     }
 
     // leaves the test in the state it had
-    void StopRunning() {
+    void Program::StopRunning() {
         ScheduledTest *test = scheduler.Running();
         if(test == nullptr) {
             return;
@@ -370,7 +333,7 @@ private:
         scheduler.Stopped(*test);
     }
 
-    void StartPipeline(ScheduledTest &test) {
+    void Program::StartPipeline(ScheduledTest &test) {
         ctx = SCG::ScenarioPipeline{};
         try {
             pipelineConfig.events.startTime = test.time;
@@ -401,7 +364,7 @@ private:
         Common::Logger::Info("playback started: {}", test.testId);
     }
 
-    void StopPipeline() {
+    void Program::StopPipeline() {
         ctx.Stop(false);
         ctx.Join();
         ctx.Dispose();
@@ -411,7 +374,7 @@ private:
     }
 
     // called once the pipeline has left the running state on its own
-    void FinishPipeline(ScheduledTest &test) {
+    void Program::FinishPipeline(ScheduledTest &test) {
         bool failed = false;
 
         ctx.Join();
@@ -439,7 +402,7 @@ private:
     }
 
     // a playback that is due before the next tick is started now
-    void UpdateSchedule() {
+    void Program::UpdateSchedule() {
         if(ScheduledTest *test = scheduler.Running()) {
             if(test->state == ScheduledTest::State::preparing) {
                 if(PreparationDone()) {
@@ -469,15 +432,15 @@ private:
 
     // the payload itself is in the line the client writes for every message it reads,
     // so this only says what the message turned out to be
-    void Interpreted(const std::string &topic, const char *command) {
+    void Program::Interpreted(const std::string &topic, const char *command) {
         Common::Logger::Info("interpreted [{}] as {}", topic, command);
     }
 
-    void Ignored(const std::string &topic, const char *command) {
+    void Program::Ignored(const std::string &topic, const char *command) {
         Common::Logger::Warn("interpreted [{}] as {}, which does nothing here yet", topic, command);
     }
 
-    void HandleCommand(const MqttClient::Message &msg) {
+    void Program::HandleCommand(const MqttClient::Message &msg) {
         std::string payload(msg.bytes.begin(), msg.bytes.end());
         CommandMessage cm;
         CommandError error = ReadCommand(payload, cm);
@@ -519,7 +482,7 @@ private:
         }
     }
 
-    void HandleCommands() {
+    void Program::HandleCommands() {
         MqttClient::Message msg;
         while(client.Pop(msg)) {
             // an exception only drops this message
@@ -532,7 +495,7 @@ private:
         }
     }
 
-    bool Setup(Parameters params) {
+    bool Program::Setup(Parameters params) {
         std::ifstream file(params.configPath);
         if(!file.is_open()) {
             Common::Logger::Error("failed to open config file: {}", params.configPath);
@@ -580,7 +543,7 @@ private:
         return true;
     }
 
-    void Run() {
+    void Program::Run() {
         MqttClient::LibraryInit();
         Common::Defer disposeMqttLibrary([](){
             MqttClient::LibraryCleanup();
@@ -639,13 +602,7 @@ private:
         }
     }
 
-public:
-
-    static Program &GetInstance() {
-        return instance;
-    }
-
-    int Main(int argc, char **argv) {
+    int Program::Main(Parameters params) {
         Common::StdLogStream logStream(std::cerr, Common::Logger::Level::Trace, Common::StdLogStream::TagOptions{
             .colors = true,
             .file = false,
@@ -686,17 +643,21 @@ public:
             cv.notify_all();
         });
 
+        // the pool keeps 4 threads around and grows on demand. it stops after Run has
+        // stopped the pipeline and the preparation that dispatch to it
+        threadPool.Init(4);
+        Common::Defer disposeThreadPool([this](){
+            threadPool.Dispose();
+        });
+
         // the radios are opened by Setup, this releases them after Run, also on a throw
         Common::Defer releaseRadios([this](){
             ReleaseRadios();
         });
 
-        Parameters params{};
-        parser.Parse(argc, argv);
-        params = parser.params;
         if(!params.success) {
             Common::Logger::Error("\nfailed to parse parameters:\n{}", params.error.c_str());
-            Common::Logger::Info("\n{}", parser.Help().c_str());
+            Common::Logger::Info("\n{}", params.help.c_str());
             return 1;
         }
         if(params.helpRequested) {
@@ -732,9 +693,4 @@ public:
         return 0;
     }
 
-};
-Program Program::instance;
-
-int main(int argc, char **argv) {
-    return Program::GetInstance().Main(argc, argv);
 }

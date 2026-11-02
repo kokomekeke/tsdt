@@ -5,7 +5,8 @@
 
 #include "SCG/Scenario/Scenario.hpp"
 #include "RecordingDirectoryResource.hpp"
-#include "Transform.hpp"
+#include "SCG/Output/OutputTransform.hpp"
+#include "SCG/Signal/SignalTransform.hpp"
 #include "BuildPipeline.hpp"
 
 namespace Sagax::SCG {

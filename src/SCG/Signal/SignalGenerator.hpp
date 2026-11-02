@@ -5,7 +5,7 @@
 #include <vector>
 #include "SSG/Modulators/Waveforms.hpp"
 #include "SSG/Modulators/Analog.hpp"
-#include "SCG/Signal/Sample.hpp"
+#include "SCG/Scenario/Sample.hpp"
 #include "SCG/Scenario/SignalVariant.hpp"
 #include "Gnss.hpp"
 

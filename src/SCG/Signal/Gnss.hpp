@@ -1,7 +1,7 @@
 #pragma once
 #include <cstddef>
 #include <memory>
-#include "SCG/Signal/Sample.hpp"
+#include "SCG/Scenario/Sample.hpp"
 #include "SCG/Scenario/SignalVariant.hpp"
 
 namespace Sagax::SCG {

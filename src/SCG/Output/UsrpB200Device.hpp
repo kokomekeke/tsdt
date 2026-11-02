@@ -7,7 +7,7 @@
 #include <string>
 #include "SSG/Radio/Usrp/UsrpB200.hpp"
 #include "SCG/Utility/Resource.hpp"
-#include "SCG/Signal/Sample.hpp"
+#include "SCG/Scenario/Sample.hpp"
 #include "OutputDevice.hpp"
 
 namespace Sagax::SCG {

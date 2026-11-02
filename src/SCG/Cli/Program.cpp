@@ -4,7 +4,6 @@
 #include <iostream>
 #include <numbers>
 #include <utility>
-#include <csignal>
 #include <mutex>
 #include <chrono>
 
@@ -13,45 +12,17 @@
 #include "Common/Assert.hpp"
 #include "Common/Defer.hpp"
 #include "Common/Timer.hpp"
-#include "Common/ThreadPool.hpp"
-#include "Vendored/argparse/argparse.hpp"
 
-#include "SCG/Scenario/Scenario.hpp"
 #include "SCG/Scenario/Validate.hpp"
 #include "SCG/Json/Scenario.hpp"
-#include "SCG/ScenarioTransform/ScenarioPipeline.hpp"
-#include "SCG/ScenarioTransform/Transform.hpp"
-#include "SCG/ScenarioTransform/BuildPipeline.hpp"
-#include "SCG/ScenarioTransform/PipelineConfig.hpp"
-#include "SCG/Utility/SignalHandler.hpp"
+#include "SCG/Scenario/BuildPipeline.hpp"
 #include "SCG/Utility/TimeFormat.hpp"
 
-#include "ProgramParser.hpp"
+#include "Program.hpp"
 
-using namespace Sagax;
-using namespace Sagax::SCG;
+namespace Sagax::SCG::Cli {
 
-
-
-struct Program {
-
-    ProgramParser parser;
-    PipelineConfig pipelineConfig;
-
-    // the engine of ctx dispatches its workers here. it is declared before ctx so that it
-    // is still alive when ctx goes away. the pool grows on demand, the count is only the
-    // number of threads it keeps around
-    Common::ThreadPool threadPool{4};
-    ScenarioPipeline ctx;
-
-    // Stop() runs on the signal thread while Run() is still putting ctx together, so ctx
-    // and started are only read and written under this. stopRequested carries a signal
-    // that arrived before ctx was started
-    std::mutex mtxStop;
-    bool stopRequested = false;
-    bool started = false;
-
-    Scenario ParseFile(std::string jsonPath) {
+    Scenario Program::ParseFile(std::string jsonPath) {
         Scenario scenario;
 
         try {
@@ -95,31 +66,33 @@ struct Program {
         return scenario;
     }
 
-    ScenarioPipeline SetupRecording(std::string jsonPath, std::string dirPath) {
+    ScenarioPipeline Program::SetupRecording(std::string jsonPath, std::string dirPath) {
         return BuildRecordingPipeline(pipelineConfig, ParseFile(jsonPath), dirPath);
     }
 
-    ScenarioPipeline SetupPlayback(std::string dirPath) {
+    ScenarioPipeline Program::SetupPlayback(std::string dirPath) {
         return BuildPlaybackPipeline(pipelineConfig, dirPath);
     }
 
-    ScenarioPipeline SetupStreaming(std::string jsonPath) {
+    ScenarioPipeline Program::SetupStreaming(std::string jsonPath) {
         return BuildStreamingPipeline(pipelineConfig, ParseFile(jsonPath));
     }
 
-    void Configure() {
+    void Program::Configure() {
         #ifdef HAVE_USRP
             pipelineConfig.preinit.usrp.usePreinitOnly = false;
         #endif
     }
 
-    // the pipeline owns the devices, so it goes first. uhd keeps dispatching log records
-    // on a thread of its own after that, and libsidekiq outlives the devices it handed
-    // out. mtxStop is held because clearing ctx destroys the engine Stop() reads
-    void ReleaseResources() {
+    // the pipeline owns the devices, so it goes first, the thread pool its engine used
+    // after it. uhd keeps dispatching log records on a thread of its own after that, and
+    // libsidekiq outlives the devices it handed out. mtxStop is held because clearing ctx
+    // destroys the engine Stop() reads
+    void Program::ReleaseResources() {
         std::unique_lock lck(mtxStop);
         ctx.Dispose();
         ctx = ScenarioPipeline{};
+        threadPool.Dispose();
         #ifdef HAVE_USRP
             SSG::UsrpB200::DisposeLogging();
         #endif
@@ -128,7 +101,7 @@ struct Program {
         #endif
     }
 
-    bool Run(Parameters params) {
+    bool Program::Run(Parameters params) {
         Common::Logger::Info("SCG");
 
         Configure();
@@ -152,6 +125,8 @@ struct Program {
             return false;
         }
 
+        // the pool keeps 4 threads around and grows on demand
+        threadPool.Init(4);
         {
             std::unique_lock lck(mtxStop);
             ctx.Setup(threadPool, GetDefaultCpuThreadCount());
@@ -199,7 +174,7 @@ struct Program {
         return ok;
     }
 
-    void Stop(){
+    void Program::Stop() {
         std::unique_lock lck(mtxStop);
         stopRequested = true;
         if(started) {
@@ -207,7 +182,7 @@ struct Program {
         }
     }
 
-    int Main(int argc, char **argv) {
+    int Program::Main(Parameters params) {
         // SetCurrentThreadName("main");
         Common::StdLogStream logStream(std::cerr, Common::Logger::Level::Trace, Common::StdLogStream::TagOptions{
             .file = true,
@@ -224,11 +199,9 @@ struct Program {
             ReleaseResources();
         });
 
-        parser.Parse(argc, argv);
-        Parameters params = parser.params;
         if(!params.success) {
             Common::Logger::Error("\ncould not parse parameters:\n{}", params.error.c_str());
-            Common::Logger::Info("\n{}", parser.Help().c_str());
+            Common::Logger::Info("\n{}", params.help.c_str());
             return 1;
         }
         if(params.helpRequested) {
@@ -245,19 +218,4 @@ struct Program {
         return ok ? 0 : 1;
     }
 
-};
-
-Program program;
-
-int main(int argc, char **argv) {
-    // constructed before anything else starts a thread, on linux a thread inherits the
-    // signal mask and the blocking has to be in place by then
-    SignalHandler signalHandler({ SIGINT, SIGTERM }, [](int sig){
-        Common::Logger::Info("signal {} received, stopping", sig);
-        program.Stop();
-    });
-
-    return program.Main(argc, argv);
 }
-
-

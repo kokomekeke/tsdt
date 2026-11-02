@@ -3,7 +3,7 @@
 #include <vector>
 #include <chrono>
 #include <optional>
-#include "SCG/Signal/Sample.hpp"
+#include "SCG/Scenario/Sample.hpp"
 
 namespace Sagax::SCG {
 
