@@ -210,9 +210,18 @@ namespace Sagax::SCG {
         };
 
         struct SavedTestJsonParser : Json::JsonObjectParser<SavedTest> {
+            struct GnssParser : Json::JsonObjectParser<SavedTest::Gnss> {
+                GnssParser() {
+                    AddParam(&SavedTest::Gnss::prerecord, Json::JsonPrimitiveParser<bool>{}, "prerecord_gnss");
+                    AddParam(&SavedTest::Gnss::mock, Json::JsonPrimitiveParser<bool>{}, "mock_gnss");
+                    AddParam(&SavedTest::Gnss::ephemerisFile, Json::JsonPrimitiveParser<std::string>{}, "gnss_ephemeris_file");
+                }
+            };
+
             SavedTestJsonParser() {
                 AddParam(&SavedTest::command, CommandMessageJsonParser::TestSetupParser{}, "command");
                 AddParam(&SavedTest::status, TestStatusMessageJsonParser::TestStatusParser{}, "status");
+                AddParam(&SavedTest::gnss, GnssParser{}, "gnss");
             }
         };
 

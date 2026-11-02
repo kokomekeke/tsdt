@@ -41,6 +41,7 @@ namespace Sagax::SCG {
         std::vector<std::int32_t> eventMap;
         Scenario scenario;
         std::vector<std::unique_ptr<Job>> jobs;
+        SavedTest::Gnss gnss;
         std::string directory;
         State state = State::pending;
     };

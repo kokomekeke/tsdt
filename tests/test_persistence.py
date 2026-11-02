@@ -20,7 +20,12 @@ def with_ephemeris(config):
     config["gnss_ephemeris_file"] = "ephemeris/none.rnx"
 
 
-def write_saved(tmp_path, test_id, rid, seconds_ahead, status="TEST_INIT", saved_id=None):
+def gnss_settings(prerecord=True, mock=True, ephemeris=""):
+    """the gnss values of the config template, which the server saves with every test"""
+    return {"prerecord_gnss": prerecord, "mock_gnss": mock, "gnss_ephemeris_file": ephemeris}
+
+
+def write_saved(tmp_path, test_id, rid, seconds_ahead, status="TEST_INIT", saved_id=None, gnss=None):
     """the files the server leaves for a test, written by hand
 
     only these two are read back. the server also leaves the tsd and the rid of every
@@ -37,6 +42,7 @@ def write_saved(tmp_path, test_id, rid, seconds_ahead, status="TEST_INIT", saved
             "test_id": saved_id or test_id,
         },
         "status": status,
+        "gnss": gnss or gnss_settings(),
     }
     (directory / "test.json").write_text(json.dumps(content), encoding="utf-8")
     return directory
@@ -236,6 +242,58 @@ def test_a_test_the_new_config_rejects_is_dropped(server, broker, tmp_path):
     assert '"spoofed"' in message and "gnss_ephemeris_file" in message, message
     assert wait_until(lambda: statuses(restarted, mark, "spoofed") == ["TEST_FAILED"])
     assert saved(tmp_path, "spoofed")["status"] == "TEST_FAILED"
+
+
+@pytest.mark.parametrize(
+    "gnss, config_changes, reason",
+    [
+        (gnss_settings(prerecord=False), None, "prerecord_gnss was false"),
+        (gnss_settings(mock=False), None, "mock_gnss was false"),
+        (
+            gnss_settings(mock=False, ephemeris="ephemeris/old.rnx"),
+            lambda config: config.update(mock_gnss=False, gnss_ephemeris_file="ephemeris/none.rnx"),
+            '"ephemeris/old.rnx"',
+        ),
+    ],
+    ids=["prerecord", "mock", "ephemeris"],
+)
+def test_a_prepared_spoofer_whose_gnss_config_changed_is_dropped(server, broker, tmp_path, gnss, config_changes, reason):
+    """its recordings were made under the old values"""
+    rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S)
+    write_saved(tmp_path, "changed", rid, seconds_ahead=600, status="TEST_READY", gnss=gnss)
+
+    mark = broker.mark()
+    restarted = server(config_changes=config_changes)
+    message, _ = restarted.expect_error(mark)
+    assert '"changed"' in message and reason in message, message
+    assert wait_until(lambda: statuses(restarted, mark, "changed") == ["TEST_FAILED"])
+    assert saved(tmp_path, "changed")["status"] == "TEST_FAILED"
+
+
+def test_a_mocked_recording_does_not_depend_on_the_ephemeris(server, broker, tmp_path):
+    rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S)
+    write_saved(tmp_path, "mocked", rid, seconds_ahead=600, status="TEST_READY", gnss=gnss_settings(ephemeris="ephemeris/old.rnx"))
+
+    mark = broker.mark()
+    restarted = server(config_changes=with_ephemeris)
+    assert restarted.wait_for_log("test restored: mocked"), restarted.log
+    assert wait_until(lambda: statuses(restarted, mark, "mocked") == ["TEST_READY"])
+
+
+def test_a_prepared_test_without_a_spoofer_ignores_the_gnss_config(server, broker, tmp_path, rid_path):
+    write_saved(tmp_path, "jammer", rid_path, seconds_ahead=600, status="TEST_READY", gnss=gnss_settings(prerecord=False, mock=False))
+
+    mark = broker.mark()
+    restarted = server()
+    assert restarted.wait_for_log("test restored: jammer"), restarted.log
+    assert wait_until(lambda: statuses(restarted, mark, "jammer") == ["TEST_READY"])
+
+
+def test_the_gnss_config_is_saved_with_the_test(server, tmp_path, tsd_path):
+    sched = server(config_changes=with_ephemeris)
+    sched.setup(tsd_path.as_uri(), test_id="kept", seconds_ahead=600)
+    assert sched.wait_for_log("test scheduled: kept"), sched.log
+    assert saved(tmp_path, "kept")["gnss"] == gnss_settings(ephemeris="ephemeris/none.rnx")
 
 
 def test_a_test_without_its_rid_is_dropped(server, broker, tmp_path, rid_path):

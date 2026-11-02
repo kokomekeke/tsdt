@@ -149,6 +149,36 @@ namespace Sagax::SCG {
             }
         }
 
+        bool HasSpoofer(const Rid &rid) {
+            return std::any_of(rid.interferenceSources.begin(), rid.interferenceSources.end(), [](const Rid::InterferenceSource &s) {
+                return std::holds_alternative<Rid::InterferenceSource::Spoofing>(s.variant);
+            });
+        }
+
+        // the files a prepared test plays only match the config they were recorded with.
+        // the ephemeris only shapes a real recording
+        CommandError CheckPreparedGnss(const SavedTest::Gnss &saved, const ServerConfig &config) {
+            if(saved.prerecord != config.prerecordGnss) {
+                return std::format(
+                    "prerecord_gnss was {} when the test was prepared and is {} now",
+                    saved.prerecord, config.prerecordGnss
+                );
+            }
+            if(saved.mock != config.mockGnss) {
+                return std::format(
+                    "mock_gnss was {} when the test was prepared and is {} now",
+                    saved.mock, config.mockGnss
+                );
+            }
+            if(saved.prerecord && !saved.mock && saved.ephemerisFile != config.gnssEphemerisFile) {
+                return std::format(
+                    "the test was prepared with the ephemeris \"{}\", the config names \"{}\" now",
+                    saved.ephemerisFile, config.gnssEphemerisFile
+                );
+            }
+            return {};
+        }
+
         bool IsOver(TestStatusMessage::TestStatus status) {
             return status == TestStatusMessage::TestStatus::TEST_COMPLETED
                 || status == TestStatusMessage::TestStatus::TEST_FAILED;
@@ -231,6 +261,7 @@ namespace Sagax::SCG {
         SavedTest saved;
         saved.command = test.command;
         saved.status = ReportedStatus(test.state);
+        saved.gnss = test.gnss;
         WriteSavedTest(test.directory, saved);
     }
 
@@ -357,6 +388,9 @@ namespace Sagax::SCG {
         test->eventMap = std::move(scenarioMap.eventMap);
         test->jobs = std::move(scenarioMap.jobs);
         test->scenario = std::move(scenario);
+        test->gnss.prerecord = config.prerecordGnss;
+        test->gnss.mock = config.mockGnss;
+        test->gnss.ephemerisFile = config.gnssEphemerisFile;
         test->state = state;
 
         double work = 0.0;
@@ -493,6 +527,9 @@ namespace Sagax::SCG {
         SCG_CHECK(ReadTextFile(directory / ridFileName, json));
         Rid rid;
         SCG_CHECK(ReadRid(json, rid));
+        if(state == ScheduledTest::State::ready && HasSpoofer(rid)) {
+            SCG_CHECK(CheckPreparedGnss(saved.gnss, config));
+        }
 
         std::unique_ptr<ScheduledTest> test;
         SCG_CHECK(CreateTest(saved.command, time, std::move(rid), state, test));
