@@ -21,13 +21,11 @@
 #include "Common/Logger.hpp"
 #include "Common/Defer.hpp"
 #include "Common/ThreadPool.hpp"
-#include "Pipeline/PpController.hpp"
-#include "Pipeline/RtcController.hpp"
 #include "SCG/Scenario/Scenario.hpp"
 #include "SCG/Scenario/Validate.hpp"
 #include "SCG/Json/Scenario.hpp"
 #include "SCG/ScenarioTransform/BuildPipeline.hpp"
-#include "SCG/ScenarioTransform/ScenarioRunnerContext.hpp"
+#include "SCG/ScenarioTransform/ScenarioPipeline.hpp"
 #include "SCG/ScenarioTransform/Transform.hpp"
 #include "SCG/Json/Rid.hpp"
 #include "SCG/Json/ServerConfig.hpp"
@@ -74,12 +72,12 @@ private:
     std::stop_source preparationStop;
     std::future<std::string> preparation;
 
-    // declared before ctx, so it outlives the controller in ctx
+    // declared before ctx, so it outlives the engine in ctx
     Common::ThreadPool threadPool{4};
-    SCG::ScenarioRunnerContext ctx;
+    SCG::ScenarioPipeline ctx;
 
-    // the event callbacks run on the sink thread while it holds its module mutex, and the
-    // controller takes the module mutexes while stopping, so the callbacks only take
+    // the event callbacks run on a sink stage while it holds its stage mutex, and the
+    // engine takes the stage mutexes while stopping, so the callbacks only take
     // mtxSignal and never mtx
     std::mutex mtxSignal;
     std::set<std::int32_t> activeEventIds;
@@ -370,13 +368,10 @@ private:
     }
 
     void StartPipeline(ScheduledTest &test) {
-        ctx = SCG::ScenarioRunnerContext{};
+        ctx = SCG::ScenarioPipeline{};
         try {
             pipelineConfig.events.startTime = test.time;
-            auto b = SCG::BuildStreamingPipeline(pipelineConfig, test.scenario);
-            ctx.pipeline = b.builder.Build();
-            ctx.resources = b.resources;
-            ctx.scenario = test.scenario;
+            ctx = SCG::BuildStreamingPipeline(pipelineConfig, test.scenario);
         }
         catch(const std::exception &e) {
             PublishError(std::format("could not build pipeline for test \"{}\": {}", test.testId, e.what()));
@@ -384,20 +379,14 @@ private:
             return;
         }
 
-        {
-            auto controller = std::make_unique<Sagax::Pipeline::PpController>();
-            controller->SetThreadPool(threadPool);
-            controller->Setup(ctx.pipeline, 32);
-            ctx.controller = std::move(controller);
-        }
-        ctx.controller->Reset();
+        ctx.Setup(threadPool, SCG::GetDefaultCpuThreadCount());
         try {
             ctx.Init();
         }
         catch(const std::exception &e) {
             PublishError(std::format("could not initialize resources for test \"{}\": {}", test.testId, e.what()));
             ctx.Dispose();
-            ctx.controller.reset();
+            ctx = SCG::ScenarioPipeline{};
             scheduler.Finished(test, false);
             return;
         }
@@ -405,33 +394,35 @@ private:
         ClearActiveEvents();
         ClearTransmissionStart();
         scheduler.Started(test);
-        ctx.controller->Start();
+        ctx.Start();
         Common::Logger::Info("playback started: {}", test.testId);
     }
 
     void StopPipeline() {
-        ctx.controller->Stop(true);
-        ctx.controller->Join();
+        ctx.Stop(false);
+        ctx.Join();
         ctx.Dispose();
-        ctx.controller.reset();
+        ctx = SCG::ScenarioPipeline{};
         ClearActiveEvents();
         Common::Logger::Info("pipeline stopped");
     }
 
-    // called once the controller has left the running state on its own
+    // called once the pipeline has left the running state on its own
     void FinishPipeline(ScheduledTest &test) {
         bool failed = false;
 
-        ctx.controller->Join();
+        ctx.Join();
         try {
-            ctx.controller->Throw();
+            if(std::exception_ptr error = ctx.GetError()) {
+                std::rethrow_exception(error);
+            }
         }
         catch(const std::exception &e) {
             PublishError(std::format("error running pipeline for test \"{}\": {}", test.testId, e.what()));
             failed = true;
         }
         ctx.Dispose();
-        ctx.controller.reset();
+        ctx = SCG::ScenarioPipeline{};
         ClearActiveEvents();
 
         if(!failed && test.state == ScheduledTest::State::starting) {
@@ -458,7 +449,7 @@ private:
                         scheduler.Transmitting(*test, time.value());
                     }
                 }
-                if(ctx.controller->GetState() != Sagax::Pipeline::Controller::RunState::running) {
+                if(ctx.GetState() != Pipeline3::PipelineEngine::RunState::running) {
                     FinishPipeline(*test);
                 }
             }
@@ -628,8 +619,8 @@ private:
         );
         nextSignalStatus = std::chrono::steady_clock::now();
         while(true) {
-            // mtx is only held for the wait, the steps below reach the module mutexes
-            // through the controller. the mqtt client, the event callbacks, the
+            // mtx is only held for the wait, the steps below reach the stage mutexes
+            // through the engine. the mqtt client, the event callbacks, the
             // preparation and the signal handler end the wait early
             {
                 std::unique_lock lck(mtx);

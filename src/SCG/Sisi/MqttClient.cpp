@@ -156,6 +156,7 @@ namespace Sagax::SCG {
                 const int subscribeResult = mosquitto_subscribe(mosq, nullptr, topic.c_str(), 0);
                 if(subscribeResult != MOSQ_ERR_SUCCESS) {
                     Common::Logger::Error("failed to subscribe to {}: {}", topic, mosquitto_strerror(subscribeResult));
+                    mosquitto_disconnect(mosq);
                     return false;
                 }
                 else {

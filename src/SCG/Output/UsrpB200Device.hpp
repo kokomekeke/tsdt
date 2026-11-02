@@ -7,7 +7,7 @@
 #include <string>
 #include "SSG/Radio/Usrp/UsrpB200.hpp"
 #include "SCG/Utility/Resource.hpp"
-#include "SCG/Modules/Packets.hpp"
+#include "SCG/Signal/Sample.hpp"
 #include "OutputDevice.hpp"
 
 namespace Sagax::SCG {
@@ -28,7 +28,7 @@ namespace Sagax::SCG {
         void Dispose_() override;
         void Start() override;
         void Stop() override;
-        void Take(SCGIQPacket &packet) override;
+        void Take(const std::vector<std::span<const SCGSample>> &channels) override;
     };
 
 }

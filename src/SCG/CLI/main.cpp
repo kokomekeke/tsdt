@@ -13,17 +13,12 @@
 #include "Common/Defer.hpp"
 #include "Common/Timer.hpp"
 #include "Common/ThreadPool.hpp"
-#include "Pipeline/Pipeline.hpp"
-#include "Pipeline/Controller.hpp"
-#include "Pipeline/PpController.hpp"
-#include "Pipeline/RtcController.hpp"
 #include "Vendored/argparse/argparse.hpp"
-#include "SSG/Packets/Packets.hpp"
 
 #include "SCG/Scenario/Scenario.hpp"
 #include "SCG/Scenario/Validate.hpp"
 #include "SCG/Json/Scenario.hpp"
-#include "SCG/ScenarioTransform/ScenarioRunnerContext.hpp"
+#include "SCG/ScenarioTransform/ScenarioPipeline.hpp"
 #include "SCG/ScenarioTransform/Transform.hpp"
 #include "SCG/ScenarioTransform/BuildPipeline.hpp"
 #include "SCG/ScenarioTransform/PipelineConfig.hpp"
@@ -41,17 +36,18 @@ struct Program {
     ProgramParser parser;
     PipelineConfig pipelineConfig;
 
-    // the controller dispatches its workers here. it is declared before ctx so that it
-    // is still alive when the controller ctx holds goes away. the pool grows on demand,
-    // the count is only the number of threads it keeps around
+    // the engine of ctx dispatches its workers here. it is declared before ctx so that it
+    // is still alive when ctx goes away. the pool grows on demand, the count is only the
+    // number of threads it keeps around
     Common::ThreadPool threadPool{4};
-    ScenarioRunnerContext ctx;
+    ScenarioPipeline ctx;
 
-    // Stop() runs on the signal thread while Run() is still putting ctx together, so the
-    // controller pointer is only read and written under this. stopRequested carries a
-    // signal that arrived before there was a controller to hand it to
+    // Stop() runs on the signal thread while Run() is still putting ctx together, so ctx
+    // and started are only read and written under this. stopRequested carries a signal
+    // that arrived before ctx was started
     std::mutex mtxStop;
     bool stopRequested = false;
+    bool started = false;
 
     Scenario ParseFile(std::string jsonPath) {
         Scenario scenario;
@@ -97,33 +93,16 @@ struct Program {
         return scenario;
     }
 
-    ScenarioRunnerContext SetupRecording(std::string jsonPath, std::string dirPath) {
-        ScenarioRunnerContext res;
-        res.scenario = ParseFile(jsonPath);
-        auto b = BuildRecordingPipeline(pipelineConfig, res.scenario, dirPath);
-        res.pipeline = b.builder.Build();
-        res.resources = b.resources;
-        res.ownedResources.emplace_back(std::move(b.dir));
-        return res;
+    ScenarioPipeline SetupRecording(std::string jsonPath, std::string dirPath) {
+        return BuildRecordingPipeline(pipelineConfig, ParseFile(jsonPath), dirPath);
     }
 
-    ScenarioRunnerContext SetupPlayback(std::string dirPath) {
-        ScenarioRunnerContext res;
-        auto b = BuildPlaybackPipeline(pipelineConfig, dirPath);
-        res.pipeline = b.builder.Build();
-        res.resources = b.resources;
-        res.scenario = b.dir->GetScenario();
-        res.ownedResources.emplace_back(std::move(b.dir));
-        return res;
+    ScenarioPipeline SetupPlayback(std::string dirPath) {
+        return BuildPlaybackPipeline(pipelineConfig, dirPath);
     }
 
-    ScenarioRunnerContext SetupStreaming(std::string jsonPath) {
-        ScenarioRunnerContext res;
-        res.scenario = ParseFile(jsonPath);
-        auto b = BuildStreamingPipeline(pipelineConfig, res.scenario);
-        res.pipeline = b.builder.Build();
-        res.resources = b.resources;
-        return res;
+    ScenarioPipeline SetupStreaming(std::string jsonPath) {
+        return BuildStreamingPipeline(pipelineConfig, ParseFile(jsonPath));
     }
 
     void Configure() {
@@ -134,11 +113,11 @@ struct Program {
 
     // the pipeline owns the devices, so it goes first. uhd keeps dispatching log records
     // on a thread of its own after that, and libsidekiq outlives the devices it handed
-    // out. mtxStop is held because clearing ctx destroys the controller Stop() reads
+    // out. mtxStop is held because clearing ctx destroys the engine Stop() reads
     void ReleaseResources() {
         std::unique_lock lck(mtxStop);
         ctx.Dispose();
-        ctx = ScenarioRunnerContext{};
+        ctx = ScenarioPipeline{};
         #ifdef HAVE_USRP
             SSG::UsrpB200::DisposeLogging();
         #endif
@@ -152,7 +131,7 @@ struct Program {
 
         Configure();
         try {
-            ScenarioRunnerContext res;
+            ScenarioPipeline res;
             switch(params.mode) {
                 case Parameters::Mode::playback: { res = SetupPlayback(params.recordingDirectory); } break;
                 case Parameters::Mode::record: { res = SetupRecording(params.jsonPath, params.recordingDirectory); } break;
@@ -171,17 +150,9 @@ struct Program {
             return false;
         }
 
-        // this could maybe be controlled individually for each mode
-        auto controller = std::make_unique<Pipeline::PpController>();
-        controller->SetThreadPool(threadPool);
-        controller->Setup(ctx.pipeline, 32);
-        controller->Reset();
         {
             std::unique_lock lck(mtxStop);
-            ctx.controller = std::move(controller);
-            if(stopRequested) {
-                ctx.controller->Stop(false);
-            }
+            ctx.Setup(threadPool, GetDefaultCpuThreadCount());
         }
 
         try {
@@ -194,13 +165,23 @@ struct Program {
 
         Common::Timer timer;
         timer.Set();
-        ctx.controller->Start();
-        ctx.controller->Join();
+        {
+            std::unique_lock lck(mtxStop);
+            if(stopRequested) {
+                Common::Logger::Info("stopped before start");
+                return true;
+            }
+            ctx.Start();
+            started = true;
+        }
+        ctx.Join();
         auto time_ms = timer.Get_ms();
 
         bool ok = true;
         try {
-            ctx.controller->Throw();
+            if(std::exception_ptr error = ctx.GetError()) {
+                std::rethrow_exception(error);
+            }
         }
         catch(const std::exception &e) {
             Common::Logger::Error("\nerror running pipeline:\n{}", e.what());
@@ -213,8 +194,8 @@ struct Program {
     void Stop(){
         std::unique_lock lck(mtxStop);
         stopRequested = true;
-        if(ctx.controller) {
-            ctx.controller->Stop(false);
+        if(started) {
+            ctx.Stop(false);
         }
     }
 

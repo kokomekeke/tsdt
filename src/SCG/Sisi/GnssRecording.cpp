@@ -5,7 +5,7 @@
 #include "Common/Assert.hpp"
 #include "Common/Logger.hpp"
 #include "SSG/IO/IQFileOut.hpp"
-#include "SCG/Modules/Packets.hpp"
+#include "SCG/Signal/Sample.hpp"
 #include "SCG/Signal/Gnss.hpp"
 #include "GnssRecording.hpp"
 
@@ -111,7 +111,7 @@ namespace Sagax::SCG {
 
         SSG::IO::IQFileOut<SCGSampleBase> file;
 
-        SCGIQPacket packet;
+        SSG::Packets::SamplePacket<SCGSample> packet;
         packet.Reshape(sampleRate_hz, 1, 0, true);
         auto &m = packet.meta.AddEntry<SSG::Packets::MFrequency>();
         m.frequency = GnssSignalCenter(spoofing.signal);
@@ -121,7 +121,7 @@ namespace Sagax::SCG {
         const std::size_t nTotal = std::size_t(std::llround(duration_s * sampleRate_hz));
         std::size_t nWritten = 0;
         while(nWritten < nTotal && !stop.stop_requested()) {
-            std::size_t n = std::min(scgPacketSize, nTotal - nWritten);
+            std::size_t n = std::min(scgBlockSize, nTotal - nWritten);
             packet.meta.Clear();
             packet.Reshape(sampleRate_hz, 1, n, false);
 

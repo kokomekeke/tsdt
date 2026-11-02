@@ -64,6 +64,7 @@ ssgSub = subproject('SSG', default_options: ['build_tests=false'])
 commonLibDep = ssgSub.get_variable('commonLibDep')
 jsonLibDep = ssgSub.get_variable('jsonLibDep')
 coreLibDep = ssgSub.get_variable('coreLibDep')
+pipeline3LibDep = ssgSub.get_variable('pipeline3LibDep')
 ssgLibDep = ssgSub.get_variable('ssgLibDep')
 ssg_defines = ssgSub.get_variable('ssg_defines')
 
@@ -109,10 +110,6 @@ scgLib = static_library(
         'src/SCG/Json/Rid.cpp',
         'src/SCG/Json/ServerConfig.cpp',
         'src/SCG/Json/Tsd.cpp',
-        'src/SCG/Modules/Merger.cpp',
-        'src/SCG/Modules/Sink.cpp',
-        'src/SCG/Modules/Source.cpp',
-        'src/SCG/Modules/Tuner.cpp',
         # 'src/SCG/Output/OutputDevice.cpp',
         'src/SCG/Output/FileOutputDevice.cpp',
         'src/SCG/Output/MockOutputDevice.cpp',
@@ -121,6 +118,7 @@ scgLib = static_library(
         'src/SCG/Scenario/OutputVariant.cpp',
         'src/SCG/Scenario/Validate.cpp',
         'src/SCG/ScenarioTransform/BuildPipeline.cpp',
+        'src/SCG/ScenarioTransform/ScenarioPipeline.cpp',
         'src/SCG/ScenarioTransform/Transform.cpp',
         'src/SCG/Signal/Gnss.cpp',
         'src/SCG/Signal/SignalGenerator.cpp',
@@ -136,6 +134,7 @@ scgLib = static_library(
         commonLibDep,
         jsonLibDep,
         coreLibDep,
+        pipeline3LibDep,
         ssgLibDep,
         sspDeps,
         beastDeps
@@ -161,6 +160,7 @@ if buildScg
             commonLibDep,
             jsonLibDep,
             coreLibDep,
+            pipeline3LibDep,
             ssgLibDep,
             scgLibDep
         ],
@@ -180,6 +180,7 @@ if buildScgLint
             commonLibDep,
             jsonLibDep,
             coreLibDep,
+            pipeline3LibDep,
             ssgLibDep,
             scgLibDep
         ],
@@ -215,6 +216,7 @@ if buildScgServer or buildMqttExamples
             commonLibDep,
             jsonLibDep,
             coreLibDep,
+            pipeline3LibDep,
             ssgLibDep,
             scgLibDep,
             mosquittoDep
@@ -233,6 +235,7 @@ if buildScgServer or buildMqttExamples
             commonLibDep,
             jsonLibDep,
             coreLibDep,
+            pipeline3LibDep,
             ssgLibDep,
             scgLibDep,
             mosquittoDep

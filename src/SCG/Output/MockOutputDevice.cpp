@@ -11,8 +11,7 @@ namespace Sagax::SCG {
         nSamplesTotal = 0;
         nSamplesGap = 0;
         nSamplesLogged = 0;
-        nPacketsLogged = 0;
-        nPacketsNotNull = 0;
+        nBlocksLogged = 0;
         nSamplesGapLogged = 0;
         inUnderflow = false;
 
@@ -40,7 +39,8 @@ namespace Sagax::SCG {
         }
     }
 
-    void MockOutputDevice::Take(SCGIQPacket &packet) {
+    void MockOutputDevice::Take(const std::vector<std::span<const SCGSample>> &channels) {
+        std::size_t nSamples = channels[0].size();
         if(nSamplesTotal == 0) {
             streamStart = std::chrono::steady_clock::now();
         }
@@ -72,32 +72,28 @@ namespace Sagax::SCG {
         }
 
         double room = double(bufferSize) - level;
-        if(double(packet.nSamples) > room) {
+        if(double(nSamples) > room) {
             std::this_thread::sleep_for(
                 std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-                    std::chrono::duration<double>((double(packet.nSamples) - room) / sampleRate)
+                    std::chrono::duration<double>((double(nSamples) - room) / sampleRate)
                 )
             );
-            // the wait ends the moment the packet fits exactly
-            level = double(bufferSize) - double(packet.nSamples);
+            // the wait ends the moment the block fits exactly
+            level = double(bufferSize) - double(nSamples);
         }
-        level += double(packet.nSamples);
+        level += double(nSamples);
 
-        nSamplesTotal += packet.nSamples;
-        nSamplesLogged += packet.nSamples;
-        ++nPacketsLogged;
-        if(!packet.null) {
-            ++nPacketsNotNull;
-        }
+        nSamplesTotal += nSamples;
+        nSamplesLogged += nSamples;
+        ++nBlocksLogged;
 
         if(double(nSamplesLogged) >= sampleRate) {
             Common::Logger::Info(
-                "mock radio {} at {:.3f} s, {} samples sent, {} of the last {} packets not null, buffer {:.3f} ms",
+                "mock radio {} at {:.3f} s, {} samples sent, {} blocks in the last second, buffer {:.3f} ms",
                 serial,
                 double(nSamplesTotal) / sampleRate,
                 nSamplesTotal,
-                nPacketsNotNull,
-                nPacketsLogged,
+                nBlocksLogged,
                 std::max(level, 0.0) / sampleRate * 1.0e3
             );
             if(nSamplesGapLogged > 0) {
@@ -110,9 +106,8 @@ namespace Sagax::SCG {
                 );
             }
             nSamplesLogged = 0;
-            nPacketsLogged = 0;
-            nPacketsNotNull = 0;
-            nSamplesGapLogged = 0;
+            nBlocksLogged = 0;
+                nSamplesGapLogged = 0;
         }
     }
 

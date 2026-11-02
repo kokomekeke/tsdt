@@ -78,23 +78,9 @@ namespace Sagax::SCG {
         stream.reset();
     }
 
-    void SidekiqDevice::Take(SCGIQPacket &packet) {
-        Common::Assert(packet.nChannels == nChannels, "wrong number of channels");
-        // assert samplerate
-
-        if(packet.null) {
-            auto duration =
-                std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-                    std::chrono::duration<double>(
-                        double(packet.nSamples) / packet.sampleRate
-                    )
-                );
-            std::this_thread::sleep_for(duration); // likely not the way we should be doing this
-        }
-        else {
-            stream->Burst(packet.nSamples, std::as_const(packet).GetChannels());
-        }
-
+    void SidekiqDevice::Take(const std::vector<std::span<const SCGSample>> &channels) {
+        Common::Assert(channels.size() == nChannels, "wrong number of channels");
+        stream->Burst(channels[0].size(), channels);
     }
 
 }

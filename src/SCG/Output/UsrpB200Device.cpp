@@ -57,23 +57,9 @@ namespace Sagax::SCG {
         stream.reset();
     }
 
-    void UsrpB200Device::Take(SCGIQPacket &packet) {
-        Common::Assert(packet.nChannels == 1, "only 1 channel is allowed");
-        // assert samplerate
-
-        if(packet.null) {
-            auto duration =
-                std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-                    std::chrono::duration<double>(
-                        double(packet.nSamples) / packet.sampleRate
-                    )
-                );
-            std::this_thread::sleep_for(duration); // likely not the way we should be doing this
-        }
-        else {
-            stream->Burst(packet.nSamples, std::as_const(packet).GetChannels());
-        }
-
+    void UsrpB200Device::Take(const std::vector<std::span<const SCGSample>> &channels) {
+        Common::Assert(channels.size() == 1, "only 1 channel is allowed");
+        stream->Burst(channels[0].size(), channels);
     }
 
 }

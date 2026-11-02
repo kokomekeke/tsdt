@@ -1,4 +1,4 @@
-#include <thread>
+#include <algorithm>
 #include <vector>
 #include <span>
 #include <complex>
@@ -11,11 +11,11 @@
 namespace Sagax::SCG {
 
     void FileOutputDevice::Start() {
-        SCGIQPacket dummy;
-        dummy.Reshape(sampleRate, nChannels, 0, true);
-        auto &m = dummy.meta.AddEntry<SSG::Packets::MFrequency>();
+        packet.Reshape(sampleRate, nChannels, 0, true);
+        auto &m = packet.meta.AddEntry<SSG::Packets::MFrequency>();
         m.frequency = center;
-        file.Open(fileName, dummy);
+        file.Open(fileName, packet);
+        packet.meta.Clear();
         Common::Assert(file.IsOpen(), "failed to open file");
     }
 
@@ -25,11 +25,14 @@ namespace Sagax::SCG {
         }
     }
 
-    void FileOutputDevice::Take(SCGIQPacket &packet) {
+    void FileOutputDevice::Take(const std::vector<std::span<const SCGSample>> &channels) {
         Common::Assert(file.IsOpen(), "file not open");
-        Common::Assert(packet.nChannels == nChannels, "wrong number of channels");
-        // assert sample rate
-
+        Common::Assert(channels.size() == nChannels, "wrong number of channels");
+        packet.Reshape(sampleRate, nChannels, channels[0].size(), false);
+        auto out = packet.GetChannels();
+        for(std::size_t ic = 0; ic < nChannels; ++ic) {
+            std::copy(channels[ic].begin(), channels[ic].end(), out[ic].begin());
+        }
         file.WritePacket(packet);
     }
 

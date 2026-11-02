@@ -4,13 +4,14 @@
 #include <complex>
 #include <string>
 #include "SSG/IO/IQFileOut.hpp"
-#include "SCG/Modules/Packets.hpp"
+#include "SCG/Signal/Sample.hpp"
 #include "OutputDevice.hpp"
 
 namespace Sagax::SCG {
 
     struct FileOutputDevice : public OutputDevice {
         SSG::IO::IQFileOut<SCGSampleBase> file;
+        SSG::Packets::SamplePacket<SCGSample> packet;
         std::string fileName;
         std::size_t nChannels;
         double sampleRate;
@@ -18,7 +19,7 @@ namespace Sagax::SCG {
 
         void Start() override;
         void Stop() override;
-        void Take(SCGIQPacket &packet) override;
+        void Take(const std::vector<std::span<const SCGSample>> &channels) override;
     };
 
 }
