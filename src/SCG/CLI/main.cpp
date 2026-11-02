@@ -6,6 +6,7 @@
 #include <utility>
 #include <csignal>
 #include <mutex>
+#include <chrono>
 
 #include "Wrappers/JsonSane.hpp"
 #include "Common/Logger.hpp"
@@ -23,6 +24,7 @@
 #include "SCG/ScenarioTransform/BuildPipeline.hpp"
 #include "SCG/ScenarioTransform/PipelineConfig.hpp"
 #include "SCG/Utility/SignalHandler.hpp"
+#include "SCG/Utility/TimeFormat.hpp"
 
 #include "ProgramParser.hpp"
 
@@ -170,6 +172,12 @@ struct Program {
             if(stopRequested) {
                 Common::Logger::Info("stopped before start");
                 return true;
+            }
+            // without a start time on the command line the run starts 1 second from here
+            if(params.mode != Parameters::Mode::record) {
+                auto startTime = params.startTime.has_value() ? params.startTime.value() : std::chrono::system_clock::now() + std::chrono::seconds(1);
+                ctx.SetStartTime(startTime);
+                Common::Logger::Info("start time: {}", FormatIsoTime(startTime));
             }
             ctx.Start();
             started = true;

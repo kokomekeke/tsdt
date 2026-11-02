@@ -39,10 +39,13 @@ namespace Sagax::SCG {
         }
     }
 
-    void MockOutputDevice::Take(const std::vector<std::span<const SCGSample>> &channels) {
+    void MockOutputDevice::Take(const std::vector<std::span<const SCGSample>> &channels, std::optional<std::chrono::system_clock::time_point> time) {
         std::size_t nSamples = channels[0].size();
         if(nSamplesTotal == 0) {
             streamStart = std::chrono::steady_clock::now();
+            if(time.has_value()) {
+                streamStart += std::chrono::duration_cast<std::chrono::steady_clock::duration>(time.value() - std::chrono::system_clock::now());
+            }
         }
 
         // taken over the whole stream, so the rounding of a sleep does not add up. the
@@ -108,6 +111,20 @@ namespace Sagax::SCG {
             nSamplesLogged = 0;
             nBlocksLogged = 0;
                 nSamplesGapLogged = 0;
+        }
+    }
+
+    void MockOutputDevice::Flush() {
+        double elapsed_s = std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - streamStart
+        ).count();
+        double level = double(nSamplesTotal + nSamplesGap) - elapsed_s * sampleRate;
+        if(level > 0.0) {
+            std::this_thread::sleep_for(
+                std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                    std::chrono::duration<double>(level / sampleRate)
+                )
+            );
         }
     }
 

@@ -2,10 +2,15 @@
 #include <chrono>
 #include <cmath>
 #include <complex>
+#include <condition_variable>
 #include <cstdlib>
 #include <format>
 #include <limits>
+#include <map>
+#include <mutex>
 #include <numbers>
+#include <optional>
+#include <set>
 #include <span>
 #include <thread>
 #include "Common/Assert.hpp"
@@ -125,12 +130,139 @@ namespace Sagax::SCG {
             std::vector<std::size_t> eventsByEnd; // into ScenarioLayout::events, ordered by iEnd
             std::size_t iNextStart; // into ScenarioLayout::Output::events
             std::size_t iNextEnd; // into eventsByEnd
-            std::int64_t iSent; // the events that start before this are started
             std::vector<std::unique_ptr<SSG::IO::IQFileOut<SCGSampleBase>>> recordFiles;
             SSG::Packets::SamplePacket<SCGSample> channelPacket;
 
             // used by ReadPlayback, one per channel
             std::vector<std::unique_ptr<IQFileGenerator>> recordings;
+        };
+
+        // a timed device gets its first block this long before the start time
+        constexpr std::chrono::seconds handOverLead(1);
+
+        // calls the event callbacks at their times on a thread of its own. Stop calls the
+        // ones whose time has come, and the ends of the events whose start was called, the
+        // rest are dropped
+        struct CallbackTimer {
+            enum class Kind { transmissionStart, eventStart, eventEnd };
+
+            struct Item {
+                Kind kind;
+                std::int32_t eventId;
+            };
+
+            PipelineConfig::EventLogConfig *callbacks = nullptr;
+            std::mutex mtx;
+            std::condition_variable cv;
+            std::multimap<std::chrono::system_clock::time_point, Item> items;
+            std::set<std::int32_t> started;
+            bool stopRequested = false;
+            std::thread thread;
+
+            // ends the thread without calling the callbacks that are left
+            ~CallbackTimer() {
+                if(!thread.joinable()) {
+                    return;
+                }
+                {
+                    std::unique_lock lck(mtx);
+                    stopRequested = true;
+                }
+                cv.notify_all();
+                thread.join();
+            }
+
+            void Start(PipelineConfig::EventLogConfig &callbacks_) {
+                callbacks = &callbacks_;
+                items.clear();
+                started.clear();
+                stopRequested = false;
+                thread = std::thread([this]() { Run(); });
+            }
+
+            void Add(std::chrono::system_clock::time_point time, Kind kind, std::int32_t eventId) {
+                {
+                    std::unique_lock lck(mtx);
+                    items.insert({ time, Item{ kind, eventId } });
+                }
+                cv.notify_all();
+            }
+
+            // the started set is updated before, the callback is called without the lock
+            void Call(std::chrono::system_clock::time_point time, const Item &item) {
+                switch(item.kind) {
+                    case Kind::transmissionStart:
+                        if(callbacks->transmissionStart) {
+                            callbacks->transmissionStart(time);
+                        }
+                        break;
+                    case Kind::eventStart:
+                        if(callbacks->eventStart) {
+                            callbacks->eventStart(item.eventId);
+                        }
+                        break;
+                    case Kind::eventEnd:
+                        if(callbacks->eventEnd) {
+                            callbacks->eventEnd(item.eventId);
+                        }
+                        break;
+                }
+            }
+
+            void Track(const Item &item) {
+                if(item.kind == Kind::eventStart) {
+                    started.insert(item.eventId);
+                }
+                if(item.kind == Kind::eventEnd) {
+                    started.erase(item.eventId);
+                }
+            }
+
+            void Run() {
+                std::unique_lock lck(mtx);
+                while(!stopRequested) {
+                    if(items.empty()) {
+                        cv.wait(lck);
+                        continue;
+                    }
+                    auto it = items.begin();
+                    if(std::chrono::system_clock::now() < it->first) {
+                        cv.wait_until(lck, it->first);
+                        continue;
+                    }
+                    auto time = it->first;
+                    Item item = it->second;
+                    items.erase(it);
+                    Track(item);
+                    lck.unlock();
+                    Call(time, item);
+                    lck.lock();
+                }
+            }
+
+            void Stop() {
+                if(!thread.joinable()) {
+                    return;
+                }
+                {
+                    std::unique_lock lck(mtx);
+                    stopRequested = true;
+                }
+                cv.notify_all();
+                thread.join();
+                auto now = std::chrono::system_clock::now();
+                for(auto &[time, item] : items) {
+                    if(time <= now) {
+                        Track(item);
+                        Call(time, item);
+                    }
+                }
+                for(std::int32_t eventId : started) {
+                    Call(now, Item{ Kind::eventEnd, eventId });
+                }
+                items.clear();
+                started.clear();
+            }
         };
 
         std::uint64_t ToMillihertz(double sampleRate) {
@@ -158,6 +290,8 @@ namespace Sagax::SCG {
 
         std::vector<std::unique_ptr<LineState>> lineStates;
         std::vector<std::unique_ptr<OutputState>> outputStates;
+
+        CallbackTimer callbackTimer;
 
         bool isSetup = false;
         // destroyed before the members above, which its stages use
@@ -219,7 +353,6 @@ namespace Sagax::SCG {
                 });
                 s->iNextStart = 0;
                 s->iNextEnd = 0;
-                s->iSent = 0;
                 outputStates.push_back(std::move(s));
             }
         }
@@ -340,6 +473,9 @@ namespace Sagax::SCG {
         // start and stop of the engine
 
         void OnStart() {
+            if(layout.mode != ScenarioLayout::Mode::record) {
+                Common::Assert(layout.callbacks.startTime.has_value(), "streaming needs a start time");
+            }
             for(std::size_t io = 0; io < layout.outputs.size(); ++io) {
                 auto &output = layout.outputs[io];
                 auto &os = *outputStates[io];
@@ -367,21 +503,16 @@ namespace Sagax::SCG {
                     } break;
                 }
             }
+            if(layout.mode != ScenarioLayout::Mode::record) {
+                callbackTimer.Start(layout.callbacks);
+            }
         }
 
         void OnStop() {
+            callbackTimer.Stop();
             for(std::size_t io = 0; io < layout.outputs.size(); ++io) {
                 auto &output = layout.outputs[io];
                 auto &os = *outputStates[io];
-                // the events that were started and did not end
-                if(layout.callbacks.eventEnd) {
-                    for(std::size_t k = os.iNextEnd; k < os.eventsByEnd.size(); ++k) {
-                        auto &e = layout.events[os.eventsByEnd[k]];
-                        if(e.iStart < os.iSent) {
-                            layout.callbacks.eventEnd(e.id);
-                        }
-                    }
-                }
                 for(auto &file : os.recordFiles) {
                     if(file->IsOpen()) {
                         file->Close();
@@ -664,48 +795,54 @@ namespace Sagax::SCG {
             }
         }
 
-        // the first block waits for the start time. a stop without flush interrupts the wait, and the
-        // call is repeated if the engine is started again. the events that start in the block are
-        // started before it is sent, the ones that end in it are ended after
+        // the first block waits until handOverLead before the start time and is passed with the start
+        // time, the device holds the samples until then. a stop without flush interrupts the wait,
+        // and the call is repeated if the engine is started again.
+        // the callbacks get the time of the samples they are about. after the last block the device
+        // sends what it holds
         void SinkStream(TaskContext &ctx, std::size_t io) {
             OutputBlock &ob = PacketOf(ctx).outputs[io];
             auto &output = layout.outputs[io];
             auto &os = *outputStates[io];
-            auto &callbacks = layout.callbacks;
+            auto startTime = layout.callbacks.startTime.value();
             if(ob.nSamples == 0) {
                 return;
             }
+            std::optional<std::chrono::system_clock::time_point> blockTime;
             if(!os.transmitting) {
-                if(callbacks.startTime.has_value()) {
-                    auto startTime = callbacks.startTime.value();
-                    while(!ctx.stopRequested && std::chrono::system_clock::now() < startTime) {
-                        ctx.cv->wait_until(*ctx.lck, startTime);
-                    }
-                    if(ctx.stopRequested) {
-                        ctx.interrupted = true;
-                        return;
-                    }
+                auto handOver = startTime - handOverLead;
+                while(!ctx.stopRequested && std::chrono::system_clock::now() < handOver) {
+                    ctx.cv->wait_until(*ctx.lck, handOver);
                 }
+                if(ctx.stopRequested) {
+                    ctx.interrupted = true;
+                    return;
+                }
+                blockTime = startTime;
                 os.transmitting = true;
-                if(callbacks.transmissionStart) {
-                    callbacks.transmissionStart(std::chrono::system_clock::now());
-                }
+                callbackTimer.Add(startTime, CallbackTimer::Kind::transmissionStart, -1);
             }
+
+            auto timeOf = [&](std::int64_t iSample) {
+                return startTime + std::chrono::duration_cast<std::chrono::system_clock::duration>(
+                    std::chrono::duration<double>(double(iSample) / output.sampleRate)
+                );
+            };
 
             std::int64_t iEnd = ob.iSample + std::int64_t(ob.nSamples);
             while(os.iNextStart < output.events.size() && layout.events[output.events[os.iNextStart]].iStart < iEnd) {
-                if(callbacks.eventStart) {
-                    callbacks.eventStart(layout.events[output.events[os.iNextStart]].id);
-                }
+                auto &e = layout.events[output.events[os.iNextStart]];
+                callbackTimer.Add(timeOf(e.iStart), CallbackTimer::Kind::eventStart, e.id);
                 ++os.iNextStart;
             }
-            os.iSent = iEnd;
-            output.device->Take(ob.channels);
+            output.device->Take(ob.channels, blockTime);
             while(os.iNextEnd < os.eventsByEnd.size() && layout.events[os.eventsByEnd[os.iNextEnd]].iEnd <= iEnd) {
-                if(callbacks.eventEnd) {
-                    callbacks.eventEnd(layout.events[os.eventsByEnd[os.iNextEnd]].id);
-                }
+                auto &e = layout.events[os.eventsByEnd[os.iNextEnd]];
+                callbackTimer.Add(timeOf(e.iEnd), CallbackTimer::Kind::eventEnd, e.id);
                 ++os.iNextEnd;
+            }
+            if(iEnd >= output.nSamples) {
+                output.device->Flush();
             }
         }
 
@@ -769,6 +906,10 @@ namespace Sagax::SCG {
     void ScenarioPipeline::SetLayout(ScenarioLayout &&layout) {
         Common::Assert(!impl->isSetup, "layout set after setup");
         impl->layout = std::move(layout);
+    }
+
+    void ScenarioPipeline::SetStartTime(std::chrono::system_clock::time_point startTime) {
+        impl->layout.callbacks.startTime = startTime;
     }
 
     void ScenarioPipeline::Setup(Common::ThreadPool &threadPool, std::int32_t nCpuThreads) {

@@ -10,7 +10,7 @@
 #include "SCG/Json/Scenario.hpp"
 #include "RidTransform.hpp"
 #include "TestScheduler.hpp"
-#include "TimeFormat.hpp"
+#include "SCG/Utility/TimeFormat.hpp"
 #include "TsdMerge.hpp"
 
 namespace Sagax::SCG {

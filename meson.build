@@ -46,7 +46,6 @@ elif compiler.get_id() == 'msvc'
     # is not set. 0x0601 is the one it assumes on its own, so naming it changes nothing
     # but the message
     cpp_args = [
-        '/D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING',
         '/DNOMINMAX',
         '/D_WIN32_WINNT=0x0601',
     ]
@@ -124,10 +123,10 @@ scgLib = static_library(
         'src/SCG/Signal/SignalGenerator.cpp',
         'src/SCG/Sisi/GnssRecording.cpp',
         'src/SCG/Sisi/RidTransform.cpp',
-        'src/SCG/Sisi/TimeFormat.cpp',
         'src/SCG/Sisi/TsdMerge.cpp',
         'src/SCG/Utility/Fetch.cpp',
         'src/SCG/Utility/SignalHandler.cpp',
+        'src/SCG/Utility/TimeFormat.cpp',
     ],
     include_directories: [ 'src/' ],
     dependencies: [

@@ -36,7 +36,7 @@
 #include "ServerArguments.hpp"
 #include "RidTransform.hpp"
 #include "TestScheduler.hpp"
-#include "TimeFormat.hpp"
+#include "SCG/Utility/TimeFormat.hpp"
 
 using namespace Sagax;
 using namespace Sagax::SCG;
@@ -102,8 +102,9 @@ private:
                 }
                 if(std::holds_alternative<SCG::ServerConfig::Radio::UsrpB200>(v.variant)) {
                     auto &w = std::get<SCG::ServerConfig::Radio::UsrpB200>(v.variant);
-                    auto dev = SSG::UsrpB200::GetDevice(w.serial);
-                    Common::Assert(bool(dev), "failed to initialize radio");
+                    std::unique_ptr<SSG::UsrpB200::Device> dev;
+                    SSG::UsrpB200::Error error = SSG::UsrpB200::GetDevice(w.serial, dev);
+                    Common::Assert(error == SSG::UsrpB200::Error::none, std::format("failed to initialize radio: {}", SSG::UsrpB200::ToString(error)));
                     pipelineConfig.preinit.usrp.devices[w.serial] = std::move(dev);
                 }
             }
@@ -119,9 +120,11 @@ private:
                 if(std::holds_alternative<SCG::ServerConfig::Radio::Sidekiq>(v.variant)) {
                     auto &w = std::get<SCG::ServerConfig::Radio::Sidekiq>(v.variant);
                     // has to run before a device is opened, later calls do nothing
-                    Common::Assert(SSG::Sidekiq::LibraryInit(), "failed to initialize the sidekiq library");
-                    auto dev = SSG::Sidekiq::GetDevice(w.serial);
-                    Common::Assert(bool(dev), "failed to initialize radio");
+                    SSG::Sidekiq::Error error = SSG::Sidekiq::LibraryInit();
+                    Common::Assert(error == SSG::Sidekiq::Error::none, std::format("failed to initialize the sidekiq library: {}", SSG::Sidekiq::ToString(error)));
+                    std::unique_ptr<SSG::Sidekiq::Device> dev;
+                    error = SSG::Sidekiq::GetDevice(w.serial, dev);
+                    Common::Assert(error == SSG::Sidekiq::Error::none, std::format("failed to initialize radio: {}", SSG::Sidekiq::ToString(error)));
                     pipelineConfig.preinit.sidekiq.devices[w.serial] = std::move(dev);
                 }
             }

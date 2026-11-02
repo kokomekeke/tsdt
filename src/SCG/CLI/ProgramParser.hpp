@@ -2,9 +2,11 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include <chrono>
 
 #include "Wrappers/JsonSane.hpp"
 #include "Vendored/argparse/argparse.hpp"
+#include "SCG/Utility/TimeFormat.hpp"
 
 struct Parameters {
     enum struct Mode { stream, record, playback };
@@ -17,6 +19,7 @@ struct Parameters {
     Mode mode;
     std::string jsonPath;
     std::string recordingDirectory;
+    std::optional<std::chrono::system_clock::time_point> startTime;
 };
 
 struct ProgramParser {
@@ -38,6 +41,10 @@ struct ProgramParser {
 
         mode.add_argument("-s", "--stream")
             .help("stream mode: -s <jsonPath>")
+            .nargs(1);
+
+        program.add_argument("-t", "--start-time")
+            .help("the time of the first sample in stream and playback mode, for example 2026-09-02T14:30:00.000+02:00. without it the start is 1 second after the pipeline is set up")
             .nargs(1);
     }
 
@@ -67,6 +74,18 @@ struct ProgramParser {
             params.success = false;
             params.error = parseError;
             return;
+        }
+
+        params.startTime.reset();
+        if(program.is_used("--start-time")) {
+            std::chrono::system_clock::time_point startTime;
+            std::string error = Sagax::SCG::ParseStartTime(program.get<std::vector<std::string>>("--start-time")[0], startTime);
+            if(!error.empty()) {
+                params.success = false;
+                params.error = error;
+                return;
+            }
+            params.startTime = startTime;
         }
 
         if(program.is_used("-r")) {

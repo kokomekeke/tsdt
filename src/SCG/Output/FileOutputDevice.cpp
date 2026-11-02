@@ -10,6 +10,7 @@
 
 namespace Sagax::SCG {
 
+    // the file has no time, the samples are written in order
     void FileOutputDevice::Start() {
         packet.Reshape(sampleRate, nChannels, 0, true);
         auto &m = packet.meta.AddEntry<SSG::Packets::MFrequency>();
@@ -25,7 +26,7 @@ namespace Sagax::SCG {
         }
     }
 
-    void FileOutputDevice::Take(const std::vector<std::span<const SCGSample>> &channels) {
+    void FileOutputDevice::Take(const std::vector<std::span<const SCGSample>> &channels, std::optional<std::chrono::system_clock::time_point>) {
         Common::Assert(file.IsOpen(), "file not open");
         Common::Assert(channels.size() == nChannels, "wrong number of channels");
         packet.Reshape(sampleRate, nChannels, channels[0].size(), false);
@@ -36,5 +37,7 @@ namespace Sagax::SCG {
         file.WritePacket(packet);
     }
 
-}
+    void FileOutputDevice::Flush() {
+    }
 
+}

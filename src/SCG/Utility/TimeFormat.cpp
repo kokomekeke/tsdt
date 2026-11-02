@@ -34,7 +34,7 @@ namespace Sagax::SCG {
 
     }
 
-    CommandError ParseStartTime(const std::string &s, std::chrono::system_clock::time_point &out) {
+    std::string ParseStartTime(const std::string &s, std::chrono::system_clock::time_point &out) {
         std::size_t i = 0;
         int year = 0;
         int month = 0;

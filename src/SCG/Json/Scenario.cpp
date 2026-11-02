@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <string>
 #include "Json/JsonParser.hpp"
-#include "SCG/Sisi/TimeFormat.hpp"
+#include "SCG/Utility/TimeFormat.hpp"
 #include "Scenario.hpp"
 
 using namespace Sagax::Json;

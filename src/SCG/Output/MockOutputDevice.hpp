@@ -12,13 +12,15 @@ namespace Sagax::SCG {
     // transmit fifo of the fpga is not documented and is not counted
     inline constexpr std::size_t mockBufferSizeUsrpB200 = 16 * (8176 - 16) / 4;
 
-    // the 32768 sample host ring buffer of the driver, plus its share of the 16384 word
-    // fpga fifo, which keeps a 2048 word margin and is split between the two channels
-    inline constexpr std::size_t mockBufferSizeSidekiq = 32768 + (16384 - 2048) / 2;
+    // the block the stream fills on the host, plus the share of a channel in the 16384 word
+    // fpga fifo. the fifo keeps a 2048 word margin and is split between the two channels,
+    // a block is the same size
+    inline constexpr std::size_t mockBufferSizeSidekiq = 2 * ((16384 - 2048) / 2);
 
     // stands in for a radio when the server is configured without hardware. it tracks the
     // level of the transmit buffer as a sample count, never the samples, and takes a
-    // block once there is room for it, so the pipeline runs up to one buffer ahead
+    // block once there is room for it, so the pipeline runs up to one buffer ahead.
+    // the buffer starts to drain at the time of the first block
     struct MockOutputDevice : public OutputDevice {
         std::string serial;
         double sampleRate;
@@ -36,7 +38,8 @@ namespace Sagax::SCG {
 
         void Start() override;
         void Stop() override;
-        void Take(const std::vector<std::span<const SCGSample>> &channels) override;
+        void Take(const std::vector<std::span<const SCGSample>> &channels, std::optional<std::chrono::system_clock::time_point> time) override;
+        void Flush() override;
     };
 
 }

@@ -74,6 +74,9 @@ namespace Sagax::SCG {
         ScenarioPipeline &operator=(ScenarioPipeline &&other);
 
         void SetLayout(ScenarioLayout &&layout);
+        // the system time of the first sample, stream and playback mode need one before Start.
+        // replaces the one the layout came with
+        void SetStartTime(std::chrono::system_clock::time_point startTime);
         // nPackets is the larger of 16 and 2 * nCpuThreads
         void Setup(Common::ThreadPool &threadPool, std::int32_t nCpuThreads);
 

@@ -24,11 +24,15 @@ namespace Sagax::SCG {
 
         std::unique_ptr<SSG::UsrpB200::TxStream> stream;
 
+        // the system time the device time 0 was set at
+        std::chrono::system_clock::time_point deviceTimeZero;
+
         void Init_() override;
         void Dispose_() override;
         void Start() override;
         void Stop() override;
-        void Take(const std::vector<std::span<const SCGSample>> &channels) override;
+        void Take(const std::vector<std::span<const SCGSample>> &channels, std::optional<std::chrono::system_clock::time_point> time) override;
+        void Flush() override;
     };
 
 }

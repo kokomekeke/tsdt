@@ -26,11 +26,16 @@ namespace Sagax::SCG {
 
         std::unique_ptr<SSG::Sidekiq::TxStream> stream;
 
+        // the rf timestamp of the card and the system time it was read at
+        std::uint64_t syncTimestamp;
+        std::chrono::system_clock::time_point syncTime;
+
         void Init_() override;
         void Dispose_() override;
         void Start() override;
         void Stop() override;
-        void Take(const std::vector<std::span<const SCGSample>> &channels) override;
+        void Take(const std::vector<std::span<const SCGSample>> &channels, std::optional<std::chrono::system_clock::time_point> time) override;
+        void Flush() override;
     };
 
 }
