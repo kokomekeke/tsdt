@@ -25,6 +25,17 @@
             "gains_db": [ 100.0 ]
         }
     ],
+    "gain_updates": [
+        {
+            "radio_id": "r0",
+            "channel_id": 0,
+            "step_interval_s": 0.1,
+            "values": [
+                { "t": 0.2, "gain": 10.0 },
+                { "t": 1.2, "gain": 100.0 }
+            ]
+        }
+    ],
     "interference_sources": [
         {
             "type": "cw_jammer",

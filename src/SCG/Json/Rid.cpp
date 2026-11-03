@@ -35,6 +35,25 @@ namespace Sagax::SCG {
             }
         };
 
+        struct GainUpdateParser : public JsonObjectParser<Rid::GainUpdate> {
+            struct ValueParser : public JsonObjectParser<Rid::GainUpdate::Value> {
+                ValueParser() {
+                    AddParam(&Rid::GainUpdate::Value::t, JsonPrimitiveParser<double>{}, "t");
+                    AddParam(&Rid::GainUpdate::Value::gain_db, JsonPrimitiveParser<double>{}, "gain");
+                }
+            };
+
+            GainUpdateParser() {
+                AddParam(&Rid::GainUpdate::radioId, JsonPrimitiveParser<std::string>{}, "radio_id");
+                AddParam(&Rid::GainUpdate::channelId, JsonPrimitiveParser<std::int32_t>{}, "channel_id");
+                AddParam(&Rid::GainUpdate::stepInterval_s, JsonPrimitiveParser<double>{}, "step_interval_s");
+                auto p0 = AddParam(&Rid::GainUpdate::values, JsonArrayParser<Rid::GainUpdate::Value>{}, "values");
+
+                p0->SetItemParser(ValueParser{});
+                p0->SetSizeRange(1, std::nullopt);
+            }
+        };
+
         struct InterferenceSourceParser : public JsonObjectParser<Rid::InterferenceSource> {
 
             struct InterferenceVariantParser : public JsonVariantParser<Rid::InterferenceSource::Variant> {
@@ -111,13 +130,16 @@ namespace Sagax::SCG {
                 AddParam(&Rid::metadata, MetadataParser{}, "metadata");
                 AddParam(&Rid::globalSettings, GlobalSettingsParser{}, "global_settings");
                 auto p0 = AddParam(&Rid::radioSettings, JsonArrayParser<Rid::RadioSettings>{}, "radio_settings");
-                auto p1 = AddParam(&Rid::interferenceSources, JsonArrayParser<Rid::InterferenceSource>{}, "interference_sources");
+                auto p1 = AddParamDef(&Rid::gainUpdates, JsonArrayParser<Rid::GainUpdate>{}, std::vector<Rid::GainUpdate>{}, "gain_updates");
+                auto p2 = AddParam(&Rid::interferenceSources, JsonArrayParser<Rid::InterferenceSource>{}, "interference_sources");
 
                 p0->SetItemParser(RadioSettingsParser{});
                 p0->SetSizeRange(1, std::nullopt);
 
-                p1->SetItemParser(InterferenceSourceParser{});
-                p1->SetSizeRange(1, std::nullopt);
+                p1->SetItemParser(GainUpdateParser{});
+
+                p2->SetItemParser(InterferenceSourceParser{});
+                p2->SetSizeRange(1, std::nullopt);
             }
         };
 

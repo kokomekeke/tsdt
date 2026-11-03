@@ -18,6 +18,7 @@
 #include "CommandError.hpp"
 #include "Messages.hpp"
 #include "MqttClient.hpp"
+#include "RadioMonitor.hpp"
 #include "ServerConfig.hpp"
 #include "TestScheduler.hpp"
 
@@ -41,14 +42,17 @@ namespace Sagax::SCG::Server {
             bool active;
         };
 
-        // mtx guards programRunning and signalEvents. the main loop holds it while it waits
+        // mtx guards programRunning, signalEvents and radiosTurnedNotReady. the main loop holds
+        // it while it waits
         // the event callbacks take mtx while a sink stage holds its stage mutex, mtx is never held
         // while the engine is stopped or joined
         // signalEvents is filled by the event callbacks ahead of the event times
+        // radiosTurnedNotReady is set by the radio monitor and ends the wait of the main loop
         std::mutex mtx;
         std::condition_variable cv;
         bool programRunning = true;
         std::multimap<std::chrono::system_clock::time_point, SignalEvent> signalEvents;
+        bool radiosTurnedNotReady = false;
 
         MqttClient client;
         SCG::ServerConfig config;
@@ -63,7 +67,13 @@ namespace Sagax::SCG::Server {
         Common::ThreadPool threadPool;
         SCG::ScenarioPipeline ctx;
 
+        // runs on threadPool while Run does, on the devices of pipelineConfig. it has the gain
+        // updates of the playing part, from the start of its pipeline until it is stopped or
+        // finished
+        RadioMonitor radioMonitor;
+
         // only the main loop touches these
+        bool radiosReady = true;
         std::optional<std::size_t> playingPart;
         std::set<std::int32_t> activeEventIds;
         std::optional<SignalStatusMessage::SignalStatus> lastSignalStatus;
@@ -97,6 +107,7 @@ namespace Sagax::SCG::Server {
         void StopPipeline();
         bool FinishPart(ScheduledTest &test);
         void UpdatePlayback(ScheduledTest &test, std::chrono::system_clock::time_point now);
+        void UpdateRadios();
         void UpdateSchedule();
         void Wait();
         void Interpreted(const std::string &topic, const char *command);

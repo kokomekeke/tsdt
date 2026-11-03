@@ -28,6 +28,21 @@ namespace Sagax::SCG {
             std::vector<double> gains_db;
         };
 
+        // the gain of the channel is the one of radio_settings until the first value. from
+        // one value to the next it ramps linearly, set every stepInterval_s, and after the
+        // last one it holds
+        struct GainUpdate {
+            struct Value {
+                double t;
+                double gain_db;
+            };
+
+            std::string radioId;
+            std::int32_t channelId;
+            double stepInterval_s;
+            std::vector<Value> values;
+        };
+
         struct InterferenceSource {
             struct Cw {
             };
@@ -70,6 +85,7 @@ namespace Sagax::SCG {
         GlobalSettings globalSettings;
         Metadata metadata;
         std::vector<RadioSettings> radioSettings;
+        std::vector<GainUpdate> gainUpdates;
         std::vector<InterferenceSource> interferenceSources;
     };
 

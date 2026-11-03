@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <format>
 #include <map>
+#include <set>
 #include <string>
 #include <utility>
 #include <variant>
@@ -261,6 +262,42 @@ namespace Sagax::SCG {
             for(double center : radioSetting.centers_hz) {
                 if(center <= 0.0) {
                     res.errors.push_back(std::format("radioSettings[{}]: center must be positive", i));
+                }
+            }
+        }
+
+        std::set<std::pair<std::string, std::int32_t>> gainUpdateChannels;
+        for(std::size_t i = 0; i < rid.gainUpdates.size(); ++i) {
+            const auto &update = rid.gainUpdates[i];
+
+            if(usedRadioSettings.count(update.radioId) == 0) {
+                res.errors.push_back(std::format("gainUpdates[{}]: radio {} has no radio_settings entry", i, update.radioId.c_str()));
+            }
+            else if(update.channelId < 0 || update.channelId >= rid.radioSettings[usedRadioSettings[update.radioId]].nChannels) {
+                res.errors.push_back(std::format("gainUpdates[{}]: channel id out of range: {}", i, update.channelId));
+            }
+
+            if(gainUpdateChannels.count({ update.radioId, update.channelId })) {
+                res.errors.push_back(std::format(
+                    "gainUpdates[{}]: radio {} channel {} already has gain updates", i, update.radioId.c_str(), update.channelId));
+            }
+            else {
+                gainUpdateChannels.insert({ update.radioId, update.channelId });
+            }
+
+            if(update.stepInterval_s <= 0.0) {
+                res.errors.push_back(std::format("gainUpdates[{}]: step_interval_s must be positive", i));
+            }
+
+            for(std::size_t iv = 0; iv < update.values.size(); ++iv) {
+                const auto &v = update.values[iv];
+                if(v.t < 0.0 || v.t > rid.globalSettings.duration_s) {
+                    res.errors.push_back(std::format(
+                        "gainUpdates[{}]: values[{}]: t {} is outside of [0, globalSettings.duration_s {}]",
+                        i, iv, v.t, rid.globalSettings.duration_s));
+                }
+                if(iv > 0 && v.t <= update.values[iv - 1].t) {
+                    res.errors.push_back(std::format("gainUpdates[{}]: values[{}]: time does not advance", i, iv));
                 }
             }
         }
@@ -630,9 +667,54 @@ namespace Sagax::SCG {
             }
 
             std::vector<std::pair<TsdScenario::EventSource, ScenarioLayout::Event>> events;
+            // the channels the gain updates of the previous step left away from radio_settings
+            std::set<std::pair<std::string, std::int32_t>> changedChannels;
             for(auto &step : mergedPart.steps) {
                 part.steps.push_back(step.iStep);
                 const Rid &rid = rids[std::size_t(step.iStep)].value();
+
+                for(auto &[radioId, channelId] : changedChannels) {
+                    auto it = std::find_if(rid.radioSettings.begin(), rid.radioSettings.end(), [&](const Rid::RadioSettings &r) {
+                        return r.radioId == radioId;
+                    });
+                    part.gainUpdates.push_back(TsdScenario::GainUpdate{
+                        part.time + Seconds(step.shift_s),
+                        radioId,
+                        channelId,
+                        it->gains_db[std::size_t(channelId)]
+                    });
+                }
+                changedChannels.clear();
+
+                // a ramp from value v to value w is set every stepInterval_s from v on. the
+                // count of steps is rounded down by a margin, so a step that lands on w only by
+                // rounding is left to w
+                for(auto &update : rid.gainUpdates) {
+                    auto add = [&](double t, double gain_db) {
+                        part.gainUpdates.push_back(TsdScenario::GainUpdate{
+                            part.time + Seconds(step.shift_s + t),
+                            update.radioId,
+                            update.channelId,
+                            gain_db
+                        });
+                    };
+                    for(std::size_t iv = 0; iv < update.values.size(); ++iv) {
+                        const auto &v = update.values[iv];
+                        add(v.t, v.gain_db);
+                        if(iv + 1 == update.values.size()) {
+                            break;
+                        }
+                        const auto &w = update.values[iv + 1];
+                        double span_s = w.t - v.t;
+                        std::int64_t nSteps = std::int64_t(std::ceil(span_s / update.stepInterval_s - 1e-9));
+                        for(std::int64_t j = 1; j < nSteps; ++j) {
+                            double dt_s = double(j) * update.stepInterval_s;
+                            add(v.t + dt_s, v.gain_db + (w.gain_db - v.gain_db) * dt_s / span_s);
+                        }
+                    }
+                    changedChannels.insert({ update.radioId, update.channelId });
+                }
+
                 for(std::int32_t is = 0; is < std::int32_t(rid.interferenceSources.size()); ++is) {
                     auto &source = rid.interferenceSources[is];
                     std::size_t iOutput = outputMap.at(source.radioId);
@@ -713,6 +795,9 @@ namespace Sagax::SCG {
                 part.eventSources.push_back(eventSource);
                 layout.events.push_back(std::move(e));
             }
+            std::stable_sort(part.gainUpdates.begin(), part.gainUpdates.end(), [](const auto &u1, const auto &u2) {
+                return u1.time < u2.time;
+            });
             for(std::size_t ie = 0; ie < layout.events.size(); ++ie) {
                 layout.outputs[layout.events[ie].iOutput].events.push_back(ie);
             }

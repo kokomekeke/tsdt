@@ -26,6 +26,7 @@
 #include "SCG/Json/ServerConfig.hpp"
 #include "SCG/Utility/Fetch.hpp"
 #include "SCG/Utility/SignalHandler.hpp"
+#include "SCG/Sisi/ServerParameters.hpp"
 #include "SCG/Sisi/TsdTransform.hpp"
 #include "SCG/Utility/TimeFormat.hpp"
 #include "SCG/Utility/WaitUntil.hpp"
@@ -43,9 +44,6 @@ namespace Sagax::SCG::Server {
             }
             return {};
         }
-
-        // the main loop runs at least this often
-        constexpr std::chrono::milliseconds scheduleTick{50};
 
     }
 
@@ -336,6 +334,13 @@ namespace Sagax::SCG::Server {
             return;
         }
 
+        std::string hotRadios;
+        if(!radioMonitor.RadiosReady(hotRadios)) {
+            PublishError(std::format("part {} of test \"{}\" is not started, the radios are not ready: {}", iPart, test.testId, hotRadios));
+            scheduler.SetFailed(test);
+            return;
+        }
+
         ctx = std::move(part.pipeline);
         ctx.Setup(threadPool, SCG::GetDefaultCpuThreadCount());
         try {
@@ -352,10 +357,12 @@ namespace Sagax::SCG::Server {
         ClearSignalEvents();
         playingPart = iPart;
         ctx.Start();
+        radioMonitor.SetGainUpdates(part.gainUpdates);
         Common::Logger::Info(lh, "part {} of test \"{}\" started, it plays at {}", iPart, test.testId, FormatIsoTime(part.time));
     }
 
     void Server::StopPipeline() {
+        radioMonitor.SetGainUpdates({});
         ctx.Stop(false);
         ctx.Join();
         ctx.Dispose();
@@ -370,6 +377,7 @@ namespace Sagax::SCG::Server {
         std::size_t iPart = playingPart.value();
         bool failed = false;
 
+        radioMonitor.SetGainUpdates({});
         ctx.Join();
         try {
             if(std::exception_ptr error = ctx.GetError()) {
@@ -415,6 +423,35 @@ namespace Sagax::SCG::Server {
         }
     }
 
+    // when the radios turn not ready, the pipeline of the active test is stopped at once and
+    // the test fails
+    void Server::UpdateRadios() {
+        {
+            std::unique_lock lck(mtx);
+            radiosTurnedNotReady = false;
+        }
+        std::string hotRadios;
+        bool ready = radioMonitor.RadiosReady(hotRadios);
+        if(ready == radiosReady) {
+            return;
+        }
+        radiosReady = ready;
+        if(ready) {
+            Common::Logger::Info(lh, "the radios are ready again");
+            return;
+        }
+        ScheduledTest *test = scheduler.Active();
+        std::optional<std::size_t> stoppedPart = playingPart;
+        if(stoppedPart.has_value()) {
+            StopPipeline();
+        }
+        PublishError(std::format("the radios are stopped, they are too hot: {}", hotRadios));
+        if(stoppedPart.has_value()) {
+            PublishError(std::format("part {} of test \"{}\" is stopped, the radios are not ready", stoppedPart.value(), test->testId));
+            scheduler.SetFailed(*test);
+        }
+    }
+
     void Server::UpdateSchedule() {
         auto now = std::chrono::system_clock::now();
         scheduler.FailMissed(now);
@@ -446,7 +483,7 @@ namespace Sagax::SCG::Server {
     // handler notify cv
     void Server::Wait() {
         std::unique_lock lck(mtx);
-        if(!programRunning) {
+        if(!programRunning || radiosTurnedNotReady) {
             return;
         }
         auto now = std::chrono::system_clock::now();
@@ -455,7 +492,7 @@ namespace Sagax::SCG::Server {
             next = signalEvents.begin()->first;
         }
         if(next.has_value() && next.value() < now + scheduleTick) {
-            WaitUntil(cv, lck, next.value());
+            WaitUntil(cv, lck, next.value(), schedulePrecision);
         }
         else {
             cv.wait_until(lck, now + scheduleTick);
@@ -576,9 +613,21 @@ namespace Sagax::SCG::Server {
         Common::Defer disposeClient([this](){
             client.Stop();
         });
+        Common::Defer disposeRadioMonitor([this](){
+            radioMonitor.Stop();
+        });
         Common::Defer disposeRunning([this](){
             StopActive();
         });
+
+        radioMonitor.onNotReady = [this]() {
+            {
+                std::unique_lock lck(mtx);
+                radiosTurnedNotReady = true;
+            }
+            cv.notify_all();
+        };
+        radioMonitor.Start(threadPool, config, pipelineConfig);
 
         client.Start();
         if(!client.IsRunning()) {
@@ -600,6 +649,7 @@ namespace Sagax::SCG::Server {
                 break;
             }
 
+            UpdateRadios();
             HandleCommands();
             UpdateSchedule();
             ApplySignalEvents();

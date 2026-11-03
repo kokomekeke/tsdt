@@ -203,6 +203,7 @@ if buildScgServer
         sources: [
             'src/SCG/Sisi/main_scgserver.cpp',
             'src/SCG/Sisi/MqttClient.cpp',
+            'src/SCG/Sisi/RadioMonitor.cpp',
             'src/SCG/Sisi/Server.cpp',
             'src/SCG/Sisi/TestScheduler.cpp',
             'src/SCG/Sisi/TestStorage.cpp',

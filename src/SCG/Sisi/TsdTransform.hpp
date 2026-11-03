@@ -80,6 +80,13 @@ namespace Sagax::SCG {
             std::int32_t iSource;
         };
 
+        struct GainUpdate {
+            std::chrono::system_clock::time_point time;
+            std::string radioId;
+            std::int32_t channelId;
+            double gain_db;
+        };
+
         struct Part {
             // the system time of the first sample
             std::chrono::system_clock::time_point time;
@@ -89,6 +96,10 @@ namespace Sagax::SCG {
             ScenarioPipeline pipeline;
             // parallel to the events of the layout of the pipeline
             std::vector<EventSource> eventSources;
+            // the ramps of the rids as the single gains to set, ordered by time. a step that
+            // follows one with gain updates in the part first sets the channels those updates
+            // changed back to their radio_settings gain
+            std::vector<GainUpdate> gainUpdates;
         };
 
         StepRids rids;
