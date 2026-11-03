@@ -4,10 +4,9 @@
 #include <string>
 #include <vector>
 #include "Common/Logger.hpp"
-#include "SCG/Scenario/Scenario.hpp"
 #include "CommandError.hpp"
 #include "SavedTest.hpp"
-#include "TsdMerge.hpp"
+#include "TsdTransform.hpp"
 
 namespace Sagax::SCG {
 
@@ -42,7 +41,6 @@ namespace Sagax::SCG {
 
         // removes everything the preparation wrote
         void ClearPreparation(const std::string &testId) const;
-        CommandError SaveScenario(const std::string &testId, std::size_t iPart, const Scenario &scenario) const;
 
         // a failure is only logged
         void Remove(const std::string &testId) const;

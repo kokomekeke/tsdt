@@ -37,7 +37,7 @@ namespace Sagax::SCG {
 
         // the event callbacks are called by the sink stage of an output when it hands the
         // samples to the device, ahead of the time they are transmitted at. they get the
-        // event id and that time
+        // index of the event in the layout and that time
         struct EventLogConfig {
             std::function<void(std::int32_t, std::chrono::system_clock::time_point)> eventStart;
             std::function<void(std::int32_t, std::chrono::system_clock::time_point)> eventEnd;

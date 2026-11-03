@@ -21,16 +21,12 @@
 #include "Common/Logger.hpp"
 #include "Common/Defer.hpp"
 #include "Common/ThreadPool.hpp"
-#include "SCG/Scenario/Scenario.hpp"
-#include "SCG/Scenario/Validate.hpp"
-#include "SCG/Json/Scenario.hpp"
-#include "SCG/Scenario/BuildPipeline.hpp"
 #include "SCG/Scenario/ScenarioPipeline.hpp"
 #include "SCG/Json/Rid.hpp"
 #include "SCG/Json/ServerConfig.hpp"
 #include "SCG/Utility/Fetch.hpp"
 #include "SCG/Utility/SignalHandler.hpp"
-#include "SCG/Sisi/RidTransform.hpp"
+#include "SCG/Sisi/TsdTransform.hpp"
 #include "SCG/Utility/TimeFormat.hpp"
 #include "SCG/Utility/WaitUntil.hpp"
 
@@ -158,17 +154,12 @@ namespace Sagax::SCG::Server {
         if(test == nullptr || test->state != ScheduledTest::State::playing || !playingPart.has_value()) {
             return status;
         }
-        auto &part = test->parts[playingPart.value()];
-        auto &sources = part.rid.interferenceSources;
+        auto &part = test->scenario.parts[playingPart.value()];
         for(std::int32_t eventId : activeEventIds) {
-            if(eventId < 0 || std::size_t(eventId) >= part.eventMap.size()) {
-                continue;
-            }
-            std::int32_t sourceId = part.eventMap[eventId];
-            if(sourceId < 0 || std::size_t(sourceId) >= sources.size()) {
-                continue;
-            }
-            if(std::holds_alternative<SCG::Rid::InterferenceSource::Spoofing>(sources[sourceId].variant)) {
+            Common::Assert(eventId >= 0 && std::size_t(eventId) < part.eventSources.size(), "the event is not in the layout of the pipeline");
+            const SCG::TsdScenario::EventSource &eventSource = part.eventSources[std::size_t(eventId)];
+            const SCG::Rid &rid = test->scenario.rids[std::size_t(eventSource.iStep)].value();
+            if(std::holds_alternative<SCG::Rid::InterferenceSource::Spoofing>(rid.interferenceSources[std::size_t(eventSource.iSource)].variant)) {
                 return SignalStatusMessage::SignalStatus::spoofing;
             }
             status = SignalStatusMessage::SignalStatus::jamming;
@@ -337,7 +328,7 @@ namespace Sagax::SCG::Server {
     void Server::StartPart(ScheduledTest &test) {
         std::size_t iPart = test.nextPart;
         scheduler.SetPartStarted(test);
-        auto &part = test.parts[iPart];
+        auto &part = test.scenario.parts[iPart];
 
         if(std::chrono::system_clock::now() >= part.time) {
             PublishError(std::format("part {} of test \"{}\" missed its starting time", iPart, test.testId));
@@ -345,17 +336,7 @@ namespace Sagax::SCG::Server {
             return;
         }
 
-        ctx = SCG::ScenarioPipeline{};
-        try {
-            pipelineConfig.events.startTime = part.time;
-            ctx = SCG::BuildStreamingPipeline(pipelineConfig, part.scenario);
-        }
-        catch(const std::exception &e) {
-            PublishError(std::format("could not build the pipeline of part {} of test \"{}\": {}", iPart, test.testId, e.what()));
-            scheduler.SetFailed(test);
-            return;
-        }
-
+        ctx = std::move(part.pipeline);
         ctx.Setup(threadPool, SCG::GetDefaultCpuThreadCount());
         try {
             ctx.Init();
@@ -572,7 +553,7 @@ namespace Sagax::SCG::Server {
         }
         Common::Logger::Info(lh, "validation successful");
 
-        scheduler.Configure(config);
+        scheduler.Configure(config, pipelineConfig);
         scheduler.onStatus = [this](const std::string &testId, TestStatusMessage::TestStatus status, std::chrono::system_clock::time_point time) {
             PublishTestStatus(testId, status, time);
         };
@@ -592,10 +573,6 @@ namespace Sagax::SCG::Server {
     }
 
     void Server::Run() {
-        MqttClient::LibraryInit();
-        Common::Defer disposeMqttLibrary([](){
-            MqttClient::LibraryCleanup();
-        });
         Common::Defer disposeClient([this](){
             client.Stop();
         });

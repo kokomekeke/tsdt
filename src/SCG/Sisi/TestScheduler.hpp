@@ -8,15 +8,15 @@
 #include <string>
 #include <vector>
 #include "Common/Logger.hpp"
-#include "SCG/Scenario/Scenario.hpp"
 #include "SCG/Utility/Job.hpp"
 #include "CommandError.hpp"
 #include "Messages.hpp"
+#include "SCG/Scenario/PipelineConfig.hpp"
 #include "Rid.hpp"
 #include "SavedTest.hpp"
 #include "ServerConfig.hpp"
 #include "TestStorage.hpp"
-#include "TsdMerge.hpp"
+#include "TsdTransform.hpp"
 
 namespace Sagax::SCG {
 
@@ -40,23 +40,14 @@ namespace Sagax::SCG {
             failed
         };
 
-        // one part of the tsd, played by a pipeline of its own. the pipeline starts
-        // start_ahead before the time of the part
-        struct Part {
-            std::chrono::system_clock::time_point time;
-            Rid rid;
-            std::vector<std::int32_t> eventMap;
-            Scenario scenario;
-            std::vector<std::unique_ptr<Job>> jobs;
-        };
-
         std::string testId;
         CommandMessage::TestSetup command;
         // the start and the end of the tsd
         std::chrono::system_clock::time_point time;
         std::chrono::system_clock::time_point end;
-        // in the order they play, there is at least one
-        std::vector<Part> parts;
+        // there is at least one part. the pipeline of a part starts start_ahead before the time
+        // of the part, the pipeline is moved out to play
+        TsdScenario scenario;
         std::size_t nextPart = 0;
         SavedTest::Gnss gnss;
         std::string directory;
@@ -70,6 +61,7 @@ namespace Sagax::SCG {
     private:
         Common::Logger::Handle lh = Common::Logger::Handle("TestScheduler");
         ServerConfig config;
+        const PipelineConfig *pipelineConfig = nullptr;
         TestStorage storage;
         // pointers to the tests stay valid while the list changes
         std::vector<std::unique_ptr<ScheduledTest>> tests;
@@ -84,7 +76,7 @@ namespace Sagax::SCG {
         CommandError CreateTest(
             const CommandMessage::TestSetup &command,
             std::chrono::system_clock::time_point time,
-            const MergedTsd &merged,
+            const TsdSources &sources,
             ScheduledTest::State state,
             std::unique_ptr<ScheduledTest> &out
         );
@@ -98,7 +90,8 @@ namespace Sagax::SCG {
         std::function<void(const std::string &testId, TestStatusMessage::TestStatus status, std::chrono::system_clock::time_point time)> onStatus;
         std::function<void(const std::string &text)> onError;
 
-        void Configure(const ServerConfig &config_);
+        // pipelineConfig_ has to outlive the tests, their pipelines point into it
+        void Configure(const ServerConfig &config_, const PipelineConfig &pipelineConfig_);
 
         CommandError Schedule(const CommandMessage::TestSetup &command);
         // the caller stops the preparation or the playback of the test first

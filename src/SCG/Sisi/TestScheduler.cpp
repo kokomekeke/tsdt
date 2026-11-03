@@ -3,10 +3,9 @@
 #include <format>
 #include "Common/Assert.hpp"
 #include "Common/Logger.hpp"
-#include "RidTransform.hpp"
 #include "TestScheduler.hpp"
 #include "SCG/Utility/TimeFormat.hpp"
-#include "TsdMerge.hpp"
+#include "TsdTransform.hpp"
 
 namespace Sagax::SCG {
 
@@ -31,23 +30,6 @@ namespace Sagax::SCG {
             return {};
         }
 
-        CommandError MapRid(
-            const ServerConfig &cfg,
-            const Rid &rid,
-            std::chrono::system_clock::time_point startTime,
-            const std::string &directory,
-            std::size_t iPart,
-            ScenarioRidMap &out
-        ) {
-            try {
-                out = MapRidToScenario(cfg, rid, startTime, directory, iPart);
-            }
-            catch(const std::exception &e) {
-                return std::format("failed to build a scenario from the RID: {}", e.what());
-            }
-            return {};
-        }
-
         std::chrono::system_clock::duration Seconds(double seconds) {
             return std::chrono::duration_cast<std::chrono::system_clock::duration>(
                 std::chrono::duration<double>(seconds)
@@ -56,10 +38,8 @@ namespace Sagax::SCG {
 
         double JobEstimate_s(const ScheduledTest &test) {
             double total = 0.0;
-            for(auto &part : test.parts) {
-                for(auto &job : part.jobs) {
-                    total += job->Estimate_s();
-                }
+            for(auto &job : test.scenario.jobs) {
+                total += job->Estimate_s();
             }
             return total;
         }
@@ -78,26 +58,26 @@ namespace Sagax::SCG {
             return false;
         }
 
-        void LogSummary(const Common::Logger::Handle &lh, const ScheduledTest &test, const Tsd &tsd, const MergedTsd &merged) {
+        void LogSummary(const Common::Logger::Handle &lh, const ScheduledTest &test, const Tsd &tsd) {
             std::string text = std::format("test \"{}\" set up from TSD \"{}\"", test.testId, tsd.name);
             text += std::format("\n  {}  test start", FormatIsoTime(test.time));
-            double end_s = 0.0;
-            for(auto &part : merged.parts) {
-                if(part.offset_s > end_s) {
-                    text += std::format("\n  {}  gap", FormatIsoTime(test.time + Seconds(end_s)));
+            auto end = test.time;
+            for(auto &part : test.scenario.parts) {
+                if(part.time > end) {
+                    text += std::format("\n  {}  gap", FormatIsoTime(end));
                 }
-                text += std::format("\n  {}  transmission:", FormatIsoTime(test.time + Seconds(part.offset_s)));
+                text += std::format("\n  {}  transmission:", FormatIsoTime(part.time));
                 for(std::size_t i = 0; i < part.steps.size(); ++i) {
                     text += std::format(
                         "{} \"{}\"",
                         i == 0 ? "" : ",",
-                        tsd.steps[part.steps[i]].interference.value()
+                        tsd.steps[std::size_t(part.steps[i])].interference.value()
                     );
                 }
-                end_s = part.offset_s + part.rid.globalSettings.duration_s;
+                end = part.time + Seconds(part.duration_s);
             }
-            if(merged.duration_s > end_s) {
-                text += std::format("\n  {}  gap", FormatIsoTime(test.time + Seconds(end_s)));
+            if(test.end > end) {
+                text += std::format("\n  {}  gap", FormatIsoTime(end));
             }
             text += std::format("\n  {}  test end", FormatIsoTime(test.end));
             Common::Logger::Info(lh, "{}", text);
@@ -168,8 +148,9 @@ namespace Sagax::SCG {
 
     }
 
-    void TestScheduler::Configure(const ServerConfig &config_) {
+    void TestScheduler::Configure(const ServerConfig &config_, const PipelineConfig &pipelineConfig_) {
         config = config_;
+        pipelineConfig = &pipelineConfig_;
         storage.Configure(config.recordingDir);
     }
 
@@ -270,52 +251,28 @@ namespace Sagax::SCG {
     CommandError TestScheduler::CreateTest(
         const CommandMessage::TestSetup &command,
         std::chrono::system_clock::time_point time,
-        const MergedTsd &merged,
+        const TsdSources &sources,
         ScheduledTest::State state,
         std::unique_ptr<ScheduledTest> &out
     ) {
         std::string directory = storage.Directory(command.testId);
 
         auto test = std::make_unique<ScheduledTest>();
+        try {
+            SCG_CHECK(TransformTsd(*pipelineConfig, config, sources.tsd, sources.rids, time, directory, test->scenario));
+        }
+        catch(const std::exception &e) {
+            return std::format("could not build the pipelines of the TSD: {}", e.what());
+        }
         test->testId = command.testId;
         test->command = command;
         test->time = time;
-        test->end = time + Seconds(merged.duration_s);
+        test->end = time + Seconds(test->scenario.duration_s);
         test->directory = directory;
         test->gnss.prerecord = config.prerecordGnss;
         test->gnss.mock = config.mockGnss;
         test->gnss.ephemerisFile = config.gnssEphemerisFile;
         test->state = state;
-
-        for(std::size_t i = 0; i < merged.parts.size(); ++i) {
-            const Rid &rid = merged.parts[i].rid;
-
-            Common::Logger::Info(lh, "validating the RID of part {}..", i);
-            CommandError error = CheckValidity(lh, ValidateRid(config, rid), "RID");
-            if(!error.empty()) {
-                return std::format("part[{}]: {}", i, error);
-            }
-            Common::Logger::Info(lh, "validation successful");
-
-            ScheduledTest::Part part;
-            part.time = time + Seconds(merged.parts[i].offset_s);
-            part.rid = rid;
-
-            ScenarioRidMap scenarioMap;
-            SCG_CHECK(MapRid(config, rid, part.time, directory, i, scenarioMap));
-
-            Common::Logger::Info(lh, "validating the scenario of part {}..", i);
-            error = CheckValidity(lh, ValidateScenario(scenarioMap.scen), "scenario");
-            if(!error.empty()) {
-                return std::format("part[{}]: {}", i, error);
-            }
-            Common::Logger::Info(lh, "validation successful");
-
-            part.scenario = std::move(scenarioMap.scen);
-            part.eventMap = std::move(scenarioMap.eventMap);
-            part.jobs = std::move(scenarioMap.jobs);
-            test->parts.push_back(std::move(part));
-        }
 
         double work = 0.0;
         if(state == ScheduledTest::State::pending) {
@@ -336,16 +293,13 @@ namespace Sagax::SCG {
         SCG_CHECK(FetchTsd(lh, config, command.scenarioUrl, sources));
         SCG_CHECK(ValidateTsdSources(lh, config, sources));
 
-        MergedTsd merged;
-        SCG_CHECK(MergeTsd(sources.tsd, sources.rids, config.startAhead_s, merged));
-
         std::unique_ptr<ScheduledTest> test;
-        SCG_CHECK(CreateTest(command, time, merged, ScheduledTest::State::pending, test));
+        SCG_CHECK(CreateTest(command, time, sources, ScheduledTest::State::pending, test));
         SCG_CHECK(storage.SaveSources(test->testId, sources));
         SaveState(*test);
 
         PublishStatus(*test, std::chrono::system_clock::now());
-        LogSummary(lh, *test, sources.tsd, merged);
+        LogSummary(lh, *test, sources.tsd);
         tests.push_back(std::move(test));
         Common::Logger::Info(lh, "test scheduled: {}", command.testId);
         LogTests();
@@ -432,11 +386,9 @@ namespace Sagax::SCG {
             SCG_CHECK(CheckPreparedGnss(saved.gnss, config));
         }
         SCG_CHECK(ValidateTsdSources(lh, config, sources));
-        MergedTsd merged;
-        SCG_CHECK(MergeTsd(sources.tsd, sources.rids, config.startAhead_s, merged));
 
         std::unique_ptr<ScheduledTest> test;
-        SCG_CHECK(CreateTest(saved.command, time, merged, state, test));
+        SCG_CHECK(CreateTest(saved.command, time, sources, state, test));
 
         SaveState(*test);
         PublishStatus(*test, std::chrono::system_clock::now());
@@ -494,12 +446,12 @@ namespace Sagax::SCG {
     }
 
     bool TestScheduler::PartDue(const ScheduledTest &test, std::chrono::system_clock::time_point now) {
-        return test.nextPart < test.parts.size()
-            && now >= test.parts[test.nextPart].time - Seconds(config.startAhead_s);
+        return test.nextPart < test.scenario.parts.size()
+            && now >= test.scenario.parts[test.nextPart].time - Seconds(config.startAhead_s);
     }
 
     bool TestScheduler::PlaybackOver(const ScheduledTest &test, std::chrono::system_clock::time_point now) {
-        return test.nextPart == test.parts.size() && now >= test.end;
+        return test.nextPart == test.scenario.parts.size() && now >= test.end;
     }
 
     // the times in the past are left out, the queries already answer for them
@@ -524,8 +476,8 @@ namespace Sagax::SCG {
                 case ScheduledTest::State::starting:
                 case ScheduledTest::State::playing:
                     consider(t->time);
-                    if(t->nextPart < t->parts.size()) {
-                        consider(t->parts[t->nextPart].time - startAhead);
+                    if(t->nextPart < t->scenario.parts.size()) {
+                        consider(t->scenario.parts[t->nextPart].time - startAhead);
                     }
                     consider(t->end);
                     break;
@@ -567,7 +519,7 @@ namespace Sagax::SCG {
     }
 
     void TestScheduler::SetPartStarted(ScheduledTest &test) {
-        Common::Assert(test.nextPart < test.parts.size(), "every part has started");
+        Common::Assert(test.nextPart < test.scenario.parts.size(), "every part has started");
         ++test.nextPart;
     }
 
@@ -593,22 +545,12 @@ namespace Sagax::SCG {
     void TestScheduler::Prepare(const ScheduledTest &test, std::stop_token stop) const {
         storage.ClearPreparation(test.testId);
 
-        for(std::size_t i = 0; i < test.parts.size(); ++i) {
-            CommandError error = storage.SaveScenario(test.testId, i, test.parts[i].scenario);
-            if(!error.empty()) {
-                Common::Logger::Error(lh, "{}", error);
+        for(auto &job : test.scenario.jobs) {
+            if(stop.stop_requested()) {
                 return;
             }
-        }
-
-        for(auto &part : test.parts) {
-            for(auto &job : part.jobs) {
-                if(stop.stop_requested()) {
-                    return;
-                }
-                Common::Logger::Info(lh, "running {}", job->Describe());
-                job->Run(stop);
-            }
+            Common::Logger::Info(lh, "running {}", job->Describe());
+            job->Run(stop);
         }
     }
 

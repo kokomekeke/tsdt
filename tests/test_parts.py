@@ -72,7 +72,7 @@ def test_the_parts_play_one_after_the_other(server, tmp_path):
 
     directory = tmp_path / "recordings" / "parts"
     assert sorted(p.name for p in directory.iterdir()) == [
-        "rid_000.json", "rid_002.json", "scenario_000.json", "scenario_001.json", "test.json", "tsd.json",
+        "rid_000.json", "rid_002.json", "test.json", "tsd.json",
     ]
 
 

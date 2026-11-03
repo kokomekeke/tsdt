@@ -6,7 +6,6 @@
 #include <vector>
 #include "Common/ThreadPool.hpp"
 #include "Pipeline3/PipelineEngine.hpp"
-#include "SCG/Scenario/Scenario.hpp"
 #include "SCG/Signal/SignalGenerator.hpp"
 #include "SCG/Output/OutputDevice.hpp"
 #include "SCG/Utility/Resource.hpp"
@@ -19,7 +18,6 @@ namespace Sagax::SCG {
         enum class Mode { stream, record, playback };
 
         struct Event {
-            std::int32_t id; // index of the event in the scenario
             std::size_t iOutput;
             std::size_t iChannel;
             std::int64_t iStart;
@@ -49,12 +47,16 @@ namespace Sagax::SCG {
         };
 
         Mode mode;
-        // events without samples are left out
+        // ordered by iStart, every event has samples. the event callbacks get the index of the event here
         std::vector<Event> events;
         std::vector<Line> lines; // empty in playback mode
         std::vector<Output> outputs;
         PipelineConfig::EventLogConfig callbacks; // stream and playback mode
     };
+
+    // an event goes on the first line of its channel and WorkType that is free by its start.
+    // the events need their generators
+    void AddLines(ScenarioLayout &layout);
 
     // at least 1
     std::int32_t GetDefaultCpuThreadCount();
@@ -64,7 +66,6 @@ namespace Sagax::SCG {
     struct ScenarioPipeline : public Resource {
         struct Impl;
 
-        Scenario scenario;
         std::vector<Resource*> resources;
         std::vector<std::unique_ptr<Resource>> ownedResources;
 

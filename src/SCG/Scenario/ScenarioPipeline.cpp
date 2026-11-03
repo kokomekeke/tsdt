@@ -142,6 +142,26 @@ namespace Sagax::SCG {
         }
     }
 
+    void AddLines(ScenarioLayout &layout) {
+        for(std::size_t ie = 0; ie < layout.events.size(); ++ie) {
+            auto &e = layout.events[ie];
+            auto &output = layout.outputs[e.iOutput];
+            SignalGenerator::WorkType workType = e.generator->GetWorkType();
+            auto it = std::find_if(output.lines.begin(), output.lines.end(), [&](std::size_t il) {
+                auto &line = layout.lines[il];
+                return line.iChannel == e.iChannel
+                    && line.workType == workType
+                    && layout.events[line.events.back()].iEnd <= e.iStart;
+            });
+            if(it == output.lines.end()) {
+                output.lines.push_back(layout.lines.size());
+                layout.lines.push_back(ScenarioLayout::Line{ e.iOutput, e.iChannel, workType, { } });
+                it = output.lines.end() - 1;
+            }
+            layout.lines[*it].events.push_back(ie);
+        }
+    }
+
     std::int32_t GetDefaultCpuThreadCount() {
         return std::max(std::int32_t(1), std::int32_t(std::thread::hardware_concurrency()));
     }
@@ -698,7 +718,7 @@ namespace Sagax::SCG {
             while(os.iNextStart < output.events.size() && layout.events[output.events[os.iNextStart]].iStart < iEnd) {
                 auto &e = layout.events[output.events[os.iNextStart]];
                 if(layout.callbacks.eventStart) {
-                    layout.callbacks.eventStart(e.id, timeOf(e.iStart));
+                    layout.callbacks.eventStart(std::int32_t(output.events[os.iNextStart]), timeOf(e.iStart));
                 }
                 ++os.iNextStart;
             }
@@ -706,7 +726,7 @@ namespace Sagax::SCG {
             while(os.iNextEnd < os.eventsByEnd.size() && layout.events[os.eventsByEnd[os.iNextEnd]].iEnd <= iEnd) {
                 auto &e = layout.events[os.eventsByEnd[os.iNextEnd]];
                 if(layout.callbacks.eventEnd) {
-                    layout.callbacks.eventEnd(e.id, timeOf(e.iEnd));
+                    layout.callbacks.eventEnd(std::int32_t(os.eventsByEnd[os.iNextEnd]), timeOf(e.iEnd));
                 }
                 ++os.iNextEnd;
             }
@@ -774,6 +794,9 @@ namespace Sagax::SCG {
 
     void ScenarioPipeline::SetLayout(ScenarioLayout &&layout) {
         Common::Assert(!impl->isSetup, "layout set after setup");
+        Common::Assert(std::is_sorted(layout.events.begin(), layout.events.end(), [](const ScenarioLayout::Event &e1, const ScenarioLayout::Event &e2) {
+            return e1.iStart < e2.iStart;
+        }), "the events are not ordered by their start");
         impl->layout = std::move(layout);
     }
 

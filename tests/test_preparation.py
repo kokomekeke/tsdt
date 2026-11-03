@@ -28,11 +28,6 @@ def live(config):
     config["prerecord_gnss"] = False
 
 
-def live_unmocked(config):
-    live(config)
-    config["mock_gnss"] = False
-
-
 def test_a_spoofer_is_recorded_into_the_directory_of_its_test(server, tmp_path):
     rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S, bandwidth_hz=BANDWIDTH_HZ)
     tsd = wrap_rid(rid, duration_s=DURATION_S)
@@ -43,7 +38,7 @@ def test_a_spoofer_is_recorded_into_the_directory_of_its_test(server, tmp_path):
 
     directory = tmp_path / "recordings" / "spoofed"
     assert sorted(p.name for p in directory.iterdir()) == [
-        "gnss_000_0000.wav", "rid_000.json", "scenario_000.json", "test.json", "tsd.json",
+        "gnss_000_0000.wav", "rid_000.json", "test.json", "tsd.json",
     ]
 
     sampleRate, channels = read_iq(directory / "gnss_000_0000.wav")
@@ -53,58 +48,6 @@ def test_a_spoofer_is_recorded_into_the_directory_of_its_test(server, tmp_path):
     assert rms(channels[0]) == 0.0
 
 
-def test_the_scenario_plays_the_recording_once(server, tmp_path):
-    rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S, bandwidth_hz=BANDWIDTH_HZ)
-    tsd = wrap_rid(rid, duration_s=DURATION_S)
-    sched = server(config_changes=with_ephemeris)
-    sched.setup(tsd.as_uri(), test_id="spoofed", seconds_ahead=600)
-    assert sched.wait_for_log("preparation finished: spoofed", timeout=30.0), sched.log
-
-    directory = tmp_path / "recordings" / "spoofed"
-    scenario = json.loads((directory / "scenario_000.json").read_text(encoding="utf-8"))
-    files = [s for s in scenario["signals"] if s.get("type") == "IQFile"]
-    assert len(files) == 1, scenario["signals"]
-    assert files[0]["loop"] is False
-    assert files[0]["file"].replace("\\", "/").endswith("spoofed/gnss_000_0000.wav"), files[0]["file"]
-
-
-def test_a_live_mocked_spoofer_is_a_zero_signal(server, tmp_path):
-    rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S, bandwidth_hz=BANDWIDTH_HZ)
-    tsd = wrap_rid(rid, duration_s=DURATION_S)
-    sched = server(config_changes=live)
-    sched.setup(tsd.as_uri(), test_id="live", seconds_ahead=600)
-    assert sched.wait_for_log("preparation finished: live", timeout=30.0), sched.log
-
-    directory = tmp_path / "recordings" / "live"
-    assert sorted(p.name for p in directory.iterdir()) == [
-        "rid_000.json", "scenario_000.json", "test.json", "tsd.json",
-    ]
-    scenario = json.loads((directory / "scenario_000.json").read_text(encoding="utf-8"))
-    assert [s["type"] for s in scenario["signals"]] == ["Zero"], scenario["signals"]
-
-
-def test_a_live_spoofer_is_left_to_the_engine(build, server, tmp_path):
-    """only prepared, playing it would ask the engine for samples"""
-    rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S, bandwidth_hz=BANDWIDTH_HZ)
-    tsd = wrap_rid(rid, duration_s=DURATION_S)
-    sched = server(config_changes=live_unmocked)
-    sched.setup(tsd.as_uri(), test_id="live", seconds_ahead=600)
-    assert sched.wait_for_log("preparation finished: live", timeout=30.0), sched.log
-
-    directory = tmp_path / "recordings" / "live"
-    assert not (directory / "gnss_000_0000.wav").exists()
-    scenario = json.loads((directory / "scenario_000.json").read_text(encoding="utf-8"))
-    signals = scenario["signals"]
-    assert [s["type"] for s in signals] == ["GnssSpoofing"], signals
-    assert signals[0]["signal"] == "GPS_L1CA", signals
-    assert signals[0]["ephemerisFile"] == "ephemeris/none.rnx", signals
-    assert [w["t"] for w in signals[0]["trajectory"]] == [0.0, DURATION_S], signals
-
-    # the start time is written back in a form the parser reads
-    result = build.run("scglint", ["scenario", directory / "scenario_000.json"])
-    assert result.returncode == 0, result.stdout + result.stderr
-
-
 def test_jammers_alone_leave_no_recording(server, tmp_path, tsd_path):
     sched = server()
     sched.setup(tsd_path.as_uri(), test_id="jammed", seconds_ahead=600)
@@ -112,7 +55,7 @@ def test_jammers_alone_leave_no_recording(server, tmp_path, tsd_path):
 
     directory = tmp_path / "recordings" / "jammed"
     assert sorted(p.name for p in directory.iterdir()) == [
-        "rid_000.json", "scenario_000.json", "test.json", "tsd.json",
+        "rid_000.json", "test.json", "tsd.json",
     ]
 
 

@@ -53,6 +53,13 @@ int main(int argc, char **argv) {
     ProgramParser parser;
     parser.Parse(argc, argv);
 
-    Sagax::SCG::Server::Server server;
-    return server.Main(parser.params);
+    // the mqtt client of the server uses the library from its configuration to its destruction
+    Sagax::SCG::MqttClient::LibraryInit();
+    int code = 0;
+    {
+        Sagax::SCG::Server::Server server;
+        code = server.Main(parser.params);
+    }
+    Sagax::SCG::MqttClient::LibraryCleanup();
+    return code;
 }

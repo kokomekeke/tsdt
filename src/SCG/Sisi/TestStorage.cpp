@@ -3,7 +3,6 @@
 #include <sstream>
 #include "Common/Assert.hpp"
 #include "SCG/Json/Rid.hpp"
-#include "SCG/Json/Scenario.hpp"
 #include "SCG/Json/Tsd.hpp"
 #include "TestStorage.hpp"
 
@@ -159,16 +158,6 @@ namespace Sagax::SCG {
         for(auto &path : leftovers) {
             std::filesystem::remove_all(path);
         }
-    }
-
-    CommandError TestStorage::SaveScenario(const std::string &testId, std::size_t iPart, const Scenario &scenario) const {
-        Json::JsonIssues issues;
-        std::optional<std::string> json = SerializeScenario(scenario, issues);
-        if(!json.has_value()) {
-            return std::format("could not write the scenario of part {}:\n{}", iPart, issues.Format());
-        }
-        WriteTextFile(root / testId / std::format("scenario_{:03}.json", iPart), json.value());
-        return {};
     }
 
     void TestStorage::Remove(const std::string &testId) const {

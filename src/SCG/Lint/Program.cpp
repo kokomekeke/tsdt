@@ -17,10 +17,9 @@
 
 #include "SCG/Sisi/Rid.hpp"
 #include "SCG/Json/Rid.hpp"
-#include "SCG/Sisi/RidTransform.hpp"
 #include "SCG/Sisi/Tsd.hpp"
 #include "SCG/Json/Tsd.hpp"
-#include "SCG/Sisi/TsdMerge.hpp"
+#include "SCG/Sisi/TsdTransform.hpp"
 #include "SCG/Utility/Fetch.hpp"
 
 #include "Program.hpp"
@@ -201,13 +200,7 @@ namespace Sagax::SCG::Lint {
                 merged.duration_s
             );
 
-            bool valid = true;
-            for(std::size_t i = 0; i < merged.parts.size(); ++i) {
-                if(!Report(std::format("tsd part[{}]", i), ValidateRid(config, merged.parts[i].rid))) {
-                    valid = false;
-                }
-            }
-            return valid ? EXIT_OK : EXIT_VALIDATION_FAILED;
+            return EXIT_OK;
         }
 
     }

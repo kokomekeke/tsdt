@@ -1,5 +1,6 @@
 #include <vector>
 #include <algorithm>
+#include <utility>
 
 #include "Common/Assert.hpp"
 
@@ -14,8 +15,8 @@ namespace Sagax::SCG {
     namespace {
 
         // the outputs and the events of the scenario in samples of the outputs, the events ordered by
-        // their start
-        ScenarioLayout SortScenario(const Scenario &scen, ScenarioLayout::Mode mode) {
+        // their start. scenEvents gets the index in the scenario of every event of the layout
+        ScenarioLayout SortScenario(const Scenario &scen, ScenarioLayout::Mode mode, std::vector<std::int32_t> &scenEvents) {
             ScenarioLayout layout;
             layout.mode = mode;
 
@@ -29,6 +30,7 @@ namespace Sagax::SCG {
                 layout.outputs.push_back(std::move(output));
             }
 
+            std::vector<std::pair<std::int32_t, ScenarioLayout::Event>> events;
             for(std::size_t ie = 0; ie < scen.events.size(); ++ie) {
                 auto &e = scen.events[ie];
                 std::size_t iOutput = std::size_t(std::find_if(scen.outputs.begin(), scen.outputs.end(), [&](const Scenario::Output &o) { return o.name == e.outputName; }) - scen.outputs.begin());
@@ -41,8 +43,7 @@ namespace Sagax::SCG {
                 if(iStart >= iEnd) {
                     continue;
                 }
-                layout.events.push_back(ScenarioLayout::Event{
-                    std::int32_t(ie),
+                events.push_back({ std::int32_t(ie), ScenarioLayout::Event{
                     iOutput,
                     e.iChannel,
                     iStart,
@@ -50,50 +51,34 @@ namespace Sagax::SCG {
                     e.frequency,
                     e.amplitude,
                     nullptr
-                });
+                } });
             }
-            std::stable_sort(layout.events.begin(), layout.events.end(), [](const ScenarioLayout::Event &e1, const ScenarioLayout::Event &e2) {
-                return e1.iStart < e2.iStart;
+            std::stable_sort(events.begin(), events.end(), [](const auto &e1, const auto &e2) {
+                return e1.second.iStart < e2.second.iStart;
             });
+            for(auto &[ie, e] : events) {
+                scenEvents.push_back(ie);
+                layout.events.push_back(std::move(e));
+            }
             for(std::size_t ie = 0; ie < layout.events.size(); ++ie) {
                 layout.outputs[layout.events[ie].iOutput].events.push_back(ie);
             }
             return layout;
         }
 
-        std::vector<Resource*> AddGenerators(const PipelineConfig &config, const Scenario &scen, ScenarioLayout &layout) {
+        std::vector<Resource*> AddGenerators(const PipelineConfig &config, const Scenario &scen, const std::vector<std::int32_t> &scenEvents, ScenarioLayout &layout) {
             std::vector<Resource*> resources;
-            for(auto &e : layout.events) {
-                auto &event = scen.events[std::size_t(e.id)];
+            for(std::size_t ie = 0; ie < layout.events.size(); ++ie) {
+                auto &e = layout.events[ie];
+                auto &event = scen.events[std::size_t(scenEvents[ie])];
                 auto it = std::find_if(scen.signals.begin(), scen.signals.end(), [&](const Scenario::Signal &s) { return s.name == event.signalName; });
                 Common::Assert(it != scen.signals.end(), "missing signal");
-                auto [gen, rsc] = GetSignalGenerator(config, it->variant, event);
+                auto [gen, rsc] = GetSignalGenerator(config, it->variant, event.end - event.start);
                 gen->SetSampleRate(layout.outputs[e.iOutput].sampleRate);
                 e.generator = std::move(gen);
                 resources.insert(resources.end(), rsc.begin(), rsc.end());
             }
             return resources;
-        }
-
-        // an event goes on the first line of its channel and WorkType that is free by its start
-        void AddLines(ScenarioLayout &layout) {
-            for(std::size_t ie = 0; ie < layout.events.size(); ++ie) {
-                auto &e = layout.events[ie];
-                auto &output = layout.outputs[e.iOutput];
-                SignalGenerator::WorkType workType = e.generator->GetWorkType();
-                auto it = std::find_if(output.lines.begin(), output.lines.end(), [&](std::size_t il) {
-                    auto &line = layout.lines[il];
-                    return line.iChannel == e.iChannel
-                        && line.workType == workType
-                        && layout.events[line.events.back()].iEnd <= e.iStart;
-                });
-                if(it == output.lines.end()) {
-                    output.lines.push_back(layout.lines.size());
-                    layout.lines.push_back(ScenarioLayout::Line{ e.iOutput, e.iChannel, workType, { } });
-                    it = output.lines.end() - 1;
-                }
-                layout.lines[*it].events.push_back(ie);
-            }
         }
 
         std::vector<Resource*> AddDevices(const PipelineConfig &config, const Scenario &scen, ScenarioLayout &layout) {
@@ -128,11 +113,11 @@ namespace Sagax::SCG {
         const Scenario &scen = dir->GetScenario();
 
         ScenarioPipeline ctx;
-        ScenarioLayout layout = SortScenario(scen, ScenarioLayout::Mode::playback);
+        std::vector<std::int32_t> scenEvents;
+        ScenarioLayout layout = SortScenario(scen, ScenarioLayout::Mode::playback, scenEvents);
         ctx.resources = AddDevices(config, scen, layout);
         AddFiles(*dir, layout);
         layout.callbacks = config.events;
-        ctx.scenario = scen;
         ctx.SetLayout(std::move(layout));
         ctx.ownedResources.push_back(std::move(dir));
         return ctx;
@@ -147,11 +132,11 @@ namespace Sagax::SCG {
         dir->SetupWrite(scen, ".", recordingDirectory);
 
         ScenarioPipeline ctx;
-        ScenarioLayout layout = SortScenario(scen, ScenarioLayout::Mode::record);
-        ctx.resources = AddGenerators(config, scen, layout);
+        std::vector<std::int32_t> scenEvents;
+        ScenarioLayout layout = SortScenario(scen, ScenarioLayout::Mode::record, scenEvents);
+        ctx.resources = AddGenerators(config, scen, scenEvents, layout);
         AddLines(layout);
         AddFiles(*dir, layout);
-        ctx.scenario = scen;
         ctx.SetLayout(std::move(layout));
         ctx.ownedResources.push_back(std::move(dir));
         return ctx;
@@ -162,13 +147,13 @@ namespace Sagax::SCG {
         const Scenario &scen
     ) {
         ScenarioPipeline ctx;
-        ScenarioLayout layout = SortScenario(scen, ScenarioLayout::Mode::stream);
-        ctx.resources = AddGenerators(config, scen, layout);
+        std::vector<std::int32_t> scenEvents;
+        ScenarioLayout layout = SortScenario(scen, ScenarioLayout::Mode::stream, scenEvents);
+        ctx.resources = AddGenerators(config, scen, scenEvents, layout);
         AddLines(layout);
         std::vector<Resource*> devices = AddDevices(config, scen, layout);
         ctx.resources.insert(ctx.resources.end(), devices.begin(), devices.end());
         layout.callbacks = config.events;
-        ctx.scenario = scen;
         ctx.SetLayout(std::move(layout));
         return ctx;
     }

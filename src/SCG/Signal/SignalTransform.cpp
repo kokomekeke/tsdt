@@ -13,7 +13,7 @@ namespace Sagax::SCG {
     GetSignalGenerator(
         [[maybe_unused]] const PipelineConfig &config,
         const SignalVariant &v,
-        const Scenario::Event &event
+        double duration_s
     ) {
         std::unique_ptr<SignalGenerator> basePtr;
         std::vector<Resource*> resources;
@@ -84,7 +84,7 @@ namespace Sagax::SCG {
         }
         if(auto *s = std::get_if<SignalVariant::GnssSpoofing>(&v.variant)) {
             auto p = std::make_unique<GnssSpoofingGenerator>();
-            p->Setup(*s, event.end - event.start);
+            p->Setup(*s, duration_s);
             basePtr = std::move(p);
         }
 
