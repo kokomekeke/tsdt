@@ -1,12 +1,13 @@
 #pragma once
 #include <chrono>
 #include <cstdint>
-#include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <stop_token>
 #include <string>
 #include <vector>
+#include "Common/Logger.hpp"
 #include "SCG/Scenario/Scenario.hpp"
 #include "SCG/Utility/Job.hpp"
 #include "CommandError.hpp"
@@ -14,15 +15,21 @@
 #include "Rid.hpp"
 #include "SavedTest.hpp"
 #include "ServerConfig.hpp"
+#include "TestStorage.hpp"
 #include "TsdMerge.hpp"
 
 namespace Sagax::SCG {
 
     struct ScheduledTest {
+        // pending: waits for its preparation
         // preparing: the directory is set up and the jobs run
-        // starting: the pipeline runs and the sink holds the first packet until the starting time
-        // playing: the first packet went to the device
+        // ready: prepared, waits for its playback
+        // starting: holds the playback, the time of the test has not come yet
+        // playing: from the time of the test until its end, while a part plays and between them
         // done, failed: erased from the list by EraseFinished
+        //
+        // a preparing, starting or playing test is the active one. there is at most one, and
+        // nothing else is prepared or played while it is there
         enum struct State {
             pending,
             preparing,
@@ -33,83 +40,104 @@ namespace Sagax::SCG {
             failed
         };
 
+        // one part of the tsd, played by a pipeline of its own. the pipeline starts
+        // start_ahead before the time of the part
+        struct Part {
+            std::chrono::system_clock::time_point time;
+            Rid rid;
+            std::vector<std::int32_t> eventMap;
+            Scenario scenario;
+            std::vector<std::unique_ptr<Job>> jobs;
+        };
+
         std::string testId;
         CommandMessage::TestSetup command;
+        // the start and the end of the tsd
         std::chrono::system_clock::time_point time;
-        Rid rid;
-        // sink event id -> index into rid.interferenceSources
-        std::vector<std::int32_t> eventMap;
-        Scenario scenario;
-        std::vector<std::unique_ptr<Job>> jobs;
+        std::chrono::system_clock::time_point end;
+        // in the order they play, there is at least one
+        std::vector<Part> parts;
+        std::size_t nextPart = 0;
         SavedTest::Gnss gnss;
         std::string directory;
         State state = State::pending;
     };
 
-    // the tests from their setup until they are over. state changes are published with
-    // onStatus and saved to the test directory. the caller runs the preparation and the
-    // playback and reports them with Started, Transmitting, Finished and Stopped
+    // the tests from their setup until they are over. the caller runs the preparation and
+    // the playback, asks the queries what to do and reports what it did with the setters.
+    // the queries change nothing. a state change is published with onStatus and saved
     struct TestScheduler {
     private:
+        Common::Logger::Handle lh = Common::Logger::Handle("TestScheduler");
         ServerConfig config;
-        // held by pointer so that running stays valid while the list changes
+        TestStorage storage;
+        // pointers to the tests stay valid while the list changes
         std::vector<std::unique_ptr<ScheduledTest>> tests;
-        ScheduledTest *running = nullptr;
 
         void SetState(ScheduledTest &test, ScheduledTest::State state, std::chrono::system_clock::time_point time);
         void PublishStatus(const ScheduledTest &test, std::chrono::system_clock::time_point time);
         void SaveState(const ScheduledTest &test);
-        CommandError SaveTest(const ScheduledTest &test, const std::string &json);
-        void SaveSources(const ScheduledTest &test, const TsdSources &sources);
 
         CommandError CheckSetup(const CommandMessage::TestSetup &command, std::chrono::system_clock::time_point &time);
-        CommandError CheckOverlap(const std::string &testId, std::chrono::system_clock::time_point time, double duration);
-        CommandError CheckPreparationQueue(const std::string &testId, std::chrono::system_clock::time_point time, double work);
+        CommandError CheckOverlap(const ScheduledTest &test);
+        CommandError CheckPreparationQueue(const ScheduledTest &test, double work);
         CommandError CreateTest(
             const CommandMessage::TestSetup &command,
             std::chrono::system_clock::time_point time,
-            Rid rid,
+            const MergedTsd &merged,
             ScheduledTest::State state,
             std::unique_ptr<ScheduledTest> &out
         );
 
-        CommandError RestoreTest(const std::filesystem::path &directory, const SavedTest &saved);
-        void DropSavedTest(const std::filesystem::path &directory, const std::string &error);
-        void FailSavedTest(const std::filesystem::path &directory, SavedTest saved, const std::string &error);
+        CommandError RestoreTest(const SavedTest &saved);
+        void DropSavedTest(const std::string &testId, const std::string &error);
+        void FailSavedTest(SavedTest saved, const std::string &error);
         void LogTests();
 
     public:
-        // time is when the state changed
         std::function<void(const std::string &testId, TestStatusMessage::TestStatus status, std::chrono::system_clock::time_point time)> onStatus;
         std::function<void(const std::string &text)> onError;
 
         void Configure(const ServerConfig &config_);
 
         CommandError Schedule(const CommandMessage::TestSetup &command);
-        // a running test has to be stopped first
+        // the caller stops the preparation or the playback of the test first
         CommandError Cancel(const std::string &testId);
         void Restore();
 
-        // the test being prepared or played, there is at most one
-        ScheduledTest *Running();
+        // queries
 
-        // the ready test to play now, the ready tests that can no longer start are failed
-        ScheduledTest *DueForPlayback(std::chrono::system_clock::time_point now, std::chrono::system_clock::duration lead);
-        // the next pending test, while nothing is running
+        ScheduledTest *Active();
+        // the pending test that starts first, when no test is active
         ScheduledTest *DueForPreparation();
+        // the ready test whose start_ahead has come, when no test is active
+        ScheduledTest *DueForPlayback(std::chrono::system_clock::time_point now);
+        // the next part of the active test, once its start_ahead has come
+        bool PartDue(const ScheduledTest &test, std::chrono::system_clock::time_point now);
+        // every part has started and the end of the active test has come
+        bool PlaybackOver(const ScheduledTest &test, std::chrono::system_clock::time_point now);
+        // the earliest time after now at which a query above changes its answer or
+        // FailMissed fails a test, by the clock alone
+        std::optional<std::chrono::system_clock::time_point> NextTime(std::chrono::system_clock::time_point now);
 
-        // pending -> preparing, ready -> starting
-        void Started(ScheduledTest &test);
-        // starting -> playing, time is when the first packet went to the device
-        void Transmitting(ScheduledTest &test, std::chrono::system_clock::time_point time);
-        // preparing -> ready, playing -> done, or failed from any state
-        void Finished(ScheduledTest &test, bool success);
-        // the test keeps its state
-        void Stopped(ScheduledTest &test);
+        // setters
+        // each one asserts the state it comes from, which is the one before it in State
+        // SetPlaying and SetDone publish the time and the end of the test instead of now
+        // SetFailed works from any state
+
+        // the pending and ready tests whose time has come are failed
+        void FailMissed(std::chrono::system_clock::time_point now);
+        void SetPreparing(ScheduledTest &test);
+        void SetReady(ScheduledTest &test);
+        void SetStarting(ScheduledTest &test);
+        void SetPlaying(ScheduledTest &test);
+        void SetPartStarted(ScheduledTest &test);
+        void SetDone(ScheduledTest &test);
+        void SetFailed(ScheduledTest &test);
         void EraseFinished();
 
-        // only reads the test, it can run on another thread
-        static void Prepare(const ScheduledTest &test, std::stop_token stop);
+        // only reads the test and the storage, it can run on another thread
+        void Prepare(const ScheduledTest &test, std::stop_token stop) const;
     };
 
 }

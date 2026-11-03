@@ -71,7 +71,6 @@ namespace Sagax::SCG {
         return std::nullopt;
     }
 
-    // written out of the table, so a center added there needs no second edit
     std::string GnssSupportedCenters(Constellation constellation) {
         std::string out = std::format("{} is only known at", NameOf(constellation));
         const char *separator = " ";
@@ -89,17 +88,14 @@ namespace Sagax::SCG {
         return std::format("gnss recording {}", fileName);
     }
 
-    // measured at 1.8 times real time at 1.92 msps and 1.1 times at 480 ksps, and the cost
-    // is per satellite and millisecond rather than per sample, so a narrower band is not
-    // cheaper. one second of work per second of signal is the safe side of both
+    // measured at 1.8 times real time at 1.92 msps and 1.1 times at 480 ksps. the cost is per
+    // satellite and millisecond, not per sample
     double GnssRecordingJob::Estimate_s() const {
         return duration_s;
     }
 
     void GnssRecordingJob::Run(std::stop_token stop) {
-        // a mocked recording reads nothing and stays silent through the pad in the loop
-        // below. it is still the length and the rate the scenario expects, which is what
-        // lets a test be prepared and played with no engine and no ephemeris
+        // a mocked recording reads nothing, the pad in the loop below fills it with silence
         GnssEngine engine;
         if(mock) {
             Common::Logger::Info("gnss recording {} is mocked, the file will be silence", fileName);

@@ -18,7 +18,7 @@ namespace Sagax::SCG {
             std::string testId;
         };
 
-        // it carries nothing, it ends whatever is being transmitted
+        // ends whatever is being transmitted
         struct IntStop {
         };
 

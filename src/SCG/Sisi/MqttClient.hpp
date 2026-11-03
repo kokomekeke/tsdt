@@ -27,7 +27,6 @@ namespace Sagax::SCG {
             std::int32_t keepAlive_s;
             std::vector<std::string> subscribeTopics;
             std::string clientId;
-            // every message that crosses the connection is written to the log
             bool logMessages = false;
             std::vector<std::int32_t> reconnectDelays_ms;
             std::int32_t maxQueueSize;

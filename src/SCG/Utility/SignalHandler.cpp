@@ -57,9 +57,8 @@ namespace Sagax::SCG {
 
 #else
 
-    // no handler is installed at all. the signals are blocked in every thread, which is
-    // why this has to exist before any thread is started, a thread inherits the mask of
-    // the one that created it. the thread below then takes them out of the pending set
+    // no handler is installed. the signals are blocked in every thread and the thread below
+    // takes them out of the pending set. a thread inherits the mask of the one that created it
     struct SignalHandler::Impl {
         std::vector<int> signals;
         Callback callback;
@@ -80,8 +79,7 @@ namespace Sagax::SCG {
 
             running.store(true);
             thread = std::thread([this](){
-                // sigtimedwait rather than sigwait, so the loop comes back often enough
-                // to see the flag. there is no signal to wake it with otherwise
+                // the timeout brings the loop back to the flag
                 const timespec timeout{ 0, 100 * 1000 * 1000 };
                 while(running.load()) {
                     siginfo_t info{};

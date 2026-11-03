@@ -53,6 +53,6 @@ int main(int argc, char **argv) {
     ProgramParser parser;
     parser.Parse(argc, argv);
 
-    Sagax::SCG::Server::Program program;
-    return program.Main(parser.params);
+    Sagax::SCG::Server::Server server;
+    return server.Main(parser.params);
 }

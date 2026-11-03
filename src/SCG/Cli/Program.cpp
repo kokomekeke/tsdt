@@ -84,10 +84,10 @@ namespace Sagax::SCG::Cli {
         #endif
     }
 
-    // the pipeline owns the devices, so it goes first, the thread pool its engine used
-    // after it. uhd keeps dispatching log records on a thread of its own after that, and
-    // libsidekiq outlives the devices it handed out. mtxStop is held because clearing ctx
-    // destroys the engine Stop() reads
+    // the pipeline owns the devices and goes first, then the thread pool its engine used
+    // uhd keeps dispatching log records on a thread of its own after that
+    // libsidekiq outlives the devices it handed out
+    // mtxStop is held, clearing ctx destroys the engine Stop() reads
     void Program::ReleaseResources() {
         std::unique_lock lck(mtxStop);
         ctx.Dispose();
@@ -193,8 +193,6 @@ namespace Sagax::SCG::Cli {
             Common::Logger::RemoveStream(&logStream);
         });
 
-        // declared after the log stream, so it runs before the stream is taken away, on
-        // every path out of Run including the early returns and a throw
         Common::Defer releaseResources([this]() {
             ReleaseResources();
         });

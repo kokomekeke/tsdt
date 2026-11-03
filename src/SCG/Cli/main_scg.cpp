@@ -18,8 +18,8 @@ namespace {
         Parameters params;
         argparse::ArgumentParser program;
 
-        // exit_on_default_arguments is off so that --help and --version come back here
-        // instead of calling std::exit, which would skip every destructor on the way out
+        // exit_on_default_arguments is off, --help and --version return here instead of calling
+        // std::exit
         ProgramParser() : program("scg.exe", "1.0", argparse::default_arguments::all, false) {
             auto &mode = program.add_mutually_exclusive_group(false);
             mode.add_argument("-r", "--record")
@@ -51,8 +51,7 @@ namespace {
                 parseError = e.what();
             }
 
-            // the help text is written while the arguments are read and the missing ones are
-            // only reported after that, so the request is answered before the error is looked at
+            // the help text is written during parsing, a missing argument does not matter then
             if(program.is_used("--help") || program.is_used("--version")) {
                 params.helpRequested = true;
                 params.success = true;

@@ -31,9 +31,9 @@
 
 namespace Sagax::SCG::Commander {
 
-    // the log records and the line being typed share one terminal row. the editor keeps the
-    // characters that have been entered so far, so a record can erase the row, print itself
-    // and put the prompt and the text back. every write to the terminal goes through here
+    // the log records and the line being typed share one terminal row. a record erases the
+    // row, prints itself and puts the prompt and the typed text back. every write to the
+    // terminal goes through here
     struct LineEditor {
         std::mutex mtx;
         std::string buffer;
@@ -68,8 +68,7 @@ namespace Sagax::SCG::Commander {
             active = false;
         }
 
-        // called from the logger thread, the record replaces the row and the prompt is
-        // printed again under it
+        // called from the logger thread
         void PutRecord(const std::string &text) {
             std::unique_lock lck(mtx);
             Clear_();
@@ -108,8 +107,7 @@ namespace Sagax::SCG::Commander {
         }
     };
 
-    // routes the records into the editor instead of writing them to the stream directly.
-    // the formatting is the one StdLogStream uses
+    // formats the records the way StdLogStream does
     struct EditorLogStream : public Common::Logger::Stream {
         LineEditor &editor;
         Common::StdLogStream::TagOptions opt;
@@ -124,9 +122,8 @@ namespace Sagax::SCG::Commander {
         }
     };
 
-    // the console hands over the characters one at a time and does not echo them, so that the
-    // editor owns the row. on windows _getch already reads that way and there is nothing to
-    // set up, on the other platforms the line discipline has to be turned off
+    // the console hands over the characters one at a time without echo. _getch on windows
+    // already reads that way, elsewhere the line discipline is turned off
     struct TerminalRawMode {
 #ifdef _WIN32
         TerminalRawMode() = default;
@@ -157,10 +154,9 @@ namespace Sagax::SCG::Commander {
         TerminalRawMode &operator=(const TerminalRawMode &) = delete;
     };
 
-    // returns the character, -1 at the end of the input, -2 for a key that is dropped and
-    // -3 when nothing arrived before the wait ran out. the signals are taken by a thread of
-    // their own and are blocked everywhere else, so a read is never interrupted and the wait
-    // is what brings the loop back to the running flag
+    // returns the character, -1 at the end of the input, -2 for a dropped key and -3 when
+    // nothing arrived before the wait ran out. the signals are blocked on this thread, the
+    // wait brings the loop back to the running flag
     static int ReadChar() {
 #ifdef _WIN32
         if(!_kbhit()) {
@@ -210,8 +206,6 @@ namespace Sagax::SCG::Commander {
     static void DrainIncomingMessages(MqttClient &client, std::atomic<bool> &running) {
         while(true) {
             MqttClient::Message msg;
-            // the client writes a line for every message it reads, so this only takes
-            // them out of the queue
             if(client.Pop(msg)) {
                 continue;
             }
@@ -232,10 +226,8 @@ namespace Sagax::SCG::Commander {
             Common::Logger::RemoveStream(&logStream);
         });
 
-        // the same records without the colour escape sequences. the prompt and the echoed
-        // characters go straight to the terminal and never reach the logger, so the file holds
-        // the records only. the file is opened in the working directory and is replaced on
-        // every run
+        // the prompt and the echoed characters never reach the logger, the file holds the records
+        // only
         std::ofstream logFile("scgcommander.log", std::ios::trunc);
         Common::StdLogStream fileLogStream(logFile, Common::Logger::Level::Trace, Common::StdLogStream::TagOptions{
             .colors = false
@@ -276,14 +268,12 @@ namespace Sagax::SCG::Commander {
             }
         }
 
-        // watched by the input loop and by the thread draining the incoming messages. it is
-        // declared before the handler so that the callback cannot outlive it
+        // declared before the handler, the callback uses it
         std::atomic<bool> running{true};
 
-        // constructed before the mqtt client and the log thread start, on linux a thread
-        // inherits the signal mask and the blocking has to be in place by then. the callback
-        // runs on an ordinary thread and only clears the flag, so the loop returns on its own
-        // and the destructor of TerminalRawMode puts the terminal back
+        // has to exist before any thread starts, on linux a thread inherits the signal mask
+        // the callback only clears the flag, the loop returns on its own and TerminalRawMode
+        // restores the terminal
         SignalHandler signalHandler({ SIGINT, SIGTERM }, [&running](int sig){
             Common::Logger::Info("signal {} received, stopping", sig);
             running.store(false);

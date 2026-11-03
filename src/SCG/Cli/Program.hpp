@@ -19,7 +19,6 @@ namespace Sagax::SCG::Cli {
         // --help and --version write their text and end the run, there is nothing else to do
         bool helpRequested;
         std::string error;
-        // written after a parse error
         std::string help;
         Mode mode;
         std::string jsonPath;
@@ -30,8 +29,8 @@ namespace Sagax::SCG::Cli {
     struct Program {
         PipelineConfig pipelineConfig;
 
-        // the engine of ctx dispatches its workers here. Run starts the threads, after the
-        // signal handler is in place, and ReleaseResources stops them once ctx is gone
+        // Run starts the threads after the signal handler is in place, ReleaseResources stops them
+        // once ctx is gone
         Common::ThreadPool threadPool;
         ScenarioPipeline ctx;
 
@@ -50,7 +49,6 @@ namespace Sagax::SCG::Cli {
         void ReleaseResources();
         bool Run(Parameters params);
         void Stop();
-        // sets up logging, then reports a parse error or runs
         int Main(Parameters params);
     };
 

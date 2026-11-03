@@ -22,9 +22,7 @@ namespace Sagax::SCG {
 
 
     void SidekiqDevice::Init_() {
-        // the server brings the library up before it preinitializes the devices, this is
-        // for the runs that open the device here instead. the call does nothing after the
-        // first one
+        // does nothing after the first call
         SSG::Sidekiq::Error error = SSG::Sidekiq::LibraryInit();
         Common::Assert(error == SSG::Sidekiq::Error::none, std::format("failed to initialize the sidekiq library: {}", SSG::Sidekiq::ToString(error)));
         if(dev == nullptr) {

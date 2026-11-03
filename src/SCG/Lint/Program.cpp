@@ -47,8 +47,6 @@ namespace Sagax::SCG::Lint {
             return buffer.str();
         }
 
-        // Prints warnings/errors from a ValidationResult-shaped struct.
-        // Returns true iff there were no errors.
         template<typename Result>
         bool Report(const std::string &label, const Result &res) {
             for(auto &w : res.warnings) {
@@ -168,9 +166,11 @@ namespace Sagax::SCG::Lint {
                 }
             }
 
+            // the tsd functions log through a handle, the linter has none of its own
+            Common::Logger::Handle lh;
             TsdSources sources;
             {
-                CommandError error = FetchTsd(config, tsdPath, sources);
+                CommandError error = FetchTsd(lh, config, tsdPath, sources);
                 if(!error.empty()) {
                     Common::Logger::Error("failed to read the tsd:\n{}", error.c_str());
                     return EXIT_ERROR;
@@ -178,16 +178,16 @@ namespace Sagax::SCG::Lint {
             }
 
             {
-                CommandError error = ValidateTsdSources(config, sources);
+                CommandError error = ValidateTsdSources(lh, config, sources);
                 if(!error.empty()) {
                     Common::Logger::Error("{}", error.c_str());
                     return EXIT_VALIDATION_FAILED;
                 }
             }
 
-            Rid merged;
+            MergedTsd merged;
             {
-                CommandError error = MergeTsd(sources.tsd, sources.rids, merged);
+                CommandError error = MergeTsd(sources.tsd, sources.rids, config.startAhead_s, merged);
                 if(!error.empty()) {
                     Common::Logger::Error("the steps cannot be merged: {}", error.c_str());
                     return EXIT_VALIDATION_FAILED;
@@ -195,13 +195,19 @@ namespace Sagax::SCG::Lint {
             }
 
             Common::Logger::Info(
-                "{} step(s), {} interference source(s), {} s in all",
+                "{} step(s), {} part(s), {} s in all",
                 sources.tsd.steps.size(),
-                merged.interferenceSources.size(),
-                merged.globalSettings.duration_s
+                merged.parts.size(),
+                merged.duration_s
             );
 
-            return Report("tsd", ValidateRid(config, merged)) ? EXIT_OK : EXIT_VALIDATION_FAILED;
+            bool valid = true;
+            for(std::size_t i = 0; i < merged.parts.size(); ++i) {
+                if(!Report(std::format("tsd part[{}]", i), ValidateRid(config, merged.parts[i].rid))) {
+                    valid = false;
+                }
+            }
+            return valid ? EXIT_OK : EXIT_VALIDATION_FAILED;
         }
 
     }

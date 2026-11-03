@@ -75,6 +75,16 @@ def test_the_topic_and_the_quality_of_service_are_in_the_line(scgserver):
     ), scgserver.log
 
 
+def test_log_mqtt_false_turns_the_lines_off(server):
+    def changes(config):
+        config["log_mqtt"] = False
+    instance = server(config_changes=changes)
+    mark = instance.int_stop()
+    instance.expect_error(mark)
+    assert "mqtt in [" not in instance.log, instance.log
+    assert "mqtt out [" not in instance.log, instance.log
+
+
 def test_the_command_is_logged_by_name_without_its_payload(scgserver, tsd_path):
     """what replaced the per command lines that used to print the fields"""
     mark = scgserver.setup(tsd_path.as_uri(), test_id="named", seconds_ahead=3600)

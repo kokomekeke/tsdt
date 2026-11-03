@@ -42,9 +42,7 @@ elif compiler.get_id() == 'clang'
 
 elif compiler.get_id() == 'msvc'
     message('Compiler: MSVC')
-    # asio picks the windows api it calls by this version and prints a message when it
-    # is not set. 0x0601 is the one it assumes on its own, so naming it changes nothing
-    # but the message
+    # asio prints a message when _WIN32_WINNT is not set, 0x0601 is the one it assumes
     cpp_args = [
         '/DNOMINMAX',
         '/D_WIN32_WINNT=0x0601',
@@ -68,8 +66,7 @@ ssg_defines = ssgSub.get_variable('ssg_defines')
 
 scg_defines = []
 
-# the gnss engine the spoofer recordings are generated with. without it the subproject
-# is never fetched, and a spoofer that is not mocked is refused by ValidateRid
+# the gnss engine. without it a spoofer that is not mocked is refused by ValidateRid
 if get_option('have_ssp')
     sspSub = subproject('SSP')
     sspDeps = [ sspSub.get_variable('sspDep') ]
@@ -79,17 +76,14 @@ else
     message('building without the ssp gnss engine')
 endif
 
-# UHDDlls holds the uhd and the libusb dlls as [ source, name ] pairs, it is not
-# defined at all when the ssg subproject is built without usrp. the copies land in
-# this build directory next to the executables, which the loader searches before
-# it walks PATH
+# UHDDlls holds the uhd and libusb dlls as [ source, name ] pairs, only defined when ssg
+# is built with usrp. the copies land next to the executables
 foreach t : ssgSub.get_variable('UHDDlls', [])
     fs.copyfile(t[0], t[1])
 endforeach
 
-# beast is header only, so this carries an include directory and the sockets
-# the asio layer under it calls into. the boost subproject sits inside ssg,
-# meson resolves it by name once the ssg subproject above has been configured
+# beast is header only, this carries the include directory and the socket libraries
+# the boost subproject sits inside ssg and resolves by name once ssg is configured
 if isWindows
     beastDeps = [
         subproject('Boost').get_variable('BoostHeaderDep'),
@@ -127,6 +121,7 @@ scgLib = static_library(
         'src/SCG/Utility/Fetch.cpp',
         'src/SCG/Utility/SignalHandler.cpp',
         'src/SCG/Utility/TimeFormat.cpp',
+        'src/SCG/Utility/WaitUntil.cpp',
     ],
     include_directories: [ 'src/' ],
     dependencies: [
@@ -211,6 +206,7 @@ if buildScgServer
             'src/SCG/Sisi/MqttClient.cpp',
             'src/SCG/Sisi/Server.cpp',
             'src/SCG/Sisi/TestScheduler.cpp',
+            'src/SCG/Sisi/TestStorage.cpp',
         ],
         include_directories: [ 'src/' ],
         dependencies: [

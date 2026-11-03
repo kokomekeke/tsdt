@@ -11,7 +11,7 @@ import pytest
 
 from helpers.rid import write_gnss_rid
 from helpers.server import utc_string
-from helpers.tsd import wrap_rid
+from helpers.tsd import make_tsd, wrap_rid
 
 DURATION_S = 0.5
 
@@ -28,13 +28,14 @@ def gnss_settings(prerecord=True, mock=True, ephemeris=""):
 def write_saved(tmp_path, test_id, rid, seconds_ahead, status="TEST_INIT", saved_id=None, gnss=None):
     """the files the server leaves for a test, written by hand
 
-    only these two are read back. the server also leaves the tsd and the rid of every
-    step beside them, as a record of what the test was built from, and the url in the
-    command is never read again, which is why a rid stands in for a tsd here
+    the test is built again from the tsd and the rid of its one step. the url in the
+    command is never read again, which is why a rid stands in for a tsd there
     """
     directory = tmp_path / "recordings" / test_id
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / "rid.json").write_text(rid.read_text(encoding="utf-8"), encoding="utf-8")
+    duration_s = json.loads(rid.read_text(encoding="utf-8"))["global_settings"]["duration_s"]
+    (directory / "tsd.json").write_text(json.dumps(make_tsd([(duration_s, rid.as_uri())])), encoding="utf-8")
+    (directory / "rid_000.json").write_text(rid.read_text(encoding="utf-8"), encoding="utf-8")
     content = {
         "command": {
             "scenario_url": rid.as_uri(),
@@ -75,13 +76,10 @@ def test_a_scheduled_test_is_saved(server, tmp_path):
     assert first.wait_for_log("preparation finished: kept", timeout=30.0), first.log
 
     directory = tmp_path / "recordings" / "kept"
-    # the tsd and the rid of the step are kept as they were read, rid.json holds the
-    # merged rid the test plays
+    # the tsd and the rid of the step are kept as they were read, nothing merged is saved
     assert (directory / "tsd.json").read_text(encoding="utf-8") == tsd.read_text(encoding="utf-8")
     assert (directory / "rid_000.json").read_text(encoding="utf-8") == rid.read_text(encoding="utf-8")
-    merged = json.loads((directory / "rid.json").read_text(encoding="utf-8"))
-    assert merged["metadata"]["scenario_name"] == "test"
-    assert merged["global_settings"]["duration_s"] == DURATION_S
+    assert not (directory / "rid.json").exists()
 
     content = saved(tmp_path, "kept")
     assert content["status"] == "TEST_READY"
@@ -102,7 +100,7 @@ def test_a_prepared_test_is_restored_without_preparing_it_again(server, broker, 
     assert second.wait_for_log("test restored: kept"), second.log
     assert wait_until(lambda: statuses(second, mark, "kept") == ["TEST_READY"]), statuses(second, mark, "kept")
     assert "preparation started: kept" not in second.log
-    assert (tmp_path / "recordings" / "kept" / "gnss_0000.wav").is_file()
+    assert (tmp_path / "recordings" / "kept" / "gnss_000_0000.wav").is_file()
 
 
 def test_a_test_that_was_not_prepared_is_prepared_after_the_restart(server, broker, tmp_path):
@@ -150,7 +148,7 @@ def test_a_finished_test_is_saved_as_completed(server, tmp_path, tsd_path):
     assert first.wait_for_log("playback finished: finished", timeout=30.0), first.log
 
     assert wait_until(lambda: saved(tmp_path, "finished")["status"] == "TEST_COMPLETED")
-    assert (tmp_path / "recordings" / "finished" / "rid.json").is_file()
+    assert (tmp_path / "recordings" / "finished" / "rid_000.json").is_file()
 
 
 @pytest.mark.parametrize("status", ["TEST_COMPLETED", "TEST_FAILED"])
@@ -298,12 +296,12 @@ def test_the_gnss_config_is_saved_with_the_test(server, tmp_path, tsd_path):
 
 def test_a_test_without_its_rid_is_dropped(server, broker, tmp_path, rid_path):
     directory = write_saved(tmp_path, "norid", rid_path, seconds_ahead=600)
-    (directory / "rid.json").unlink()
+    (directory / "rid_000.json").unlink()
 
     mark = broker.mark()
     restarted = server()
     message, _ = restarted.expect_error(mark)
-    assert '"norid"' in message and "rid.json" in message, message
+    assert '"norid"' in message and "rid_000.json" in message, message
     assert wait_until(lambda: statuses(restarted, mark, "norid") == ["TEST_FAILED"])
 
 

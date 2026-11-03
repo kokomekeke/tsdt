@@ -3,12 +3,14 @@
 #include <condition_variable>
 #include <cstdint>
 #include <future>
+#include <map>
 #include <mutex>
 #include <optional>
 #include <set>
 #include <stop_token>
 #include <string>
 
+#include "Common/Logger.hpp"
 #include "Common/ThreadPool.hpp"
 #include "Json/JsonParser.hpp"
 #include "SCG/Scenario/PipelineConfig.hpp"
@@ -26,52 +28,53 @@ namespace Sagax::SCG::Server {
         // --help or --version was given, its text is already written
         bool helpRequested;
         std::string error;
-        // written after a parse error
         std::string help;
         std::string configPath;
     };
 
-    struct Program {
+    struct Server {
     private:
-        // cleared by the signal callback under mtx. it starts true, so a signal that arrives
-        // before the loop still stops it
-        bool programRunning = true;
+        Common::Logger::Handle lh = Common::Logger::Handle("Server");
+
+        struct SignalEvent {
+            std::int32_t eventId;
+            bool active;
+        };
+
+        // mtx guards programRunning and signalEvents. the main loop holds it while it waits
+        // the event callbacks take mtx while a sink stage holds its stage mutex, mtx is never held
+        // while the engine is stopped or joined
+        // signalEvents is filled by the event callbacks ahead of the event times
         std::mutex mtx;
         std::condition_variable cv;
+        bool programRunning = true;
+        std::multimap<std::chrono::system_clock::time_point, SignalEvent> signalEvents;
 
         MqttClient client;
         SCG::ServerConfig config;
         SCG::PipelineConfig pipelineConfig;
 
-        // declared before threadPool, the preparation running there reads the tests
+        // scheduler outlives threadPool, the preparation running there reads the tests
         TestScheduler scheduler;
         std::stop_source preparationStop;
         std::future<std::string> preparation;
 
-        // declared before ctx, so it outlives the engine in ctx. Main starts the threads
-        // after the signal handler is in place
+        // threadPool outlives the engine in ctx
         Common::ThreadPool threadPool;
         SCG::ScenarioPipeline ctx;
 
-        // the event callbacks run on a sink stage while it holds its stage mutex, and the
-        // engine takes the stage mutexes while stopping, so the callbacks only take
-        // mtxSignal and never mtx
-        std::mutex mtxSignal;
-        std::set<std::int32_t> activeEventIds;
-        // every stream sink reports its first packet, the earliest one is kept
-        std::optional<std::chrono::system_clock::time_point> transmissionStart;
-
         // only the main loop touches these
+        std::optional<std::size_t> playingPart;
+        std::set<std::int32_t> activeEventIds;
         std::optional<SignalStatusMessage::SignalStatus> lastSignalStatus;
         std::chrono::steady_clock::duration statusPeriod{};
         std::chrono::steady_clock::time_point nextSignalStatus;
 
         void Configure();
-        void SetEventActive(std::int32_t eventId, bool active);
-        void ClearActiveEvents();
-        void SetTransmissionStart(std::chrono::system_clock::time_point time);
-        std::optional<std::chrono::system_clock::time_point> GetTransmissionStart();
-        void ClearTransmissionStart();
+        void ConfigureMqtt();
+        void QueueSignalEvent(std::int32_t eventId, bool active, std::chrono::system_clock::time_point time);
+        void ApplySignalEvents();
+        void ClearSignalEvents();
         SignalStatusMessage::SignalStatus CurrentSignalStatus();
         void ReleaseRadios();
         bool StopRequested();
@@ -89,11 +92,13 @@ namespace Sagax::SCG::Server {
         void StartPreparation(ScheduledTest &test);
         bool PreparationDone();
         void FinishPreparation(ScheduledTest &test);
-        void StopRunning();
-        void StartPipeline(ScheduledTest &test);
+        void StopActive();
+        void StartPart(ScheduledTest &test);
         void StopPipeline();
-        void FinishPipeline(ScheduledTest &test);
+        bool FinishPart(ScheduledTest &test);
+        void UpdatePlayback(ScheduledTest &test, std::chrono::system_clock::time_point now);
         void UpdateSchedule();
+        void Wait();
         void Interpreted(const std::string &topic, const char *command);
         void Ignored(const std::string &topic, const char *command);
         void HandleCommand(const MqttClient::Message &msg);
@@ -102,7 +107,6 @@ namespace Sagax::SCG::Server {
         void Run();
 
     public:
-        // sets up logging, then reports a parse error or runs
         int Main(Parameters params);
     };
 

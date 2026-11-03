@@ -10,15 +10,15 @@ namespace Sagax::SCG {
     using CommandError = std::string;
 
     // the warnings and the errors are logged one by one, the first error is handed back
-    inline CommandError CheckValidity(const ValidationResult &validity, const char *what) {
+    inline CommandError CheckValidity(const Common::Logger::Handle &lh, const ValidationResult &validity, const char *what) {
         for(auto &s : validity.warnings) {
-            Common::Logger::Warn("{}", s.c_str());
+            Common::Logger::Warn(lh, "{}", s.c_str());
         }
         if(validity.errors.empty()) {
             return {};
         }
         for(auto &s : validity.errors) {
-            Common::Logger::Error("{}", s.c_str());
+            Common::Logger::Error(lh, "{}", s.c_str());
         }
         return std::format("{} validation failed: {}", what, validity.errors.front());
     }

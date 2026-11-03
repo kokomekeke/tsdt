@@ -76,7 +76,8 @@ A rid that fails validation sends every reason in one of these, so it can be lon
 ## The message log
 
 Both programs log one line per message in each direction, with the topic, the QoS, the
-retain flag, the size and the payload. A payload over 256 bytes is replaced with
+retain flag, the size and the payload. The server only does this while `log_mqtt` is true
+in its config. A payload over 256 bytes is replaced with
 `[hidden]` to keep the line readable.
 
 ~~~

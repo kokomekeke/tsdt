@@ -13,7 +13,7 @@ namespace Sagax::SCG {
         double sampleRate_hz;
         double duration_s;
         std::string fileName;
-        // writes silence instead of asking the engine, from mock_gnss in the config
+        // writes silence instead of asking the engine
         bool mock = false;
 
         std::string Describe() const override;

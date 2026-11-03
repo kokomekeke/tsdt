@@ -2,6 +2,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include "Common/Logger.hpp"
 #include "CommandError.hpp"
 #include "Rid.hpp"
 #include "ServerConfig.hpp"
@@ -9,8 +10,7 @@
 
 namespace Sagax::SCG {
 
-    // the rid every step named, in the order of tsd.steps. a step with no interference
-    // holds nothing
+    // parallel to tsd.steps
     using StepRids = std::vector<std::optional<Rid>>;
 
     // the documents a tsd is made of, kept as they were read. ridJsons runs parallel to
@@ -25,20 +25,36 @@ namespace Sagax::SCG {
     // reads the tsd at the url and then the rid of every step, and parses each one. a url
     // named by several steps is read once and the later steps take a copy. the timeout of
     // the config applies to each read on its own
-    CommandError FetchTsd(const ServerConfig &cfg, const std::string &url, TsdSources &out);
+    CommandError FetchTsd(const Common::Logger::Handle &lh, const ServerConfig &cfg, const std::string &url, TsdSources &out);
 
-    // runs the rid rules on every step on its own, which is what names the step an error
-    // belongs to. the merged rid is checked again by whoever builds it
-    CommandError ValidateTsdSources(const ServerConfig &cfg, const TsdSources &sources);
+    // validates the rid of every step on its own, an error names its step
+    CommandError ValidateTsdSources(const Common::Logger::Handle &lh, const ServerConfig &cfg, const TsdSources &sources);
 
-    // builds one rid out of the steps. the sources of a step move by the sum of the
-    // durations of the steps before it, and the duration of the result is the sum of all
-    // of them. a step has to be at least as long as the rid it plays
-    //
-    // every rid has to configure the radios the same way, down to the order of the array,
-    // because a radio is tuned once for the whole playback. the versions have to match
-    // too. the name and the description come from the tsd, the rest of the metadata from
-    // the first rid that has one
-    CommandError MergeTsd(const Tsd &tsd, const StepRids &rids, Rid &out);
+    // the tsd cut into parts, each one played by a pipeline of its own. offsets and
+    // durations are in seconds from the start of the tsd
+    struct MergedTsd {
+        struct Part {
+            double offset_s;
+            std::vector<std::size_t> steps;
+            // the sources start from the offset, the duration reaches the end of the last rid
+            Rid rid;
+        };
+
+        std::vector<Part> parts;
+        // the sum of the durations of the steps
+        double duration_s;
+    };
+
+    // lays the steps end to end
+    // a step is at least as long as the rid it plays
+    // the gap between two rids runs from the end of the first rid to the start of the step of
+    // the second one
+    // a rid joins the part before it when the gap is shorter than startAhead_s, and starts a new
+    // part otherwise
+    // the rids of a part configure the radios the same way, down to the order of the array
+    // the versions match across the whole tsd
+    // the name and the description of a part come from the tsd, the rest of the metadata from
+    // its first rid
+    CommandError MergeTsd(const Tsd &tsd, const StepRids &rids, double startAhead_s, MergedTsd &out);
 
 }

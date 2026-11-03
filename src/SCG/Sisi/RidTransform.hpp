@@ -23,12 +23,14 @@ namespace Sagax::SCG {
         std::vector<std::unique_ptr<Job>> jobs;
     };
 
-    // startTime is the time the scenario starts at, the jobs write their files into directory
+    // startTime is the time the scenario starts at, the jobs write their files into directory.
+    // the names of the files carry iPart, so the scenarios of several parts can share a directory
     ScenarioRidMap MapRidToScenario(
         const ServerConfig &cfg,
         const Rid &rid,
         std::chrono::system_clock::time_point startTime,
-        const std::string &directory
+        const std::string &directory,
+        std::size_t iPart
     );
 
 

@@ -17,6 +17,7 @@ these files.
 | `gnss_ephemeris_file` | no, empty | rinex navigation file, needed by any rid with a gnss spoofer. Its ephemerides are moved to the time of the test |
 | `mock_gnss` | no, false | a gnss spoofer is replaced by silence instead of being generated |
 | `prerecord_gnss` | no, true | a gnss spoofer is recorded while the test is prepared. When false the engine generates it while the test plays, with one thread |
+| `log_mqtt` | no, true | the mqtt client logs a line for every message it sends and receives |
 | `radios` | yes | the radios this machine has, see below |
 | `mqtt` | yes | broker and topics, see below |
 

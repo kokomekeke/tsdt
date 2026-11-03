@@ -35,10 +35,12 @@ namespace Sagax::SCG {
             #endif
         };
 
+        // the event callbacks are called by the sink stage of an output when it hands the
+        // samples to the device, ahead of the time they are transmitted at. they get the
+        // event id and that time
         struct EventLogConfig {
-            std::function<void(std::int32_t)> eventStart;
-            std::function<void(std::int32_t)> eventEnd;
-            std::function<void(std::chrono::system_clock::time_point)> transmissionStart;
+            std::function<void(std::int32_t, std::chrono::system_clock::time_point)> eventStart;
+            std::function<void(std::int32_t, std::chrono::system_clock::time_point)> eventEnd;
             std::optional<std::chrono::system_clock::time_point> startTime;
         };
 

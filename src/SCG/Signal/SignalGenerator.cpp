@@ -71,8 +71,6 @@ namespace Sagax::SCG {
         impl->gen.seed(seed_);
         impl->buf.resize(bufSize);
 
-        // fill the buffer with random numbers from a normal distribution
-        // faster than generating them on the fly
         std::normal_distribution<SCGSampleBase> dist(SCGSampleBase(0.0), SCGSampleBase(1.0));
         for(std::size_t i = 0; i < bufSize; ++i) {
             impl->buf[i] = dist(impl->gen);

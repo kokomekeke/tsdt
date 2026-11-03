@@ -45,8 +45,7 @@ namespace Sagax::SCG {
 
         };
 
-        // a payload is bytes, in practice json. the size is always written, and one
-        // longer than this is left out so that a traced message stays a readable line
+        // a longer payload is logged as [hidden], the size is always logged
         constexpr std::size_t logPayloadLimit = 256;
 
         std::string DescribePayload(const std::vector<std::uint8_t> &bytes) {
@@ -295,8 +294,8 @@ namespace Sagax::SCG {
             mosquitto_message_callback_set(mosq, &Impl::OnMessage_dispatch);
 
             running.store(true);
-            // the loop is the whole body of the thread, an exception leaving it would end
-            // the process. the client stops instead and IsRunning() reports it
+            // an exception leaving the thread would end the process, the client stops instead and
+            // IsRunning reports it
             loopThread = std::thread([this]() {
                 try {
                     RunLoop();
@@ -308,8 +307,7 @@ namespace Sagax::SCG {
             });
         }
 
-        // a client that never started and one whose loop stopped on its own both end up
-        // here, so this does not require the client to be running
+        // also called for a client that never started or whose loop stopped on its own
         void Stop() {
             Cleanup();
         }

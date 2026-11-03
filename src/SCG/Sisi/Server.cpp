@@ -32,6 +32,7 @@
 #include "SCG/Utility/SignalHandler.hpp"
 #include "SCG/Sisi/RidTransform.hpp"
 #include "SCG/Utility/TimeFormat.hpp"
+#include "SCG/Utility/WaitUntil.hpp"
 
 #include "Server.hpp"
 
@@ -52,10 +53,9 @@ namespace Sagax::SCG::Server {
 
     }
 
-    void Program::Configure() {
+    void Server::Configure() {
         pipelineConfig = SCG::PipelineConfig{};
         pipelineConfig.mockRadios = config.mockRadios;
-        // a mock device needs nothing opened
 #ifdef HAVE_USRP
         pipelineConfig.preinit.usrp.usePreinitOnly = true;
         if(!config.mockRadios) {
@@ -94,75 +94,77 @@ namespace Sagax::SCG::Server {
         }
 #endif
 
-        pipelineConfig.events.eventStart = [this](std::int32_t eventId) {
-            this->SetEventActive(eventId, true);
+        pipelineConfig.events.eventStart = [this](std::int32_t eventId, std::chrono::system_clock::time_point time) {
+            this->QueueSignalEvent(eventId, true, time);
         };
-        pipelineConfig.events.eventEnd = [this](std::int32_t eventId) {
-            this->SetEventActive(eventId, false);
-        };
-        pipelineConfig.events.transmissionStart = [this](std::chrono::system_clock::time_point time) {
-            this->SetTransmissionStart(time);
+        pipelineConfig.events.eventEnd = [this](std::int32_t eventId, std::chrono::system_clock::time_point time) {
+            this->QueueSignalEvent(eventId, false, time);
         };
     }
 
-    // tracked per event, a source can have more than one
-    void Program::SetEventActive(std::int32_t eventId, bool active) {
+    void Server::ConfigureMqtt() {
+        MqttClient::Configuration mqttConfig;
+        mqttConfig.host = config.mqtt.brokerHost;
+        mqttConfig.port = config.mqtt.brokerPort;
+        mqttConfig.subscribeTopics = { config.mqtt.commandTopic };
+        mqttConfig.keepAlive_s = 60;
+        mqttConfig.clientId = "RSG";
+        mqttConfig.logMessages = config.logMqtt;
+        mqttConfig.reconnectDelays_ms = { 1000, 2000, 5000, 10000, 30000 };
+        mqttConfig.maxQueueSize = 200;
+        mqttConfig.onUpdate = [this]() {
+            this->cv.notify_all();
+        };
+        client.Configure(std::move(mqttConfig));
+    }
+
+    void Server::QueueSignalEvent(std::int32_t eventId, bool active, std::chrono::system_clock::time_point time) {
         {
-            std::unique_lock lck(mtxSignal);
-            if(active) {
-                activeEventIds.insert(eventId);
-            }
-            else {
-                activeEventIds.erase(eventId);
-            }
+            std::unique_lock lck(mtx);
+            signalEvents.insert({ time, SignalEvent{ eventId, active } });
         }
         cv.notify_all();
     }
 
-    void Program::ClearActiveEvents() {
-        std::unique_lock lck(mtxSignal);
+    // a source can have more than one event, the active ones are tracked by event id
+    void Server::ApplySignalEvents() {
+        auto now = std::chrono::system_clock::now();
+        std::unique_lock lck(mtx);
+        while(!signalEvents.empty() && signalEvents.begin()->first <= now) {
+            const SignalEvent &event = signalEvents.begin()->second;
+            if(event.active) {
+                activeEventIds.insert(event.eventId);
+            }
+            else {
+                activeEventIds.erase(event.eventId);
+            }
+            signalEvents.erase(signalEvents.begin());
+        }
+    }
+
+    // only called while no pipeline runs
+    void Server::ClearSignalEvents() {
+        {
+            std::unique_lock lck(mtx);
+            signalEvents.clear();
+        }
         activeEventIds.clear();
     }
 
-    void Program::SetTransmissionStart(std::chrono::system_clock::time_point time) {
-        {
-            std::unique_lock lck(mtxSignal);
-            if(!transmissionStart.has_value() || time < transmissionStart.value()) {
-                transmissionStart = time;
-            }
-        }
-        cv.notify_all();
-    }
-
-    std::optional<std::chrono::system_clock::time_point> Program::GetTransmissionStart() {
-        std::unique_lock lck(mtxSignal);
-        return transmissionStart;
-    }
-
-    void Program::ClearTransmissionStart() {
-        std::unique_lock lck(mtxSignal);
-        transmissionStart.reset();
-    }
-
-    // the active events are mapped to the sources of the test that is playing
-    SignalStatusMessage::SignalStatus Program::CurrentSignalStatus() {
-        std::set<std::int32_t> eventIds;
-        {
-            std::unique_lock lck(mtxSignal);
-            eventIds = activeEventIds;
-        }
+    SignalStatusMessage::SignalStatus Server::CurrentSignalStatus() {
 
         auto status = SignalStatusMessage::SignalStatus::none;
-        ScheduledTest *test = scheduler.Running();
-        if(test == nullptr || test->state != ScheduledTest::State::playing) {
+        ScheduledTest *test = scheduler.Active();
+        if(test == nullptr || test->state != ScheduledTest::State::playing || !playingPart.has_value()) {
             return status;
         }
-        auto &sources = test->rid.interferenceSources;
-        for(std::int32_t eventId : eventIds) {
-            if(eventId < 0 || std::size_t(eventId) >= test->eventMap.size()) {
+        auto &part = test->parts[playingPart.value()];
+        auto &sources = part.rid.interferenceSources;
+        for(std::int32_t eventId : activeEventIds) {
+            if(eventId < 0 || std::size_t(eventId) >= part.eventMap.size()) {
                 continue;
             }
-            std::int32_t sourceId = test->eventMap[eventId];
+            std::int32_t sourceId = part.eventMap[eventId];
             if(sourceId < 0 || std::size_t(sourceId) >= sources.size()) {
                 continue;
             }
@@ -174,8 +176,8 @@ namespace Sagax::SCG::Server {
         return status;
     }
 
-    // only called once the pipeline is down, it holds the devices while it runs
-    void Program::ReleaseRadios() {
+    // only called while no pipeline runs
+    void Server::ReleaseRadios() {
 #ifdef HAVE_USRP
         pipelineConfig.preinit.usrp.devices.clear();
         // uhd keeps dispatching log records on its own thread after the devices are gone
@@ -188,12 +190,12 @@ namespace Sagax::SCG::Server {
 #endif
     }
 
-    bool Program::StopRequested() {
+    bool Server::StopRequested() {
         std::unique_lock lck(mtx);
         return !programRunning;
     }
 
-    void Program::Publish(const std::string &topic, const std::string &payload) {
+    void Server::Publish(const std::string &topic, const std::string &payload) {
         MqttClient::Message message;
         message.bytes.assign(payload.begin(), payload.end());
         message.qos = 2;
@@ -202,28 +204,27 @@ namespace Sagax::SCG::Server {
         client.Push(std::move(message));
     }
 
-    // logs instead of publishing when the message could not be written
-    void Program::PublishPayload(
+    void Server::PublishPayload(
         const std::string &topic,
         const std::optional<std::string> &payload,
         const Json::JsonIssues &issues
     ) {
         if(!payload.has_value()) {
-            Common::Logger::Error("could not write a message for {}:\n{}", topic, issues.Format());
+            Common::Logger::Error(lh, "could not write a message for {}:\n{}", topic, issues.Format());
             return;
         }
         Publish(topic, payload.value());
     }
 
-    void Program::PublishError(const std::string &text) {
-        Common::Logger::Error("{}", text.c_str());
+    void Server::PublishError(const std::string &text) {
+        Common::Logger::Error(lh, "{}", text.c_str());
         ErrorMessage message;
         message.message = text;
         Json::JsonIssues issues;
         PublishPayload(config.mqtt.errorLogTopic, SerializeErrorMessage(message, issues), issues);
     }
 
-    void Program::PublishTestStatus(const std::string &testId, TestStatusMessage::TestStatus status, std::chrono::system_clock::time_point time) {
+    void Server::PublishTestStatus(const std::string &testId, TestStatusMessage::TestStatus status, std::chrono::system_clock::time_point time) {
         TestStatusMessage message;
         message.timestamp = FormatIsoTime(time);
         message.testId = testId;
@@ -232,7 +233,7 @@ namespace Sagax::SCG::Server {
         PublishPayload(config.mqtt.testLogTopic, SerializeTestStatusMessage(message, issues), issues);
     }
 
-    void Program::PublishSignalStatus() {
+    void Server::PublishSignalStatus() {
         auto status = CurrentSignalStatus();
         auto now = std::chrono::steady_clock::now();
         if(lastSignalStatus == status && now < nextSignalStatus) {
@@ -248,18 +249,17 @@ namespace Sagax::SCG::Server {
         PublishPayload(config.mqtt.signalLogTopic, SerializeSignalStatusMessage(message, issues), issues);
     }
 
-    CommandError Program::CancelTest(const CommandMessage::TestCancel &command) {
-        ScheduledTest *running = scheduler.Running();
-        if(running != nullptr && running->testId == command.testId) {
-            StopRunning();
+    CommandError Server::CancelTest(const CommandMessage::TestCancel &command) {
+        ScheduledTest *active = scheduler.Active();
+        if(active != nullptr && active->testId == command.testId) {
+            StopActive();
         }
         return scheduler.Cancel(command.testId);
     }
 
-    // the transmission and the test end here, the directory stays where it is. a cancel
-    // removes that as well, which is the difference between the two
-    CommandError Program::StopTransmission() {
-        ScheduledTest *test = scheduler.Running();
+    // the test fails and its directory is kept
+    CommandError Server::StopTransmission() {
+        ScheduledTest *test = scheduler.Active();
         if(test == nullptr) {
             return "no test is running";
         }
@@ -271,23 +271,25 @@ namespace Sagax::SCG::Server {
         }
 
         std::string testId = test->testId;
-        StopPipeline();
-        scheduler.Finished(*test, false);
-        Common::Logger::Info("playback stopped: {}", testId);
-        // the id is free again at once, a setup reusing it may arrive in the same batch
+        if(playingPart.has_value()) {
+            StopPipeline();
+        }
+        scheduler.SetFailed(*test);
+        Common::Logger::Info(lh, "playback stopped: {}", testId);
+        // a setup with the same id may follow in the same batch of commands
         scheduler.EraseFinished();
         return {};
     }
 
-    void Program::StartPreparation(ScheduledTest &test) {
-        scheduler.Started(test);
-        Common::Logger::Info("preparation started: {}", test.testId);
+    void Server::StartPreparation(ScheduledTest &test) {
+        scheduler.SetPreparing(test);
+        Common::Logger::Info(lh, "preparation started: {}", test.testId);
 
         preparationStop = std::stop_source{};
         preparation = threadPool.Dispatch(true, [this, &test, stop = preparationStop.get_token()]() {
             std::string error;
             try {
-                TestScheduler::Prepare(test, stop);
+                scheduler.Prepare(test, stop);
             }
             catch(const std::exception &e) {
                 error = e.what();
@@ -297,27 +299,27 @@ namespace Sagax::SCG::Server {
         });
     }
 
-    bool Program::PreparationDone() {
+    bool Server::PreparationDone() {
         return (
             preparation.valid() &&
             preparation.wait_for(std::chrono::seconds(0)) == std::future_status::ready
         );
     }
 
-    void Program::FinishPreparation(ScheduledTest &test) {
+    void Server::FinishPreparation(ScheduledTest &test) {
         std::string error = preparation.get();
         if(!error.empty()) {
             PublishError(std::format("could not prepare test \"{}\": {}", test.testId, error));
-            scheduler.Finished(test, false);
+            scheduler.SetFailed(test);
             return;
         }
-        scheduler.Finished(test, true);
-        Common::Logger::Info("preparation finished: {}", test.testId);
+        scheduler.SetReady(test);
+        Common::Logger::Info(lh, "preparation finished: {}", test.testId);
     }
 
-    // leaves the test in the state it had
-    void Program::StopRunning() {
-        ScheduledTest *test = scheduler.Running();
+    // stops the preparation or the pipeline of the active test, the test keeps its state
+    void Server::StopActive() {
+        ScheduledTest *test = scheduler.Active();
         if(test == nullptr) {
             return;
         }
@@ -325,23 +327,32 @@ namespace Sagax::SCG::Server {
             preparationStop.request_stop();
             preparation.wait();
             preparation = {};
-            Common::Logger::Info("preparation stopped");
+            Common::Logger::Info(lh, "preparation stopped");
         }
-        else {
+        else if(playingPart.has_value()) {
             StopPipeline();
         }
-        scheduler.Stopped(*test);
     }
 
-    void Program::StartPipeline(ScheduledTest &test) {
+    void Server::StartPart(ScheduledTest &test) {
+        std::size_t iPart = test.nextPart;
+        scheduler.SetPartStarted(test);
+        auto &part = test.parts[iPart];
+
+        if(std::chrono::system_clock::now() >= part.time) {
+            PublishError(std::format("part {} of test \"{}\" missed its starting time", iPart, test.testId));
+            scheduler.SetFailed(test);
+            return;
+        }
+
         ctx = SCG::ScenarioPipeline{};
         try {
-            pipelineConfig.events.startTime = test.time;
-            ctx = SCG::BuildStreamingPipeline(pipelineConfig, test.scenario);
+            pipelineConfig.events.startTime = part.time;
+            ctx = SCG::BuildStreamingPipeline(pipelineConfig, part.scenario);
         }
         catch(const std::exception &e) {
-            PublishError(std::format("could not build pipeline for test \"{}\": {}", test.testId, e.what()));
-            scheduler.Finished(test, false);
+            PublishError(std::format("could not build the pipeline of part {} of test \"{}\": {}", iPart, test.testId, e.what()));
+            scheduler.SetFailed(test);
             return;
         }
 
@@ -350,31 +361,32 @@ namespace Sagax::SCG::Server {
             ctx.Init();
         }
         catch(const std::exception &e) {
-            PublishError(std::format("could not initialize resources for test \"{}\": {}", test.testId, e.what()));
+            PublishError(std::format("could not initialize resources for part {} of test \"{}\": {}", iPart, test.testId, e.what()));
             ctx.Dispose();
             ctx = SCG::ScenarioPipeline{};
-            scheduler.Finished(test, false);
+            scheduler.SetFailed(test);
             return;
         }
 
-        ClearActiveEvents();
-        ClearTransmissionStart();
-        scheduler.Started(test);
+        ClearSignalEvents();
+        playingPart = iPart;
         ctx.Start();
-        Common::Logger::Info("playback started: {}", test.testId);
+        Common::Logger::Info(lh, "part {} of test \"{}\" started, it plays at {}", iPart, test.testId, FormatIsoTime(part.time));
     }
 
-    void Program::StopPipeline() {
+    void Server::StopPipeline() {
         ctx.Stop(false);
         ctx.Join();
         ctx.Dispose();
         ctx = SCG::ScenarioPipeline{};
-        ClearActiveEvents();
-        Common::Logger::Info("pipeline stopped");
+        playingPart.reset();
+        ClearSignalEvents();
+        Common::Logger::Info(lh, "pipeline stopped");
     }
 
-    // called once the pipeline has left the running state on its own
-    void Program::FinishPipeline(ScheduledTest &test) {
+    // called once the pipeline of the part has stopped on its own
+    bool Server::FinishPart(ScheduledTest &test) {
+        std::size_t iPart = playingPart.value();
         bool failed = false;
 
         ctx.Join();
@@ -384,45 +396,63 @@ namespace Sagax::SCG::Server {
             }
         }
         catch(const std::exception &e) {
-            PublishError(std::format("error running pipeline for test \"{}\": {}", test.testId, e.what()));
+            PublishError(std::format("error running the pipeline of part {} of test \"{}\": {}", iPart, test.testId, e.what()));
             failed = true;
         }
         ctx.Dispose();
         ctx = SCG::ScenarioPipeline{};
-        ClearActiveEvents();
+        playingPart.reset();
+        ClearSignalEvents();
 
-        if(!failed && test.state == ScheduledTest::State::starting) {
-            PublishError(std::format("the pipeline of test \"{}\" ended before anything was transmitted", test.testId));
-            failed = true;
+        if(failed) {
+            scheduler.SetFailed(test);
+            return false;
         }
-        scheduler.Finished(test, !failed);
-        if(!failed) {
-            Common::Logger::Info("playback finished: {}", test.testId);
+        Common::Logger::Info(lh, "part {} of test \"{}\" finished", iPart, test.testId);
+        return true;
+    }
+
+    // the test is playing from its time until its end, also between parts
+    void Server::UpdatePlayback(ScheduledTest &test, std::chrono::system_clock::time_point now) {
+        if(playingPart.has_value() && ctx.GetState() != Pipeline3::PipelineEngine::RunState::running) {
+            if(!FinishPart(test)) {
+                return;
+            }
+        }
+        if(test.state == ScheduledTest::State::starting && now >= test.time) {
+            scheduler.SetPlaying(test);
+        }
+        if(playingPart.has_value()) {
+            return;
+        }
+        if(scheduler.PartDue(test, now)) {
+            StartPart(test);
+        }
+        else if(scheduler.PlaybackOver(test, now)) {
+            scheduler.SetDone(test);
+            Common::Logger::Info(lh, "playback finished: {}", test.testId);
         }
     }
 
-    // a playback that is due before the next tick is started now
-    void Program::UpdateSchedule() {
-        if(ScheduledTest *test = scheduler.Running()) {
+    void Server::UpdateSchedule() {
+        auto now = std::chrono::system_clock::now();
+        scheduler.FailMissed(now);
+
+        if(ScheduledTest *test = scheduler.Active()) {
             if(test->state == ScheduledTest::State::preparing) {
                 if(PreparationDone()) {
                     FinishPreparation(*test);
                 }
             }
             else {
-                if(test->state == ScheduledTest::State::starting) {
-                    if(auto time = GetTransmissionStart()) {
-                        scheduler.Transmitting(*test, time.value());
-                    }
-                }
-                if(ctx.GetState() != Pipeline3::PipelineEngine::RunState::running) {
-                    FinishPipeline(*test);
-                }
+                UpdatePlayback(*test, now);
             }
         }
 
-        if(ScheduledTest *test = scheduler.DueForPlayback(std::chrono::system_clock::now(), scheduleTick)) {
-            StartPipeline(*test);
+        if(ScheduledTest *test = scheduler.DueForPlayback(now)) {
+            scheduler.SetStarting(*test);
+            Common::Logger::Info(lh, "playback started: {}", test->testId);
+            UpdatePlayback(*test, now);
         }
         if(ScheduledTest *test = scheduler.DueForPreparation()) {
             StartPreparation(*test);
@@ -430,17 +460,36 @@ namespace Sagax::SCG::Server {
         scheduler.EraseFinished();
     }
 
-    // the payload itself is in the line the client writes for every message it reads,
-    // so this only says what the message turned out to be
-    void Program::Interpreted(const std::string &topic, const char *command) {
-        Common::Logger::Info("interpreted [{}] as {}", topic, command);
+    // waits for the next tick. a scheduler time or a signal event before the tick is waited
+    // for accurately. the mqtt client, the event callbacks, the preparation and the signal
+    // handler notify cv
+    void Server::Wait() {
+        std::unique_lock lck(mtx);
+        if(!programRunning) {
+            return;
+        }
+        auto now = std::chrono::system_clock::now();
+        std::optional<std::chrono::system_clock::time_point> next = scheduler.NextTime(now);
+        if(!signalEvents.empty() && (!next.has_value() || signalEvents.begin()->first < next.value())) {
+            next = signalEvents.begin()->first;
+        }
+        if(next.has_value() && next.value() < now + scheduleTick) {
+            WaitUntil(cv, lck, next.value());
+        }
+        else {
+            cv.wait_until(lck, now + scheduleTick);
+        }
     }
 
-    void Program::Ignored(const std::string &topic, const char *command) {
-        Common::Logger::Warn("interpreted [{}] as {}, which does nothing here yet", topic, command);
+    void Server::Interpreted(const std::string &topic, const char *command) {
+        Common::Logger::Info(lh, "interpreted [{}] as {}", topic, command);
     }
 
-    void Program::HandleCommand(const MqttClient::Message &msg) {
+    void Server::Ignored(const std::string &topic, const char *command) {
+        Common::Logger::Warn(lh, "interpreted [{}] as {}, which does nothing here yet", topic, command);
+    }
+
+    void Server::HandleCommand(const MqttClient::Message &msg) {
         std::string payload(msg.bytes.begin(), msg.bytes.end());
         CommandMessage cm;
         CommandError error = ReadCommand(payload, cm);
@@ -482,47 +531,46 @@ namespace Sagax::SCG::Server {
         }
     }
 
-    void Program::HandleCommands() {
+    void Server::HandleCommands() {
         MqttClient::Message msg;
         while(client.Pop(msg)) {
-            // an exception only drops this message
             try {
                 HandleCommand(msg);
             }
             catch(const std::exception &e) {
-                Common::Logger::Error("failed to handle the message on [{}]: {}", msg.topic, e.what());
+                Common::Logger::Error(lh, "failed to handle the message on [{}]: {}", msg.topic, e.what());
             }
         }
     }
 
-    bool Program::Setup(Parameters params) {
+    bool Server::Setup(Parameters params) {
         std::ifstream file(params.configPath);
         if(!file.is_open()) {
-            Common::Logger::Error("failed to open config file: {}", params.configPath);
+            Common::Logger::Error(lh, "failed to open config file: {}", params.configPath);
             return false;
         }
         std::stringstream buf;
         buf << file.rdbuf();
         Json::JsonIssues issues;
         if(!ParseServerConfig(buf.str(), config, issues)) {
-            Common::Logger::Error("\nfailed to parse config:\n{}", issues.Format());
+            Common::Logger::Error(lh, "\nfailed to parse config:\n{}", issues.Format());
             return false;
         }
 
         Json::JsonIssues writeIssues;
         if(std::optional<std::string> text = SerializeServerConfig(config, writeIssues); text.has_value()) {
-            Common::Logger::Info("using this configuration:\n{}", text.value());
+            Common::Logger::Info(lh, "using this configuration:\n{}", text.value());
         }
         else {
-            Common::Logger::Error("could not write the configuration back:\n{}", writeIssues.Format());
+            Common::Logger::Error(lh, "could not write the configuration back:\n{}", writeIssues.Format());
         }
 
-        Common::Logger::Info("validating configuration..");
-        CommandError error = CheckValidity(SCG::ValidateConfig(config), "configuration");
+        Common::Logger::Info(lh, "validating configuration..");
+        CommandError error = CheckValidity(lh, SCG::ValidateConfig(config), "configuration");
         if(!error.empty()) {
             return false;
         }
-        Common::Logger::Info("validation successful");
+        Common::Logger::Info(lh, "validation successful");
 
         scheduler.Configure(config);
         scheduler.onStatus = [this](const std::string &testId, TestStatusMessage::TestStatus status, std::chrono::system_clock::time_point time) {
@@ -536,14 +584,14 @@ namespace Sagax::SCG::Server {
             Configure();
         }
         catch(const std::exception &e) {
-            Common::Logger::Error("\nfailed to initialize the radios:\n{}", e.what());
+            Common::Logger::Error(lh, "\nfailed to initialize the radios:\n{}", e.what());
             return false;
         }
 
         return true;
     }
 
-    void Program::Run() {
+    void Server::Run() {
         MqttClient::LibraryInit();
         Common::Defer disposeMqttLibrary([](){
             MqttClient::LibraryCleanup();
@@ -552,57 +600,37 @@ namespace Sagax::SCG::Server {
             client.Stop();
         });
         Common::Defer disposeRunning([this](){
-            StopRunning();
+            StopActive();
         });
 
-        {
-            MqttClient::Configuration mqttConfig;
-            mqttConfig.host = config.mqtt.brokerHost;
-            mqttConfig.port = config.mqtt.brokerPort;
-            mqttConfig.subscribeTopics = { config.mqtt.commandTopic };
-            mqttConfig.keepAlive_s = 60;
-            mqttConfig.clientId = "RSG";
-            mqttConfig.logMessages = true;
-            mqttConfig.reconnectDelays_ms = { 1000, 2000, 5000, 10000, 30000 };
-            mqttConfig.maxQueueSize = 200;
-            mqttConfig.onUpdate = [this]() {
-                this->cv.notify_all();
-            };
-            client.Configure(std::move(mqttConfig));
-            client.Start();
-        }
+        client.Start();
         if(!client.IsRunning()) {
-            Common::Logger::Error("could not start the mqtt client, stopping");
+            Common::Logger::Error(lh, "could not start the mqtt client, stopping");
             return;
         }
 
         scheduler.Restore();
 
-        Common::Logger::Info("server running.. ctrl+c to stop");
+        Common::Logger::Info(lh, "server running.. ctrl+c to stop");
 
         statusPeriod = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
             std::chrono::duration<double>(config.statusUpdatePeriod_s)
         );
         nextSignalStatus = std::chrono::steady_clock::now();
         while(true) {
-            // mtx is only held for the wait, the steps below reach the stage mutexes
-            // through the engine. the mqtt client, the event callbacks, the
-            // preparation and the signal handler end the wait early
-            {
-                std::unique_lock lck(mtx);
-                cv.wait_for(lck, scheduleTick);
-                if(!programRunning) {
-                    break;
-                }
+            Wait();
+            if(StopRequested()) {
+                break;
             }
 
             HandleCommands();
             UpdateSchedule();
+            ApplySignalEvents();
             PublishSignalStatus();
         }
     }
 
-    int Program::Main(Parameters params) {
+    int Server::Main(Parameters params) {
         Common::StdLogStream logStream(std::cerr, Common::Logger::Level::Trace, Common::StdLogStream::TagOptions{
             .colors = true,
             .file = false,
@@ -613,7 +641,6 @@ namespace Sagax::SCG::Server {
             Common::Logger::RemoveStream(&logStream);
         });
 
-        // the same records without colours, replaced on every run
         std::ofstream logFile("scgserver.log", std::ios::trunc);
         Common::StdLogStream fileLogStream(logFile, Common::Logger::Level::Trace, Common::StdLogStream::TagOptions{
             .colors = false,
@@ -629,13 +656,13 @@ namespace Sagax::SCG::Server {
             }
         });
         if(!logFile.is_open()) {
-            Common::Logger::Warn("could not open scgserver.log, logging to the console only");
+            Common::Logger::Warn(lh, "could not open scgserver.log, logging to the console only");
         }
 
-        // has to exist before the mqtt client or a pipeline starts a thread, on linux a
-        // thread inherits the signal mask. the callback runs on an ordinary thread
+        // has to exist before any thread starts, on linux a thread inherits the signal mask
+        // the callback runs on an ordinary thread
         SCG::SignalHandler signalHandler({ SIGINT, SIGTERM }, [this](int sig){
-            Common::Logger::Info("signal {} received, stopping", sig);
+            Common::Logger::Info(lh, "signal {} received, stopping", sig);
             {
                 std::unique_lock lck(mtx);
                 programRunning = false;
@@ -643,21 +670,19 @@ namespace Sagax::SCG::Server {
             cv.notify_all();
         });
 
-        // the pool keeps 4 threads around and grows on demand. it stops after Run has
-        // stopped the pipeline and the preparation that dispatch to it
+        // disposed after Run has stopped the pipeline and the preparation
         threadPool.Init(4);
         Common::Defer disposeThreadPool([this](){
             threadPool.Dispose();
         });
 
-        // the radios are opened by Setup, this releases them after Run, also on a throw
         Common::Defer releaseRadios([this](){
             ReleaseRadios();
         });
 
         if(!params.success) {
-            Common::Logger::Error("\nfailed to parse parameters:\n{}", params.error.c_str());
-            Common::Logger::Info("\n{}", params.help.c_str());
+            Common::Logger::Error(lh, "\nfailed to parse parameters:\n{}", params.error.c_str());
+            Common::Logger::Info(lh, "\n{}", params.help.c_str());
             return 1;
         }
         if(params.helpRequested) {
@@ -669,17 +694,24 @@ namespace Sagax::SCG::Server {
             setupSuccess = Setup(params);
         }
         catch(const std::exception &e) {
-            Common::Logger::Error("\nerror during setup:\n{}", e.what());
+            Common::Logger::Error(lh, "\nerror during setup:\n{}", e.what());
         }
 
         if(!setupSuccess) {
-            Common::Logger::Info("unsuccessful setup, stopping");
+            Common::Logger::Info(lh, "unsuccessful setup, stopping");
             return 1;
         }
 
-        // a signal during the setup ends the run here
+        try {
+            ConfigureMqtt();
+        }
+        catch(const std::exception &e) {
+            Common::Logger::Error(lh, "\nfailed to configure the mqtt client:\n{}", e.what());
+            return 1;
+        }
+
         if(StopRequested()) {
-            Common::Logger::Info("stopped before the server started");
+            Common::Logger::Info(lh, "stopped before the server started");
             return 0;
         }
 
@@ -687,7 +719,7 @@ namespace Sagax::SCG::Server {
             Run();
         }
         catch(const std::exception &e) {
-            Common::Logger::Error("\nerror during run:\n{}", e.what());
+            Common::Logger::Error(lh, "\nerror during run:\n{}", e.what());
             return 1;
         }
         return 0;

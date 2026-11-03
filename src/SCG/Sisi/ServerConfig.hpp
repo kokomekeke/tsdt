@@ -40,13 +40,13 @@ namespace Sagax::SCG {
         // rinex navigation file
         std::string gnssEphemerisFile;
         bool mockRadios; // every radio is replaced with a device that only paces the pipeline
-        // the spoofer recordings are silence of the right length and rate, written without
-        // the gnss engine and without reading an ephemeris. everything else about a test
-        // is unchanged, so one can be prepared and played on a machine with neither
+        // the spoofer recordings are silence of the right length and rate, made without the gnss
+        // engine and without an ephemeris
         bool mockGnss;
         // a spoofer is recorded into a file while the test is prepared and played from it.
         // when false the gnss engine generates it while the test plays
         bool prerecordGnss;
+        bool logMqtt;
         double statusUpdatePeriod_s;
         double startAhead_s; // pipeline starts before the specified time, but the output is stalled until the precise moment
         double scenarioFetchTimeout_s; // the whole exchange with the machine the scenario is read from, not each step of it

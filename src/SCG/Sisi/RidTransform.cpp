@@ -181,9 +181,8 @@ namespace Sagax::SCG {
                 res.errors.push_back(std::format("interferenceSources[{}]: unknown radioId: {}", i, source.radioId.c_str()));
             }
 
-            // a source may only name a radio this rid also gave settings to. the config can
-            // know about radios this rid leaves alone, and those carry no channel count,
-            // no bandwidth and no center for the source to sit in
+            // a source may only name a radio this rid gives settings to, the other radios of the
+            // config have no channel count, bandwidth or center
             if(!source.radioId.empty()
                 && radioIds.count(source.radioId) > 0
                 && usedRadioSettings.count(source.radioId) == 0
@@ -195,9 +194,7 @@ namespace Sagax::SCG {
             if(source.channelId < 0) {
                 res.errors.push_back(std::format("interferenceSources[{}]: negative channel id", i));
             }
-            // indexed through usedRadioSettings and not radioIds: the latter counts the
-            // radios of the config, which is a different array from rid.radioSettings and
-            // only lines up with it when the rid happens to list them all, in order
+            // radioIds indexes the radios of the config, not rid.radioSettings
             else if(usedRadioSettings.count(source.radioId) > 0
                 && source.channelId >= rid.radioSettings[usedRadioSettings[source.radioId]].nChannels
             ) {
@@ -260,8 +257,7 @@ namespace Sagax::SCG {
                     }
                 }
 
-                // the engine selects by signal, system and elevation mask, so there is no
-                // way to honour a list of satellites once the samples are summed
+                // the engine selects satellites by signal, system and elevation mask, not by a list
                 if(!v.prnList.empty()) {
                     res.errors.push_back(std::format(
                         "interferenceSources[{}]: prn_list has to be empty, the gnss engine has no "
@@ -276,8 +272,6 @@ namespace Sagax::SCG {
                 }
 
 #ifndef HAVE_SSP
-                // the same shape as the rule for a radio this build cannot drive: the test
-                // can still be set up, as long as nothing has to be generated for it
                 if(!cfg.mockGnss) {
                     res.errors.push_back(std::format(
                         "interferenceSources[{}]: gnss spoofer, but this build has no gnss engine "
@@ -322,7 +316,8 @@ namespace Sagax::SCG {
         const ServerConfig &cfg,
         const Rid &rid,
         std::chrono::system_clock::time_point startTime,
-        const std::string &directory
+        const std::string &directory,
+        std::size_t iPart
     ) {
         Scenario scen;
         std::vector<std::int32_t> eventMap;
@@ -418,7 +413,7 @@ namespace Sagax::SCG {
                     job->sampleRate_hz = radioRates[source.radioId];
                     job->duration_s = source.endTime_s - source.startTime_s;
                     job->mock = cfg.mockGnss;
-                    job->fileName = (std::filesystem::path(directory) / std::format("gnss_{:04}.wav", i)).string();
+                    job->fileName = (std::filesystem::path(directory) / std::format("gnss_{:03}_{:04}.wav", iPart, i)).string();
 
                     SignalVariant::IQFile signalV;
                     signalV.fileName = job->fileName;

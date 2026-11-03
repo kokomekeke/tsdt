@@ -155,7 +155,7 @@ def test_a_stopped_test_keeps_its_directory(server, tmp_path):
 
     directory = tmp_path / "recordings" / "running"
     assert sorted(p.name for p in directory.iterdir()) == [
-        "rid.json", "rid_000.json", "scenario.json", "test.json", "tsd.json",
+        "rid_000.json", "scenario_000.json", "test.json", "tsd.json",
     ]
     content = json.loads((directory / "test.json").read_text(encoding="utf-8"))
     assert content["status"] == "TEST_FAILED"

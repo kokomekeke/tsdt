@@ -2,15 +2,11 @@
 #include <chrono>
 #include <cmath>
 #include <complex>
-#include <condition_variable>
 #include <cstdlib>
 #include <format>
 #include <limits>
-#include <map>
-#include <mutex>
 #include <numbers>
 #include <optional>
-#include <set>
 #include <span>
 #include <thread>
 #include "Common/Assert.hpp"
@@ -140,131 +136,6 @@ namespace Sagax::SCG {
         // a timed device gets its first block this long before the start time
         constexpr std::chrono::seconds handOverLead(1);
 
-        // calls the event callbacks at their times on a thread of its own. Stop calls the
-        // ones whose time has come, and the ends of the events whose start was called, the
-        // rest are dropped
-        struct CallbackTimer {
-            enum class Kind { transmissionStart, eventStart, eventEnd };
-
-            struct Item {
-                Kind kind;
-                std::int32_t eventId;
-            };
-
-            PipelineConfig::EventLogConfig *callbacks = nullptr;
-            std::mutex mtx;
-            std::condition_variable cv;
-            std::multimap<std::chrono::system_clock::time_point, Item> items;
-            std::set<std::int32_t> started;
-            bool stopRequested = false;
-            std::thread thread;
-
-            // ends the thread without calling the callbacks that are left
-            ~CallbackTimer() {
-                if(!thread.joinable()) {
-                    return;
-                }
-                {
-                    std::unique_lock lck(mtx);
-                    stopRequested = true;
-                }
-                cv.notify_all();
-                thread.join();
-            }
-
-            void Start(PipelineConfig::EventLogConfig &callbacks_) {
-                callbacks = &callbacks_;
-                items.clear();
-                started.clear();
-                stopRequested = false;
-                thread = std::thread([this]() { Run(); });
-            }
-
-            void Add(std::chrono::system_clock::time_point time, Kind kind, std::int32_t eventId) {
-                {
-                    std::unique_lock lck(mtx);
-                    items.insert({ time, Item{ kind, eventId } });
-                }
-                cv.notify_all();
-            }
-
-            // the started set is updated before, the callback is called without the lock
-            void Call(std::chrono::system_clock::time_point time, const Item &item) {
-                switch(item.kind) {
-                    case Kind::transmissionStart:
-                        if(callbacks->transmissionStart) {
-                            callbacks->transmissionStart(time);
-                        }
-                        break;
-                    case Kind::eventStart:
-                        if(callbacks->eventStart) {
-                            callbacks->eventStart(item.eventId);
-                        }
-                        break;
-                    case Kind::eventEnd:
-                        if(callbacks->eventEnd) {
-                            callbacks->eventEnd(item.eventId);
-                        }
-                        break;
-                }
-            }
-
-            void Track(const Item &item) {
-                if(item.kind == Kind::eventStart) {
-                    started.insert(item.eventId);
-                }
-                if(item.kind == Kind::eventEnd) {
-                    started.erase(item.eventId);
-                }
-            }
-
-            void Run() {
-                std::unique_lock lck(mtx);
-                while(!stopRequested) {
-                    if(items.empty()) {
-                        cv.wait(lck);
-                        continue;
-                    }
-                    auto it = items.begin();
-                    if(std::chrono::system_clock::now() < it->first) {
-                        cv.wait_until(lck, it->first);
-                        continue;
-                    }
-                    auto time = it->first;
-                    Item item = it->second;
-                    items.erase(it);
-                    Track(item);
-                    lck.unlock();
-                    Call(time, item);
-                    lck.lock();
-                }
-            }
-
-            void Stop() {
-                if(!thread.joinable()) {
-                    return;
-                }
-                {
-                    std::unique_lock lck(mtx);
-                    stopRequested = true;
-                }
-                cv.notify_all();
-                thread.join();
-                auto now = std::chrono::system_clock::now();
-                for(auto &[time, item] : items) {
-                    if(time <= now) {
-                        Track(item);
-                        Call(time, item);
-                    }
-                }
-                for(std::int32_t eventId : started) {
-                    Call(now, Item{ Kind::eventEnd, eventId });
-                }
-                items.clear();
-                started.clear();
-            }
-        };
-
         std::uint64_t ToMillihertz(double sampleRate) {
             Common::Assert(sampleRate > 0.0, "sample rate has to be positive");
             return std::uint64_t(std::llround(sampleRate * 1000.0));
@@ -290,8 +161,6 @@ namespace Sagax::SCG {
 
         std::vector<std::unique_ptr<LineState>> lineStates;
         std::vector<std::unique_ptr<OutputState>> outputStates;
-
-        CallbackTimer callbackTimer;
 
         bool isSetup = false;
         // destroyed before the members above, which its stages use
@@ -503,13 +372,9 @@ namespace Sagax::SCG {
                     } break;
                 }
             }
-            if(layout.mode != ScenarioLayout::Mode::record) {
-                callbackTimer.Start(layout.callbacks);
-            }
         }
 
         void OnStop() {
-            callbackTimer.Stop();
             for(std::size_t io = 0; io < layout.outputs.size(); ++io) {
                 auto &output = layout.outputs[io];
                 auto &os = *outputStates[io];
@@ -798,8 +663,9 @@ namespace Sagax::SCG {
         // the first block waits until handOverLead before the start time and is passed with the start
         // time, the device holds the samples until then. a stop without flush interrupts the wait,
         // and the call is repeated if the engine is started again.
-        // the callbacks get the time of the samples they are about. after the last block the device
-        // sends what it holds
+        // the event callbacks are called when the samples of the event are handed to the device,
+        // with the time the device transmits them at. after the last block the device sends what
+        // it holds
         void SinkStream(TaskContext &ctx, std::size_t io) {
             OutputBlock &ob = PacketOf(ctx).outputs[io];
             auto &output = layout.outputs[io];
@@ -820,7 +686,6 @@ namespace Sagax::SCG {
                 }
                 blockTime = startTime;
                 os.transmitting = true;
-                callbackTimer.Add(startTime, CallbackTimer::Kind::transmissionStart, -1);
             }
 
             auto timeOf = [&](std::int64_t iSample) {
@@ -832,13 +697,17 @@ namespace Sagax::SCG {
             std::int64_t iEnd = ob.iSample + std::int64_t(ob.nSamples);
             while(os.iNextStart < output.events.size() && layout.events[output.events[os.iNextStart]].iStart < iEnd) {
                 auto &e = layout.events[output.events[os.iNextStart]];
-                callbackTimer.Add(timeOf(e.iStart), CallbackTimer::Kind::eventStart, e.id);
+                if(layout.callbacks.eventStart) {
+                    layout.callbacks.eventStart(e.id, timeOf(e.iStart));
+                }
                 ++os.iNextStart;
             }
             output.device->Take(ob.channels, blockTime);
             while(os.iNextEnd < os.eventsByEnd.size() && layout.events[os.eventsByEnd[os.iNextEnd]].iEnd <= iEnd) {
                 auto &e = layout.events[os.eventsByEnd[os.iNextEnd]];
-                callbackTimer.Add(timeOf(e.iEnd), CallbackTimer::Kind::eventEnd, e.id);
+                if(layout.callbacks.eventEnd) {
+                    layout.callbacks.eventEnd(e.id, timeOf(e.iEnd));
+                }
                 ++os.iNextEnd;
             }
             if(iEnd >= output.nSamples) {
@@ -923,9 +792,8 @@ namespace Sagax::SCG {
 
     void ScenarioPipeline::Init_() {
         Common::Assert(impl->isSetup, "init before setup");
-        // Init() marks the resource valid only once Init_() returns, so a throw here
-        // would leave the ones that already came up initialized with no way left to
-        // reach them. they are taken down before the exception leaves
+        // Init() marks the resource valid only after Init_ returns, the ones that already came up
+        // are taken down before the exception leaves
         try {
             for(auto &p : ownedResources) {
                 p->Init();

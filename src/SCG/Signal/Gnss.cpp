@@ -111,7 +111,6 @@ namespace Sagax::SCG {
                 point.timeS = w.t;
                 params.waypoints.push_back(point);
             }
-            // a trajectory is a list of places and times, not a curve drawn through them
             params.waypointInterp = IfGenWaypointInterp::Linear;
 
             params.ephemerisFile = spoofing.ephemerisFile;
@@ -139,8 +138,6 @@ namespace Sagax::SCG {
                 paramErrors.empty() ? std::string("no reason given") : paramErrors.front()));
         }
 
-        // building the sky reads the ephemeris and places every satellite, which is the
-        // one slow step that is not per sample
         impl->engine.Init(params);
         Common::Assert(impl->engine.IsOpen(), "the gnss engine did not open");
         Common::Logger::Info("gnss engine ready, {} samples per block", impl->engine.Info().samplesPerBlock);

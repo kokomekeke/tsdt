@@ -25,10 +25,8 @@ namespace Sagax::SCG {
         namespace http = boost::beast::http;
         using tcp = boost::asio::ip::tcp;
 
-        // the text the operating system keeps for an error is written in the code page
-        // of the local language, so the code is named here instead of being repeated. one
-        // that is not listed is reported by its number and the category it belongs to,
-        // both of which are the same everywhere
+        // the os text of an error is in the code page of the local language, the codes are named
+        // here instead. an unlisted code is reported by its number and category
         std::string Reason(const beast::error_code &ec) {
             if(ec == net::error::connection_refused) { return "the connection was refused"; }
             if(ec == net::error::connection_reset) { return "the connection was reset"; }
@@ -67,8 +65,6 @@ namespace Sagax::SCG {
             return -1;
         }
 
-        // a percent is followed by two hex digits that stand for one byte, every other
-        // character is taken as it is written
         std::string PercentDecode(const std::string &s, std::string &out) {
             out.clear();
             for(std::size_t i = 0; i < s.size(); ++i) {
@@ -175,9 +171,8 @@ namespace Sagax::SCG {
 
         std::string HttpGet(const HttpUrl &url, double timeout_s, std::string &out, std::size_t bodyLimit) {
             beast::error_code ec;
-            // a name would be looked up by a thread of boost that cannot be interrupted,
-            // and the io_context destructor waits for that thread, so the wait would
-            // outlast the timeout. an address needs no lookup at all
+            // only an address is accepted, a name lookup runs on a boost thread that the timeout
+            // cannot interrupt
             auto address = net::ip::make_address(url.host, ec);
             if(ec) {
                 return std::format("the host of an http url has to be an ip address: \"{}\"", url.host);

@@ -13,9 +13,8 @@ namespace Sagax::SCG {
 
     namespace {
 
-        // the whole array has to match, element by element, so a difference in the order
-        // is one as well. the numbers are copied out of the documents and never computed,
-        // which is why they are compared as they are
+        // the arrays match element by element, the order included. the numbers are compared
+        // exactly, they are copied from the documents and never computed
         CommandError CompareRadioSettings(
             const std::vector<Rid::RadioSettings> &a,
             const std::vector<Rid::RadioSettings> &b
@@ -70,7 +69,7 @@ namespace Sagax::SCG {
 
     }
 
-    CommandError FetchTsd(const ServerConfig &cfg, const std::string &url, TsdSources &out) {
+    CommandError FetchTsd(const Common::Logger::Handle &lh, const ServerConfig &cfg, const std::string &url, TsdSources &out) {
         TsdSources sources;
 
         SCG_CHECK(Fetch(url, cfg.scenarioFetchTimeout_s, sources.tsdJson));
@@ -79,7 +78,6 @@ namespace Sagax::SCG {
         sources.rids.assign(sources.tsd.steps.size(), std::nullopt);
         sources.ridJsons.assign(sources.tsd.steps.size(), std::string());
 
-        // a url several steps name is read once, the later steps take the copy
         std::map<std::string, std::size_t> read;
         for(std::size_t i = 0; i < sources.tsd.steps.size(); ++i) {
             const auto &step = sources.tsd.steps[i];
@@ -95,7 +93,7 @@ namespace Sagax::SCG {
                 continue;
             }
 
-            Common::Logger::Info("reading the RID of step {}: {}", i, ridUrl);
+            Common::Logger::Info(lh, "reading the RID of step {}: {}", i, ridUrl);
             std::string json;
             CommandError error = Fetch(ridUrl, cfg.scenarioFetchTimeout_s, json);
             if(error.empty()) {
@@ -113,7 +111,7 @@ namespace Sagax::SCG {
         return {};
     }
 
-    CommandError ValidateTsdSources(const ServerConfig &cfg, const TsdSources &sources) {
+    CommandError ValidateTsdSources(const Common::Logger::Handle &lh, const ServerConfig &cfg, const TsdSources &sources) {
         Common::Assert(
             sources.tsd.steps.size() == sources.rids.size(),
             "a rid is missing for a step of the tsd"
@@ -123,8 +121,8 @@ namespace Sagax::SCG {
             if(!sources.rids[i].has_value()) {
                 continue;
             }
-            Common::Logger::Info("validating the RID of step {}..", i);
-            CommandError error = CheckValidity(ValidateRid(cfg, sources.rids[i].value()), "RID");
+            Common::Logger::Info(lh, "validating the RID of step {}..", i);
+            CommandError error = CheckValidity(lh, ValidateRid(cfg, sources.rids[i].value()), "RID");
             if(!error.empty()) {
                 return std::format(
                     "step[{}] \"{}\": {}",
@@ -135,7 +133,7 @@ namespace Sagax::SCG {
         return {};
     }
 
-    CommandError MergeTsd(const Tsd &tsd, const StepRids &rids, Rid &out) {
+    CommandError MergeTsd(const Tsd &tsd, const StepRids &rids, double startAhead_s, MergedTsd &out) {
         Common::Assert(tsd.steps.size() == rids.size(), "a rid is missing for a step of the tsd");
 
         if(tsd.name.empty()) {
@@ -145,9 +143,11 @@ namespace Sagax::SCG {
             return "the TSD has no steps";
         }
 
-        Rid merged;
+        MergedTsd merged;
         const Rid *first = nullptr;
         std::size_t firstStep = 0;
+        std::size_t previousStep = 0;
+        double previousEnd_s = 0.0;
         double offset_s = 0.0;
 
         for(std::size_t i = 0; i < tsd.steps.size(); ++i) {
@@ -172,32 +172,48 @@ namespace Sagax::SCG {
             if(first == nullptr) {
                 first = &rid;
                 firstStep = i;
-                merged.radioSettings = rid.radioSettings;
-                merged.metadata = rid.metadata;
+            }
+            else if(rid.metadata.version != first->metadata.version) {
+                return std::format(
+                    "step[{}] is version \"{}\" and step[{}] is version \"{}\"",
+                    i, rid.metadata.version, firstStep, first->metadata.version
+                );
+            }
+
+            double gap_s = offset_s - previousEnd_s;
+            if(merged.parts.empty() || gap_s >= startAhead_s) {
+                MergedTsd::Part part;
+                part.offset_s = offset_s;
+                part.rid.radioSettings = rid.radioSettings;
+                part.rid.metadata = rid.metadata;
+                part.rid.metadata.name = tsd.name;
+                part.rid.metadata.description = tsd.description;
+                merged.parts.push_back(std::move(part));
             }
             else {
-                CommandError difference = CompareRadioSettings(first->radioSettings, rid.radioSettings);
+                CommandError difference = CompareRadioSettings(merged.parts.back().rid.radioSettings, rid.radioSettings);
                 if(!difference.empty()) {
                     return std::format(
-                        "step[{}] does not configure the radios the way step[{}] does: {}",
-                        i, firstStep, difference
-                    );
-                }
-                if(rid.metadata.version != first->metadata.version) {
-                    return std::format(
-                        "step[{}] is version \"{}\" and step[{}] is version \"{}\"",
-                        i, rid.metadata.version, firstStep, first->metadata.version
+                        "step[{}] does not configure the radios the way step[{}] does, and the gap "
+                        "between them is {} s, shorter than start_ahead_s {} s: {}",
+                        i, previousStep, gap_s, startAhead_s, difference
                     );
                 }
             }
 
+            MergedTsd::Part &part = merged.parts.back();
+            double shift_s = offset_s - part.offset_s;
             for(const auto &source : rid.interferenceSources) {
                 Rid::InterferenceSource shifted = source;
-                shifted.startTime_s += offset_s;
-                shifted.endTime_s += offset_s;
-                merged.interferenceSources.push_back(std::move(shifted));
+                shifted.startTime_s += shift_s;
+                shifted.endTime_s += shift_s;
+                part.rid.interferenceSources.push_back(std::move(shifted));
             }
+            part.rid.globalSettings.duration_s = shift_s + rid.globalSettings.duration_s;
+            part.steps.push_back(i);
 
+            previousStep = i;
+            previousEnd_s = offset_s + rid.globalSettings.duration_s;
             offset_s += step.duration_s;
         }
 
@@ -205,9 +221,7 @@ namespace Sagax::SCG {
             return "no step of the TSD names an interference";
         }
 
-        merged.globalSettings.duration_s = offset_s;
-        merged.metadata.name = tsd.name;
-        merged.metadata.description = tsd.description;
+        merged.duration_s = offset_s;
 
         out = std::move(merged);
         return {};
