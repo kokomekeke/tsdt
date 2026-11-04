@@ -10,7 +10,7 @@
         "description": "dual card dual channel, one jammer per channel..."
     },
     "global_settings": {
-        "duration_s": 300.0
+        "duration_s": 340.0
     },
     "radio_settings": [
         {
@@ -36,22 +36,20 @@
             "channel_id": 0,
             "center_frequency_hz": 1475420000,
             "power_dbm": -10.0,
-            "start_time_s": 2.0,
-            "end_time_s": 8.0,
+            "start_time_s": 0.0,
+            "end_time_s": 10.0,
             "parameters": {}
         },
         {
-            // 300 kHz above the channel 1 centre, inside the 1.92 MHz band
-            "type": "noise_jammer",
+            // dead on the channel 0 centre
+            "type": "cw_jammer",
             "radio_id": "r0",
             "channel_id": 1,
-            "center_frequency_hz": 1127900000,
-            "power_dbm": -12.0,
-            "start_time_s": 3.0,
-            "end_time_s": 9.0,
-            "parameters": {
-                "span_hz": 200000
-            }
+            "center_frequency_hz": 1127600000,
+            "power_dbm": -10.0,
+            "start_time_s": 15.0,
+            "end_time_s": 30.0,
+            "parameters": {}
         },
         {
             "type": "gnss_spoofer",
@@ -59,15 +57,15 @@
             "channel_id": 0,
             "center_frequency_hz": 1575420000,
             "power_dbm": -10.0,
-            "start_time_s": 0.0,
-            "end_time_s": 300.0,
+            "start_time_s": 40.0,
+            "end_time_s": 340.0,
             "parameters": {
                 "constellation": "GPS",
                 "prn_list": [],
                 "trajectory": [
-                    { "t": 0.0, "latitude_deg": 52.502057, "longitude_deg": 13.259463, "altitude_m": 125.5 },
-                    { "t": 180.0, "latitude_deg": 52.505237, "longitude_deg": 13.264686, "altitude_m": 125.5 },
-                    { "t": 300.0, "latitude_deg": 52.508237, "longitude_deg": 13.264686, "altitude_m": 125.5 }
+                    { "t": 0.0, "latitude_deg": 72.502057, "longitude_deg": 13.259463, "altitude_m": 125.5 },
+                    { "t": 180.0, "latitude_deg": 72.505237, "longitude_deg": 13.264686, "altitude_m": 125.5 },
+                    { "t": 300.0, "latitude_deg": 72.508237, "longitude_deg": 13.264686, "altitude_m": 125.5 }
                 ]
             }
         }

@@ -1,9 +1,12 @@
 {
     "recording_directory": "recordings",
     "mock_radios": false,
+    "mock_gnss": false,
     "status_update_period_s": 10.0,
-    "start_ahead_s": 15.0,
+    "start_ahead_s": 30.0,
     "scenario_fetch_timeout_s": 2.0,
+	"gnss_ephemeris_file": "/home/sagax/sgx/scg/assets/rinex/BRDC00IGS_R_20211700000_01D_MN.rnx",
+	"prerecord_gnss": false,
     "radios": [
         {
             "id": "r0",
@@ -23,7 +26,7 @@
         }
     ],
     "mqtt": {
-        "broker_host": "10.1.1.81",
+        "broker_host": "10.1.2.45",
         "broker_port": 1883,
         "command_topic": "cmd/tms",
         "signal_log_topic": "tm/sg",

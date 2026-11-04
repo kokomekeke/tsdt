@@ -1,0 +1,28 @@
+{
+  "name": "L1 Spoofing, Jamming — Urban Route",
+  "description": "## L1 Spoofing — Urban Route\n\nTests GNSS receiver robustness against Spoofing and Jamming during an urban drive.\n\nThe RSG first runs a single card with one spoofing simulation per channel, then escalates to both cards with overlapping jammers, and finally stops emitting to observe receiver recovery time.\n\n**Route:** City centre ring road, approx. 4 km loop (same as Baseline scenario).\n\n**Expected outcome:** Progressive degradation of fix quality (loss of real location), then reacquiration of the simulated parameters",
+  "image": "assets/l1-jamming-urban-overview.svg",
+  "steps": [
+    {
+      "summary": "Baseline lock acquisition",
+      "duration_seconds": 10,
+      "driver_instructions": "**Park the vehicle** at the designated start point. Wait for a stable 3D fix before proceeding.\n\nVerify that the RSG is online and responsive on the `tm/sg` MQTT topic.",
+      "image": "assets/step-baseline.svg",
+      "interference": null
+    },
+    {
+      "summary": "Spoofing and Jamming",
+      "duration_seconds": 340,
+      "driver_instructions": "Spoofing on 1575.42 MHz will be activated.After 30s delay, the Jammer will be activated, which will be turned off 30s before the simulation ends. **Remain stationary** at the end of the loop and monitor the receiver.\n\nRecord the time-to-first-fix (TTFF) after spoofing starts. Test is complete once a stable 3D fix is re-acquired or 300 s have elapsed.",
+      "image": "assets/step-jamming.svg",
+      "interference": "FILE:///home/sagax/sgx/scg/assets/rid/l1-spoofing-jamming.json"
+    },
+    {
+      "summary": "Spoofer deactivated — recovery monitoring",
+      "duration_seconds": 60,
+      "driver_instructions": "The RSG will deactivate all Spoofing. **Remain stationary** at the end of the loop and monitor the receiver.\n\nRecord the time-to-first-fix (TTFF) after Spoofing stops. Test is complete once a stable 3D fix is re-acquired which shows the real location of the vehicle or 60 s have elapsed.",
+      "image": "assets/step-recovery.svg",
+      "interference": null
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+    // one card, both channels. channel 0 sits on GPS L1 and channel 1 on L2.
+    // bandwidth_hz becomes the sidekiq sample rate, and the card only accepts rates from
+    // a fixed list, 1920000 is the lowest one on it
+    "metadata": {
+        "version": "1.0.0",
+        "scenario_name": "sisi-stage-hadipari",
+        "created_utc": "2026-09-14T11:00:00Z",
+        "author": "sagax",
+        "description": "dual card dual channel, one jammer per channel..."
+    },
+    "global_settings": {
+        "duration_s": 340.0
+    },
+    "radio_settings": [
+        {
+            "radio_id": "r0",
+            "channels": 2,
+            "bandwidth_hz": 1920000,
+            "center_frequencies_hz": [ 1475420000, 1127600000 ],
+            "gains_db": [ 10.0, 10.0 ]
+        },
+        {
+            "radio_id": "r1",
+            "channels": 2,
+            "bandwidth_hz": 1920000,
+            "center_frequencies_hz": [ 1575420000, 1227600000 ],
+            "gains_db": [ 10.0, 10.0 ]
+        }
+    ],
+    "interference_sources": [
+        {
+            "type": "gnss_spoofer",
+            "radio_id": "r1",
+            "channel_id": 0,
+            "center_frequency_hz": 1575420000,
+            "power_dbm": -10.0,
+            "start_time_s": 10.0,
+            "end_time_s": 340.0,
+            "parameters": {
+                "constellation": "GPS",
+                "prn_list": [],
+                "trajectory": [
+                    { "t": 0.0, "latitude_deg": 52.502057, "longitude_deg": 13.259463, "altitude_m": 125.5 },
+                    { "t": 180.0, "latitude_deg": 52.505237, "longitude_deg": 13.264686, "altitude_m": 125.5 },
+                    { "t": 300.0, "latitude_deg": 52.508237, "longitude_deg": 13.264686, "altitude_m": 125.5 }
+                ]
+            }
+        }
+    ]
+}

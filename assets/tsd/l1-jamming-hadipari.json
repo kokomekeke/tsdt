@@ -12,10 +12,10 @@
     },
     {
       "summary": "Jammer activation — both cards, overlapping jamming + spoofing",
-      "duration_seconds": 300,
+      "duration_seconds": 340,
       "driver_instructions": "Spoofing on 1575.42 MHz and jamming on 1.2276 MHz will be activated. **Remain stationary** at the end of the loop and monitor the receiver.\n\nRecord the time-to-first-fix (TTFF) after jamming starts. Test is complete once a stable 3D fix is re-acquired or 60 s have elapsed.",
       "image": "assets/step-jamming.svg",
-      "interference": "FILE:///home/sagax/sgx/scg/assets/rid/test-rid-sisi-hadipari.json"
+      "interference": "FILE:///home/sagax/sgx/scg/assets/rid/test-rid-sisi-hadipari-jatszos.json"
     },
     {
       "summary": "Jammer deactivated — recovery monitoring",
