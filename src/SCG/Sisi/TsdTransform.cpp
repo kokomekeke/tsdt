@@ -753,6 +753,7 @@ namespace Sagax::SCG {
                             job->spoofing = spoofing;
                             job->sampleRate_hz = output.sampleRate;
                             job->duration_s = source.endTime_s - source.startTime_s;
+                            job->prepareRate = cfg.gnssPrepareRate;
                             job->mock = cfg.mockGnss;
                             job->fileName = GnssFileName(directory, step.iStep, is);
 

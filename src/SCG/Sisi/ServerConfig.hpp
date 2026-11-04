@@ -46,6 +46,8 @@ namespace Sagax::SCG {
         // a spoofer is recorded into a file while the test is prepared and played from it.
         // when false the gnss engine generates it while the test plays
         bool prerecordGnss;
+        // seconds of preparation estimated for each second of a recorded spoofer
+        double gnssPrepareRate;
         bool logMqtt;
         double statusUpdatePeriod_s;
         double startAhead_s; // pipeline starts before the specified time, but the output is stalled until the precise moment

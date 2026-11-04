@@ -5,6 +5,7 @@
     "status_update_period_s": 10.0,
     "start_ahead_s": 30.0,
     "scenario_fetch_timeout_s": 2.0,
+    "gnss_prepare_rate": 1.0,
 	"gnss_ephemeris_file": "/home/sagax/sgx/scg/assets/rinex/BRDC00IGS_R_20211700000_01D_MN.rnx",
 	"prerecord_gnss": false,
     "radios": [
