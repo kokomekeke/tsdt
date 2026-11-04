@@ -6,6 +6,7 @@
 #include <map>
 #include <mutex>
 #include <optional>
+#include <random>
 #include <set>
 #include <stop_token>
 #include <string>
@@ -79,6 +80,7 @@ namespace Sagax::SCG::Server {
         std::optional<SignalStatusMessage::SignalStatus> lastSignalStatus;
         std::chrono::steady_clock::duration statusPeriod{};
         std::chrono::steady_clock::time_point nextSignalStatus;
+        std::mt19937_64 randomDevice{ std::random_device{}() };
 
         void Configure();
         void ConfigureMqtt();
