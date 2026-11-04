@@ -26,7 +26,7 @@ namespace Sagax::SCG {
         // ready: prepared, waits for its playback
         // starting: holds the playback, the time of the test has not come yet
         // playing: from the time of the test until its end, while a part plays and between them
-        // done, failed: erased from the list by EraseFinished
+        // done, failed: erased from the list by EraseFinished, together with the directory
         //
         // a preparing, starting or playing test is the active one. there is at most one, and
         // nothing else is prepared or played while it is there
@@ -52,6 +52,9 @@ namespace Sagax::SCG {
         SavedTest::Gnss gnss;
         std::string directory;
         State state = State::pending;
+        // TEST_START came. the pipeline of a part hands no sample to the radios before it,
+        // and a test that is not authorized by its time fails
+        bool authorized = false;
     };
 
     // the tests from their setup until they are over. the caller runs the preparation and
@@ -71,6 +74,7 @@ namespace Sagax::SCG {
         void SaveState(const ScheduledTest &test);
 
         CommandError CheckSetup(const CommandMessage::TestSetup &command, std::chrono::system_clock::time_point &time);
+        CommandError Accept(const CommandMessage::TestSetup &command);
         CommandError CheckOverlap(const ScheduledTest &test);
         CommandError CheckPreparationQueue(const ScheduledTest &test, double work);
         CommandError CreateTest(
@@ -83,7 +87,6 @@ namespace Sagax::SCG {
 
         CommandError RestoreTest(const SavedTest &saved);
         void DropSavedTest(const std::string &testId, const std::string &error);
-        void FailSavedTest(SavedTest saved, const std::string &error);
         void LogTests();
 
     public:
@@ -93,7 +96,10 @@ namespace Sagax::SCG {
         // pipelineConfig_ has to outlive the tests, their pipelines point into it
         void Configure(const ServerConfig &config_, const PipelineConfig &pipelineConfig_);
 
+        // a refused setup is published as failed, unless its test id is already scheduled
         CommandError Schedule(const CommandMessage::TestSetup &command);
+        // until the time of the test
+        CommandError Authorize(const std::string &testId, std::chrono::system_clock::time_point now);
         // the caller stops the preparation or the playback of the test first
         CommandError Cancel(const std::string &testId);
         void Restore();

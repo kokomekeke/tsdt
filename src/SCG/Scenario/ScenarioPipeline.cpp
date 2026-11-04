@@ -121,8 +121,9 @@ namespace Sagax::SCG {
             std::int64_t iSum;
             std::int64_t sumEnd;
 
-            // used by Sink
+            // used by Sink. authorized is written by Authorize under the mutex of the sink stage
             bool transmitting;
+            bool authorized;
             std::vector<std::size_t> eventsByEnd; // into ScenarioLayout::events, ordered by iEnd
             std::size_t iNextStart; // into ScenarioLayout::Output::events
             std::size_t iNextEnd; // into eventsByEnd
@@ -182,6 +183,9 @@ namespace Sagax::SCG {
         std::vector<std::unique_ptr<LineState>> lineStates;
         std::vector<std::unique_ptr<OutputState>> outputStates;
 
+        // the sink stage of every output, stream and playback mode
+        std::vector<std::int32_t> sinkStages;
+
         bool isSetup = false;
         // destroyed before the members above, which its stages use
         Pipeline3::PipelineEngine engine;
@@ -236,6 +240,7 @@ namespace Sagax::SCG {
                 s->iSum = 0;
                 s->sumEnd = 0;
                 s->transmitting = false;
+                s->authorized = false;
                 s->eventsByEnd = output.events;
                 std::stable_sort(s->eventsByEnd.begin(), s->eventsByEnd.end(), [&](std::size_t e1, std::size_t e2) {
                     return layout.events[e1].iEnd < layout.events[e2].iEnd;
@@ -680,9 +685,9 @@ namespace Sagax::SCG {
             }
         }
 
-        // the first block waits until handOverLead before the start time and is passed with the start
-        // time, the device holds the samples until then. a stop without flush interrupts the wait,
-        // and the call is repeated if the engine is started again.
+        // the first block waits until the pipeline is authorized and handOverLead before the start time,
+        // and is passed with the start time, the device holds the samples until then. a stop without
+        // flush interrupts the wait, and the call is repeated if the engine is started again.
         // the event callbacks are called when the samples of the event are handed to the device,
         // with the time the device transmits them at. after the last block the device sends what
         // it holds
@@ -697,8 +702,13 @@ namespace Sagax::SCG {
             std::optional<std::chrono::system_clock::time_point> blockTime;
             if(!os.transmitting) {
                 auto handOver = startTime - handOverLead;
-                while(!ctx.stopRequested && std::chrono::system_clock::now() < handOver) {
-                    ctx.cv->wait_until(*ctx.lck, handOver);
+                while(!ctx.stopRequested && !(os.authorized && std::chrono::system_clock::now() >= handOver)) {
+                    if(os.authorized) {
+                        ctx.cv->wait_until(*ctx.lck, handOver);
+                    }
+                    else {
+                        ctx.cv->wait(*ctx.lck);
+                    }
                 }
                 if(ctx.stopRequested) {
                     ctx.interrupted = true;
@@ -745,7 +755,7 @@ namespace Sagax::SCG {
             if(layout.mode == ScenarioLayout::Mode::playback) {
                 for(std::size_t io = 0; io < layout.outputs.size(); ++io) {
                     std::int32_t read = Pipeline3::AddStage(plan, ioParams, { clock }, [this, io](TaskContext &ctx) { ReadPlayback(ctx, io); });
-                    Pipeline3::AddStage(plan, ioParams, { read }, [this, io](TaskContext &ctx) { SinkStream(ctx, io); });
+                    sinkStages.push_back(Pipeline3::AddStage(plan, ioParams, { read }, [this, io](TaskContext &ctx) { SinkStream(ctx, io); }));
                 }
             }
             else {
@@ -770,7 +780,7 @@ namespace Sagax::SCG {
                         Pipeline3::AddStage(plan, ioParams, { merge }, [this, io](TaskContext &ctx) { SinkRecord(ctx, io); });
                     }
                     else {
-                        Pipeline3::AddStage(plan, ioParams, { merge }, [this, io](TaskContext &ctx) { SinkStream(ctx, io); });
+                        sinkStages.push_back(Pipeline3::AddStage(plan, ioParams, { merge }, [this, io](TaskContext &ctx) { SinkStream(ctx, io); }));
                     }
                 }
             }
@@ -856,6 +866,17 @@ namespace Sagax::SCG {
     void ScenarioPipeline::Start() {
         Common::Assert(Valid(), "start before init");
         impl->engine.Start();
+    }
+
+    void ScenarioPipeline::Authorize() {
+        Common::Assert(Valid(), "authorize before init");
+        for(std::size_t io = 0; io < impl->sinkStages.size(); ++io) {
+            {
+                std::lock_guard lck(*impl->engine.GetMutex(impl->sinkStages[io]));
+                impl->outputStates[io]->authorized = true;
+            }
+            impl->engine.Notify(impl->sinkStages[io]);
+        }
     }
 
     void ScenarioPipeline::Stop(bool flush) {

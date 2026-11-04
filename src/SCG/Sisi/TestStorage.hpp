@@ -42,7 +42,7 @@ namespace Sagax::SCG {
         // removes everything the preparation wrote
         void ClearPreparation(const std::string &testId) const;
 
-        // a failure is only logged
+        // removes the directory. a failure is only logged
         void Remove(const std::string &testId) const;
     };
 

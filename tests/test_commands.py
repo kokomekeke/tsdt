@@ -1,10 +1,25 @@
 """What the server does with commands that are wrong in one way or another."""
 
 import json
+import time
 
 import pytest
 
 from helpers.server import setup_command, utc_string
+
+
+def statuses(instance, mark, test_id):
+    messages = [json.loads(p) for _, _, p in instance.broker.since(mark, instance.test_log_topic)]
+    return [m["test_status"] for m in messages if m["test_id"] == test_id]
+
+
+def wait_until(condition, timeout=5.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if condition():
+            return True
+        time.sleep(0.05)
+    return False
 
 
 def test_a_payload_that_is_not_json_is_reported(scgserver):
@@ -103,11 +118,41 @@ def test_a_duplicate_test_id_is_reported(scgserver, tsd_path):
     mark = scgserver.setup(url, test_id="twice", seconds_ahead=7200)
     message, _ = scgserver.expect_error(mark)
     assert "test id already scheduled" in message, message
+    assert statuses(scgserver, mark, "twice") == [], statuses(scgserver, mark, "twice")
+
+
+def test_a_refused_setup_is_reported_as_failed(scgserver, tsd_path):
+    """the tms moves the session to failed on TEST_FAILED, also when it was never scheduled"""
+    mark = scgserver.setup(tsd_path.as_uri(), test_id="refused", seconds_ahead=-3600)
+    scgserver.expect_error(mark)
+    assert wait_until(lambda: statuses(scgserver, mark, "refused") == ["TEST_FAILED"]), statuses(scgserver, mark, "refused")
+
+
+def test_a_setup_whose_tsd_cannot_be_read_is_reported_as_failed(scgserver, tmp_path):
+    mark = scgserver.setup((tmp_path / "missing.json").as_uri(), test_id="unread", seconds_ahead=3600)
+    scgserver.expect_error(mark)
+    assert wait_until(lambda: statuses(scgserver, mark, "unread") == ["TEST_FAILED"]), statuses(scgserver, mark, "unread")
+
+
+def test_starting_an_unknown_test_is_reported(scgserver):
+    mark = scgserver.test_start("nosuchtest")
+    message, _ = scgserver.expect_error(mark)
+    assert "unknown test id" in message, message
+
+
+def test_a_scheduled_test_can_be_started(scgserver, tsd_path):
+    mark = scgserver.setup(tsd_path.as_uri(), test_id="authorized", seconds_ahead=3600)
+    scgserver.expect_no_error(mark, timeout=2.0)
+    assert scgserver.wait_for_log("test scheduled: authorized")
+
+    mark = scgserver.test_start("authorized")
+    scgserver.expect_no_error(mark, timeout=2.0)
+    assert scgserver.wait_for_log("test authorized: authorized")
 
 
 # read like any other command and then dropped. they are part of the protocol and do
 # nothing here yet, so the server warns instead of refusing them
-IGNORED = ["INT_START", "TEST_START", "TEST_UPDATE", "TEST_END"]
+IGNORED = ["INT_START", "TEST_UPDATE", "TEST_END"]
 
 
 @pytest.mark.parametrize("name", IGNORED)

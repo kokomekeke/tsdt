@@ -68,6 +68,7 @@ cd build-sidekiq
 cd build-sidekiq
 ./scgcommander ../assets/config/sisi-stage-mock.json
 > testsetup file:///tmp/tsd.json 2026-09-21T16:10:00+02:00 1
+> teststart 1
 ~~~
 
 `sisi-stage-mock.json` sets `mock_radios`, so nothing is transmitted and no hardware is
@@ -79,9 +80,10 @@ same configuration driving the radios.
 | command | what it sends |
 |---|---|
 | `testsetup <tsd_url> <time> <test_id>` | TEST_SETUP |
+| `teststart <test_id>` | TEST_START |
 | `testcancel <test_id>` | TEST_CANCEL |
 | `intstop` | INT_STOP |
-| `intstart`, `teststart`, `testupdate`, `testend` | the commands the server reads and ignores |
+| `intstart`, `testupdate`, `testend` | the commands the server reads and ignores |
 | `help` | the same list |
 | `quit`, `exit` | leaves |
 
@@ -94,7 +96,9 @@ The command is answered at once, with a reason on the error topic if it is refus
 warnings of the checks only go to the server log. An accepted test is recorded into `recording_directory` as soon as there is room in the
 queue. The server log gets a summary of the test: its start, every transmission with the
 rids it plays, every gap, and its end. The pipeline of a part starts `start_ahead_s` before
-the part with its output held back until the exact moment.
+the part with its output held back until the exact moment, and until the test is
+authorized with TEST_START. A test that is not authorized by its start time fails. The
+directory of a test is removed once it is over.
 
 The test is `TEST_RUNNING` from the start of the TSD and `TEST_COMPLETED` at its end, and
 the status messages carry those times. The signal status follows what the pipelines

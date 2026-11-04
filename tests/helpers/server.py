@@ -41,6 +41,13 @@ def cancel_command(test_id):
     })
 
 
+def start_command(test_id):
+    return json.dumps({
+        "command": "TEST_START",
+        "extras": {"test_id": test_id},
+    })
+
+
 def bare_command(name):
     """A command with no arguments. extras is a field of every one of them."""
     return json.dumps({
@@ -134,6 +141,10 @@ class ScgServer:
 
     def cancel(self, test_id):
         return self.send(cancel_command(test_id))
+
+    def test_start(self, test_id):
+        """TEST_START, without it a test does not play."""
+        return self.send(start_command(test_id))
 
     def int_stop(self):
         return self.send(int_stop_command())

@@ -360,6 +360,9 @@ namespace Sagax::SCG::Server {
         ClearSignalEvents();
         playingPart = iPart;
         ctx.Start();
+        if(test.authorized) {
+            ctx.Authorize();
+        }
         radioMonitor.SetGainUpdates(part.gainUpdates);
         Common::Logger::Info(lh, "part {} of test \"{}\" started, it plays at {}", iPart, test.testId, FormatIsoTime(part.time));
     }
@@ -412,6 +415,14 @@ namespace Sagax::SCG::Server {
             }
         }
         if(test.state == ScheduledTest::State::starting && now >= test.time) {
+            if(!test.authorized) {
+                if(playingPart.has_value()) {
+                    StopPipeline();
+                }
+                PublishLog(SessionLogMessage::Severity::error, test.testId, std::format("test \"{}\" was not authorized by its starting time", test.testId));
+                scheduler.SetFailed(test);
+                return;
+            }
             scheduler.SetPlaying(test);
         }
         if(playingPart.has_value()) {
@@ -541,7 +552,14 @@ namespace Sagax::SCG::Server {
             Ignored(msg.topic, "INT_START");
         }
         else if(std::holds_alternative<CommandMessage::TestStart>(cm.variant)) {
-            Ignored(msg.topic, "TEST_START");
+            auto &v = std::get<CommandMessage::TestStart>(cm.variant);
+            Interpreted(msg.topic, "TEST_START");
+            testId = v.testId;
+            error = scheduler.Authorize(v.testId, std::chrono::system_clock::now());
+            ScheduledTest *active = scheduler.Active();
+            if(error.empty() && active != nullptr && active->testId == v.testId && playingPart.has_value()) {
+                ctx.Authorize();
+            }
         }
         else if(std::holds_alternative<CommandMessage::TestUpdate>(cm.variant)) {
             Ignored(msg.topic, "TEST_UPDATE");

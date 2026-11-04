@@ -196,8 +196,9 @@ namespace Sagax::SCG::Commander {
         Common::Logger::Info("commands:");
         Common::Logger::Info("  testsetup <tsd_url> <time> <test_id>");
         Common::Logger::Info("  testcancel <test_id>");
+        Common::Logger::Info("  teststart <test_id>");
         Common::Logger::Info("  intstop");
-        Common::Logger::Info("  intstart | teststart | testupdate | testend   (read and ignored)");
+        Common::Logger::Info("  intstart | testupdate | testend   (read and ignored)");
         Common::Logger::Info("  help");
         Common::Logger::Info("  quit\n");
         Common::Logger::Info("time is given as 2026-09-02T14:30:00+02:00\n");
@@ -381,7 +382,9 @@ namespace Sagax::SCG::Commander {
                 cm.variant = CommandMessage::IntStart{};
             }
             else if(cmd == "teststart") {
-                cm.variant = CommandMessage::TestStart{};
+                std::string testId;
+                iss >> testId;
+                cm.variant = CommandMessage::TestStart{testId};
             }
             else if(cmd == "testupdate") {
                 cm.variant = CommandMessage::TestUpdate{};

@@ -56,6 +56,7 @@ def test_the_parts_play_one_after_the_other(server, tmp_path):
     _, _, tsd = two_parts(tmp_path)
     instance = server(start_ahead_s=START_AHEAD_S)
     mark = instance.setup(tsd.as_uri(), test_id="parts", seconds_ahead=5)
+    instance.test_start("parts")
     instance.expect_no_error(mark, timeout=2.0)
     assert instance.wait_for_log("playback finished: parts", timeout=30.0), instance.log
 
@@ -70,7 +71,14 @@ def test_the_parts_play_one_after_the_other(server, tmp_path):
     positions = [log.find(line) for line in order]
     assert -1 not in positions and positions == sorted(positions), log
 
-    directory = tmp_path / "recordings" / "parts"
+
+def test_only_the_steps_with_a_rid_are_saved(server, tmp_path):
+    _, _, tsd = two_parts(tmp_path)
+    instance = server(start_ahead_s=START_AHEAD_S)
+    instance.setup(tsd.as_uri(), test_id="saved", seconds_ahead=600)
+    assert instance.wait_for_log("test scheduled: saved"), instance.log
+
+    directory = tmp_path / "recordings" / "saved"
     assert sorted(p.name for p in directory.iterdir()) == [
         "rid_000.json", "rid_002.json", "test.json", "tsd.json",
     ]
@@ -81,10 +89,12 @@ def test_the_status_times_follow_the_tsd(server, tmp_path):
     _, _, tsd = two_parts(tmp_path)
     instance = server(start_ahead_s=START_AHEAD_S)
     instance.setup(tsd.as_uri(), test_id="timed", seconds_ahead=5)
+    instance.test_start("timed")
+    assert instance.wait_for_log("test scheduled: timed"), instance.log
+    start = start_time(tmp_path, "timed")
     assert instance.wait_for_log("playback finished: timed", timeout=30.0), instance.log
     assert wait_until(lambda: statuses(instance, "timed")[-1:] and statuses(instance, "timed")[-1]["test_status"] == "TEST_COMPLETED")
 
-    start = start_time(tmp_path, "timed")
     times = {m["test_status"]: datetime.datetime.fromisoformat(m["timestamp"]) for m in statuses(instance, "timed")}
     assert times["TEST_RUNNING"] == start, times
     assert times["TEST_COMPLETED"] == start + datetime.timedelta(seconds=END_S), times

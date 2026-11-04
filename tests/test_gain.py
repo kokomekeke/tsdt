@@ -41,6 +41,7 @@ def gains_set(instance):
 def play(server, tsd, test_id):
     instance = server(start_ahead_s=2.0)
     instance.setup(tsd.as_uri(), test_id=test_id, seconds_ahead=4)
+    instance.test_start(test_id)
     assert instance.wait_for_log(f"playback started: {test_id}", timeout=30.0), instance.log
     return instance
 

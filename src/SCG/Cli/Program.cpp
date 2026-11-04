@@ -155,6 +155,7 @@ namespace Sagax::SCG::Cli {
                 Common::Logger::Info("start time: {}", FormatIsoTime(startTime));
             }
             ctx.Start();
+            ctx.Authorize();
             started = true;
         }
         ctx.Join();

@@ -185,6 +185,7 @@ namespace Sagax::SCG {
         SavedTest saved;
         saved.command = test.command;
         saved.status = ReportedStatus(test.state);
+        saved.authorized = test.authorized;
         saved.gnss = test.gnss;
         storage.SaveState(saved);
     }
@@ -239,11 +240,6 @@ namespace Sagax::SCG {
         SCG_CHECK(ParseStartTime(command.startTime, time));
         SCG_CHECK(CheckInFuture(command.startTime, time));
         SCG_CHECK(CheckTestId(command.testId));
-        for(auto &t : tests) {
-            if(t->testId == command.testId) {
-                return std::format("test id already scheduled: \"{}\"", command.testId);
-            }
-        }
         return {};
     }
 
@@ -286,6 +282,19 @@ namespace Sagax::SCG {
     }
 
     CommandError TestScheduler::Schedule(const CommandMessage::TestSetup &command) {
+        for(auto &t : tests) {
+            if(t->testId == command.testId) {
+                return std::format("test id already scheduled: \"{}\"", command.testId);
+            }
+        }
+        CommandError error = Accept(command);
+        if(!error.empty()) {
+            onStatus(command.testId, TestStatusMessage::TestStatus::TEST_FAILED, std::chrono::system_clock::now());
+        }
+        return error;
+    }
+
+    CommandError TestScheduler::Accept(const CommandMessage::TestSetup &command) {
         std::chrono::system_clock::time_point time;
         SCG_CHECK(CheckSetup(command, time));
 
@@ -321,8 +330,25 @@ namespace Sagax::SCG {
         return {};
     }
 
-    // in the order they start. a test that is over is skipped, a test that cannot be
-    // restored is failed
+    CommandError TestScheduler::Authorize(const std::string &testId, std::chrono::system_clock::time_point now) {
+        auto it = std::find_if(tests.begin(), tests.end(), [&](const std::unique_ptr<ScheduledTest> &t) {
+            return t->testId == testId;
+        });
+        if(it == tests.end()) {
+            return std::format("unknown test id: \"{}\"", testId);
+        }
+        ScheduledTest &test = **it;
+        if(now >= test.time) {
+            return std::format("test \"{}\" cannot be authorized after its starting time", testId);
+        }
+        test.authorized = true;
+        SaveState(test);
+        Common::Logger::Info(lh, "test authorized: {}", testId);
+        return {};
+    }
+
+    // in the order they start. the directory of a test that is over is removed, a test that
+    // cannot be restored is failed
     void TestScheduler::Restore() {
         struct Found {
             SavedTest saved;
@@ -338,6 +364,7 @@ namespace Sagax::SCG {
                 continue;
             }
             if(IsOver(f.saved.status)) {
+                storage.Remove(testId);
                 continue;
             }
             error = ParseStartTime(f.saved.command.startTime, f.time);
@@ -345,7 +372,7 @@ namespace Sagax::SCG {
                 error = "it missed its starting time while the server was down";
             }
             if(!error.empty()) {
-                FailSavedTest(f.saved, error);
+                DropSavedTest(testId, error);
                 continue;
             }
             found.push_back(std::move(f));
@@ -357,7 +384,7 @@ namespace Sagax::SCG {
         for(auto &f : found) {
             CommandError error = RestoreTest(f.saved);
             if(!error.empty()) {
-                FailSavedTest(f.saved, error);
+                DropSavedTest(f.saved.command.testId, error);
             }
         }
     }
@@ -389,6 +416,7 @@ namespace Sagax::SCG {
 
         std::unique_ptr<ScheduledTest> test;
         SCG_CHECK(CreateTest(saved.command, time, sources, state, test));
+        test->authorized = saved.authorized;
 
         SaveState(*test);
         PublishStatus(*test, std::chrono::system_clock::now());
@@ -402,12 +430,7 @@ namespace Sagax::SCG {
     void TestScheduler::DropSavedTest(const std::string &testId, const std::string &error) {
         onError(testId, std::format("could not restore test \"{}\": {}", testId, error));
         onStatus(testId, TestStatusMessage::TestStatus::TEST_FAILED, std::chrono::system_clock::now());
-    }
-
-    void TestScheduler::FailSavedTest(SavedTest saved, const std::string &error) {
-        DropSavedTest(saved.command.testId, error);
-        saved.status = TestStatusMessage::TestStatus::TEST_FAILED;
-        storage.SaveState(saved);
+        storage.Remove(testId);
     }
 
     ScheduledTest *TestScheduler::Active() {
@@ -533,10 +556,16 @@ namespace Sagax::SCG {
     }
 
     void TestScheduler::EraseFinished() {
-        auto erased = std::erase_if(tests, [](const std::unique_ptr<ScheduledTest> &t) {
+        auto isOver = [](const std::unique_ptr<ScheduledTest> &t) {
             return t->state == ScheduledTest::State::done
                 || t->state == ScheduledTest::State::failed;
-        });
+        };
+        for(auto &t : tests) {
+            if(isOver(t)) {
+                storage.Remove(t->testId);
+            }
+        }
+        auto erased = std::erase_if(tests, isOver);
         if(erased > 0) {
             LogTests();
         }

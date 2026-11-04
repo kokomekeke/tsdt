@@ -1,8 +1,8 @@
 """INT_STOP, the command that ends whatever is being transmitted.
 
-It takes no arguments and picks its target itself, which is the running test. A cancel
-names a test and removes everything it left behind; a stop keeps the directory and only
-ends the test, reported as TEST_FAILED because the status list has nothing better.
+It takes no arguments and picks its target itself, which is the running test. It ends
+the test, reported as TEST_FAILED because the status list has nothing better, and the
+directory of the test is removed like that of any test that is over.
 
 Only a transmission can be stopped. A test that is merely scheduled, or one whose
 recordings are still being made, is reported back rather than touched.
@@ -30,6 +30,7 @@ def playing(server, tmp_path, test_id="running"):
     tsd = write_tsd(tmp_path / "long-tsd.json", [(PLAYING_S, rid.as_uri())])
     instance = server(start_ahead_s=2.0)
     instance.setup(tsd.as_uri(), test_id=test_id, seconds_ahead=4)
+    instance.test_start(test_id)
     assert instance.wait_for_log(f"playback started: {test_id}", timeout=30.0), instance.log
     assert wait_until(lambda: "TEST_RUNNING" in statuses(instance, test_id), timeout=10.0), statuses(instance, test_id)
     return instance
@@ -135,6 +136,7 @@ def test_a_stop_during_the_hold_fails_the_test_without_transmitting(server, tmp_
     tsd = write_tsd(tmp_path / "long-tsd.json", [(PLAYING_S, rid.as_uri())])
     instance = server(start_ahead_s=10.0)
     instance.setup(tsd.as_uri(), test_id="held", seconds_ahead=15)
+    instance.test_start("held")
     assert instance.wait_for_log("playback started: held", timeout=30.0), instance.log
 
     mark = instance.int_stop()
@@ -151,18 +153,14 @@ def test_a_stop_during_the_hold_fails_the_test_without_transmitting(server, tmp_
     assert "jamming" not in signal_types(instance), signal_types(instance)
 
 
-def test_a_stopped_test_keeps_its_directory(server, tmp_path):
-    """the documents it was built from stay, test.json holds the failed status"""
+def test_a_stopped_test_loses_its_directory(server, tmp_path):
     instance = playing(server, tmp_path)
+    directory = tmp_path / "recordings" / "running"
+    assert directory.is_dir()
+
     instance.int_stop()
     assert instance.wait_for_log("playback stopped: running"), instance.log
-
-    directory = tmp_path / "recordings" / "running"
-    assert sorted(p.name for p in directory.iterdir()) == [
-        "rid_000.json", "test.json", "tsd.json",
-    ]
-    content = json.loads((directory / "test.json").read_text(encoding="utf-8"))
-    assert content["status"] == "TEST_FAILED"
+    assert wait_until(lambda: not directory.exists()), sorted(p.name for p in directory.iterdir())
 
 
 def test_the_signal_status_goes_back_to_none(server, tmp_path):
@@ -202,3 +200,44 @@ def test_a_second_stop_is_reported(server, tmp_path):
     mark = instance.int_stop()
     message, _ = instance.expect_error(mark)
     assert "no test is running" in message, message
+
+
+def test_a_test_without_test_start_fails_at_its_time_without_transmitting(server, tmp_path):
+    """the pipeline starts start_ahead before the time, but hands nothing to the radios"""
+    rid = write_rid(tmp_path / "long.json", duration_s=PLAYING_S)
+    tsd = write_tsd(tmp_path / "long-tsd.json", [(PLAYING_S, rid.as_uri())])
+    instance = server(start_ahead_s=2.0)
+    instance.setup(tsd.as_uri(), test_id="unauthorized", seconds_ahead=4)
+    assert instance.wait_for_log("playback started: unauthorized", timeout=30.0), instance.log
+
+    assert wait_until(lambda: statuses(instance, "unauthorized")[-1:] == ["TEST_FAILED"], timeout=10.0), statuses(instance, "unauthorized")
+    assert statuses(instance, "unauthorized") == [
+        "TEST_INIT",
+        "TEST_PREPARE",
+        "TEST_READY",
+        "TEST_FAILED",
+    ], statuses(instance, "unauthorized")
+    assert 'test "unauthorized" was not authorized by its starting time' in instance.log, instance.log
+    assert "jamming" not in signal_types(instance), signal_types(instance)
+
+
+def test_a_test_started_during_the_hold_plays(server, tmp_path):
+    """TEST_START can come after the pipeline started, until the time of the test"""
+    rid = write_rid(tmp_path / "short.json", duration_s=1.0)
+    tsd = write_tsd(tmp_path / "short-tsd.json", [(1.0, rid.as_uri())])
+    instance = server(start_ahead_s=10.0)
+    instance.setup(tsd.as_uri(), test_id="late", seconds_ahead=15)
+    assert instance.wait_for_log("playback started: late", timeout=30.0), instance.log
+
+    mark = instance.test_start("late")
+    instance.expect_no_error(mark, timeout=2.0)
+    assert instance.wait_for_log("playback finished: late", timeout=30.0), instance.log
+    assert wait_until(lambda: statuses(instance, "late")[-1:] == ["TEST_COMPLETED"]), statuses(instance, "late")
+    assert "jamming" in signal_types(instance), signal_types(instance)
+
+
+def test_a_test_cannot_be_started_after_its_time(server, tmp_path):
+    instance = playing(server, tmp_path)
+    mark = instance.test_start("running")
+    message, _ = instance.expect_error(mark)
+    assert "cannot be authorized after its starting time" in message, message

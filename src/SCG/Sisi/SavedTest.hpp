@@ -14,6 +14,7 @@ namespace Sagax::SCG {
 
         CommandMessage::TestSetup command;
         TestStatusMessage::TestStatus status;
+        bool authorized;
         Gnss gnss;
     };
 

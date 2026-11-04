@@ -19,6 +19,11 @@ namespace Sagax::SCG {
             std::string testId;
         };
 
+        // authorizes the playback of a scheduled test
+        struct TestStart {
+            std::string testId;
+        };
+
         // ends whatever is being transmitted
         struct IntStop {
         };
@@ -26,9 +31,6 @@ namespace Sagax::SCG {
         // part of the protocol and read like the rest, but nothing is done with them
         // yet. none of them carries any field
         struct IntStart {
-        };
-
-        struct TestStart {
         };
 
         struct TestUpdate {

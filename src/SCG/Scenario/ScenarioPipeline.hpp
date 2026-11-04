@@ -82,6 +82,9 @@ namespace Sagax::SCG {
         void Setup(Common::ThreadPool &threadPool, std::int32_t nCpuThreads);
 
         void Start();
+        // in stream and playback mode no sample reaches a device before this is called. it can
+        // be called any time between Init and Dispose
+        void Authorize();
         // returns without blocking. flush=false interrupts the wait for the start time
         void Stop(bool flush);
         void Join();

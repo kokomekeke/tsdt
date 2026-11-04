@@ -90,6 +90,7 @@ def test_a_spoofed_test_runs_through_every_status(server, tmp_path, config_chang
     tsd = wrap_rid(rid, duration_s=DURATION_S)
     sched = server(start_ahead_s=2.0, config_changes=config_changes)
     mark = sched.setup(tsd.as_uri(), test_id="played", seconds_ahead=6)
+    sched.test_start("played")
     sched.expect_no_error(mark, timeout=2.0)
     assert sched.wait_for_log("playback finished: played", timeout=30.0), sched.log
 
@@ -112,6 +113,7 @@ def test_a_spoofed_test_runs_through_every_status(server, tmp_path, config_chang
 
     assert wait_until(lambda: signals()[-1] == "none"), signals()
     assert "spoofing" in signals(), signals()
+    assert wait_until(lambda: not (tmp_path / "recordings" / "played").exists())
 
 
 def wait_until(condition, timeout=5.0):
