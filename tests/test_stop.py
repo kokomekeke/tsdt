@@ -73,11 +73,15 @@ def test_a_stop_with_a_test_only_scheduled_is_reported(scgserver, tsd_path):
 
 
 def test_a_stop_during_preparation_is_reported(server, tmp_path):
-    """a preparation is not a transmission, so it is left alone"""
-    rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=60.0, bandwidth_hz=48000)
-    tsd = write_tsd(tmp_path / "gnss-tsd.json", [(60.0, rid.as_uri())])
+    """a preparation is not a transmission, so it is left alone
+
+    the recording is long enough that its preparation is still running when the stop
+    arrives, also on a fast machine
+    """
+    rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=300.0, bandwidth_hz=192000)
+    tsd = write_tsd(tmp_path / "gnss-tsd.json", [(300.0, rid.as_uri())])
     instance = server(start_ahead_s=2.0, config_changes=with_ephemeris)
-    instance.setup(tsd.as_uri(), test_id="preparing", seconds_ahead=120)
+    instance.setup(tsd.as_uri(), test_id="preparing", seconds_ahead=600)
     assert instance.wait_for_log("preparation started: preparing", timeout=30.0), instance.log
 
     mark = instance.int_stop()

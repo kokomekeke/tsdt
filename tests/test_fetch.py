@@ -7,6 +7,7 @@ second read, the one that goes after a step.
 """
 
 import json
+import socket
 import time
 
 import pytest
@@ -125,8 +126,23 @@ def test_through_lint_local(build, tsd_path, name, kind, expected):
 
 
 # a machine refuses a connection to a closed port of its own accord, and on windows that
-# answer takes about two seconds to arrive. the timeout is set well away from it in both
-# directions here, so which of the two ends the attempt is decided rather than raced
+# answer takes about two seconds to arrive. the refusal tests set the timeout well above it
+#
+# the timeout tests connect to a listener whose accept queue is full. linux drops the syn
+# then, so the connect hangs until the timeout. windows refuses it, which again takes about
+# two seconds, well above the timeout
+
+
+@pytest.fixture
+def full_backlog_url():
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(0)
+    filler = socket.create_connection(listener.getsockname(), timeout=2.0)
+    host, port = listener.getsockname()
+    yield f"http://{host}:{port}/tsd.json"
+    filler.close()
+    listener.close()
 
 
 def test_a_closed_port_is_refused(server, tsd_path):
@@ -138,10 +154,10 @@ def test_a_closed_port_is_refused(server, tsd_path):
     assert seconds < 6.0, f"the refusal took {seconds:.2f} s"
 
 
-def test_a_connect_can_run_out_of_time(server, tsd_path):
-    """A fifth of a second to wait, and the refusal is nowhere near that quick."""
+def test_a_connect_can_run_out_of_time(server, full_backlog_url):
+    """A fifth of a second to wait, and the listener never answers."""
     instance = server(fetch_timeout_s=0.2)
-    mark = instance.setup(closed_port_url(), test_id="tooslow")
+    mark = instance.setup(full_backlog_url, test_id="tooslow")
     message, _ = instance.expect_error(mark)
     assert "timed out connecting to" in message, message
 
@@ -153,9 +169,9 @@ def test_through_lint_a_closed_port_is_refused(build, tmp_path):
     assert "the connection was refused" in output, output
 
 
-def test_through_lint_a_connect_can_run_out_of_time(build, tmp_path):
+def test_through_lint_a_connect_can_run_out_of_time(build, tmp_path, full_backlog_url):
     start = time.monotonic()
-    result = build.run("scglint", ["tsd", config_with_timeout(tmp_path, 0.2), closed_port_url()])
+    result = build.run("scglint", ["tsd", config_with_timeout(tmp_path, 0.2), full_backlog_url])
     took = time.monotonic() - start
     output = result.stdout + result.stderr
 

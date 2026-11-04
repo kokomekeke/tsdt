@@ -556,9 +556,7 @@ namespace Sagax::SCG {
 
             double gap_s = offset_s - previousEnd_s;
             if(merged.parts.empty() || gap_s >= startAhead_s) {
-                MergedTsd::Part part;
-                part.offset_s = offset_s;
-                merged.parts.push_back(std::move(part));
+                merged.parts.push_back(MergedTsd::Part{ offset_s, 0.0, {} });
             }
             else {
                 const Rid &partRid = rids[std::size_t(merged.parts.back().steps.front().iStep)].value();
