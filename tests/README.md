@@ -23,7 +23,7 @@ On linux the same line with the directory that build sits in.
 | `test_commands.py` | commands the server has to refuse, the ones it only accepts, cancelling and TEST_START |
 | `test_stop.py` | INT_STOP, which ends the transmission, and the authorization of the playback |
 | `test_logging.py` | the line the mqtt client writes for every message it sends and reads, and `log_mqtt` turning it off |
-| `test_schedule.py` | the overlap rule and the recording queue rule |
+| `test_schedule.py` | the overlap rule, the order of the recordings and the playbacks they wait for |
 | `test_preparation.py` | the directory a test is prepared into, recorded and live spoofers, and the playback |
 | `test_parts.py` | a tsd cut into parts by its gaps, the order they play in, the status times and the summary in the log |
 | `test_persistence.py` | tests that are saved and restored when the server starts again |

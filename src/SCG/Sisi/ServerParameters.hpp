@@ -10,7 +10,7 @@ namespace Sagax::SCG {
     inline constexpr std::chrono::milliseconds scheduleTick{50};
 
     // the radio monitor reads the temperatures this often
-    inline constexpr std::chrono::milliseconds radioMonitorTick{1000};
+    inline constexpr std::chrono::milliseconds radioMonitorTick{3000};
 
     // how late a wait may end, see WaitUntil
     inline constexpr std::chrono::milliseconds schedulePrecision{5};

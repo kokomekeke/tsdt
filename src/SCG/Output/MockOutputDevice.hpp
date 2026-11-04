@@ -17,10 +17,12 @@ namespace Sagax::SCG {
     // a block is the same size
     inline constexpr std::size_t mockBufferSizeSidekiq = 2 * ((16384 - 2048) / 2);
 
-    // stands in for a radio when the server is configured without hardware. it tracks the
-    // level of the transmit buffer as a sample count, never the samples, and takes a
-    // block once there is room for it, so the pipeline runs up to one buffer ahead.
-    // the buffer starts to drain at the time of the first block
+    // stands in for a radio when the server is configured without hardware, like a timed
+    // stream. every sample has a time, the time of the first block and the number of
+    // samples since. the buffer is a sample count, never the samples. it takes blocks until
+    // it is full and holds them until their time, so before the start time it fills up and
+    // after it the pipeline runs up to one buffer ahead. the samples of a block whose time
+    // has passed when the block comes are dropped and counted, the stream does not move
     struct MockOutputDevice : public OutputDevice {
         std::string serial;
         double sampleRate;
@@ -29,11 +31,11 @@ namespace Sagax::SCG {
         std::size_t bufferSize = 0; // 0 paces each block on its own
 
         std::chrono::steady_clock::time_point streamStart;
-        std::size_t nSamplesTotal = 0;
-        std::size_t nSamplesGap = 0; // clocked out with the buffer empty
+        std::size_t nSamplesTotal = 0; // taken, the dropped ones included
+        std::size_t nSamplesDropped = 0;
         std::size_t nSamplesLogged = 0;
         std::size_t nBlocksLogged = 0;
-        std::size_t nSamplesGapLogged = 0;
+        std::size_t nSamplesDroppedLogged = 0;
         bool inUnderflow = false;
 
         void Start() override;

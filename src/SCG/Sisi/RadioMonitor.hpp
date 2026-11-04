@@ -19,7 +19,9 @@ namespace Sagax::SCG {
     // it sets the gain updates at their times, at most radioMonitorPrecision late
     // every radioMonitorTick it reads the temperature of every radio. the radios are not ready
     // from the moment one is at or above its upper temperature until each one that was has
-    // been read below its lower temperature. a failed read keeps the state of the radio
+    // been read below its lower temperature. a radio read at or above its lower temperature
+    // after a read below it gets a warning, taken with TakeWarnings. a failed read keeps the
+    // state of the radio
     // a radio without a device (mock_radios) only logs its updates and is never hot
     // mtx guards the radios and the updates and is held while a device is called, so once
     // SetGainUpdates has returned no update of the list before it is being set
@@ -35,6 +37,7 @@ namespace Sagax::SCG {
             double upperTemperature_celsius;
             double lowerTemperature_celsius;
             double temperature_celsius;
+            bool warm; // at or above the lower temperature
             bool hot;
         };
 
@@ -46,6 +49,7 @@ namespace Sagax::SCG {
         // ordered by time, the ones before iNextGainUpdate are set
         std::vector<TsdScenario::GainUpdate> gainUpdates;
         std::size_t iNextGainUpdate = 0;
+        std::vector<std::string> warnings;
         std::future<void> task;
 
         void Run();
@@ -65,6 +69,8 @@ namespace Sagax::SCG {
         void SetGainUpdates(std::vector<TsdScenario::GainUpdate> updates);
         // hotRadios lists the radios that keep them from being ready, with their last temperature
         bool RadiosReady(std::string &hotRadios);
+        // the warnings since the last call
+        std::vector<std::string> TakeWarnings();
     };
 
 }

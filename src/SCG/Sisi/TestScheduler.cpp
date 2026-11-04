@@ -211,27 +211,66 @@ namespace Sagax::SCG {
         return {};
     }
 
-    // every preparation has to finish before the earliest playback, a running one is
-    // counted whole
-    CommandError TestScheduler::CheckPreparationQueue(const ScheduledTest &test, double work) {
+    // the preparations run one at a time in the order the tests start, from now on. a
+    // preparation waits for every playback it would run into, which is that of the active
+    // test, of a ready test and of a test prepared before it, like DueForPreparation does.
+    // every preparation has to end before the start_ahead of its test. a running
+    // preparation is counted whole
+    CommandError TestScheduler::CheckPreparationQueue(const ScheduledTest &test) {
         auto startAhead = Seconds(config.startAhead_s);
+        auto free = std::chrono::system_clock::now();
 
-        auto earliest = test.time - startAhead;
+        std::vector<const ScheduledTest *> queue{ &test };
         for(auto &t : tests) {
-            if(t->state == ScheduledTest::State::pending || t->state == ScheduledTest::State::preparing) {
-                work += JobEstimate_s(*t);
+            if(t->state == ScheduledTest::State::done || t->state == ScheduledTest::State::failed) {
+                continue;
             }
-            earliest = std::min(earliest, t->time - startAhead);
+            if(t->state == ScheduledTest::State::preparing) {
+                free += Seconds(JobEstimate_s(*t));
+            }
+            queue.push_back(t.get());
         }
+        std::sort(queue.begin(), queue.end(), [](const ScheduledTest *a, const ScheduledTest *b) {
+            return a->time < b->time;
+        });
 
-        auto queueEnd = std::chrono::system_clock::now() + Seconds(work);
-        if(queueEnd > earliest) {
-            double late_s = std::chrono::duration<double>(queueEnd - earliest).count();
-            return std::format(
-                "test \"{}\" cannot be prepared in time, the preparation queue would still be running "
-                "{:.1f} s after the first playback starts",
-                test.testId, late_s
-            );
+        for(std::size_t i = 0; i < queue.size(); ++i) {
+            const ScheduledTest &p = *queue[i];
+            if(p.state != ScheduledTest::State::pending) {
+                continue;
+            }
+            auto work = Seconds(JobEstimate_s(p));
+            bool moved = true;
+            while(moved) {
+                moved = false;
+                for(std::size_t j = 0; j < queue.size(); ++j) {
+                    const ScheduledTest &b = *queue[j];
+                    if(j == i || (j > i && b.state == ScheduledTest::State::pending)) {
+                        continue;
+                    }
+                    if(b.time - startAhead < free + work && b.end > free) {
+                        free = b.end;
+                        moved = true;
+                    }
+                }
+            }
+            free += work;
+
+            if(free > p.time - startAhead) {
+                double late_s = std::chrono::duration<double>(free - (p.time - startAhead)).count();
+                if(&p == &test) {
+                    return std::format(
+                        "test \"{}\" cannot be prepared in time, its preparation would end {:.1f} s after "
+                        "its playback starts",
+                        test.testId, late_s
+                    );
+                }
+                return std::format(
+                    "test \"{}\" would delay the preparation of test \"{}\", which would end {:.1f} s after "
+                    "its playback starts",
+                    test.testId, p.testId, late_s
+                );
+            }
         }
         return {};
     }
@@ -270,12 +309,8 @@ namespace Sagax::SCG {
         test->gnss.ephemerisFile = config.gnssEphemerisFile;
         test->state = state;
 
-        double work = 0.0;
-        if(state == ScheduledTest::State::pending) {
-            work = JobEstimate_s(*test);
-        }
         SCG_CHECK(CheckOverlap(*test));
-        SCG_CHECK(CheckPreparationQueue(*test, work));
+        SCG_CHECK(CheckPreparationQueue(*test));
 
         out = std::move(test);
         return {};
@@ -442,7 +477,7 @@ namespace Sagax::SCG {
         return nullptr;
     }
 
-    ScheduledTest *TestScheduler::DueForPreparation() {
+    ScheduledTest *TestScheduler::DueForPreparation(std::chrono::system_clock::time_point now) {
         if(Active() != nullptr) {
             return nullptr;
         }
@@ -450,6 +485,16 @@ namespace Sagax::SCG {
         for(auto &t : tests) {
             if(t->state == ScheduledTest::State::pending && (first == nullptr || t->time < first->time)) {
                 first = t.get();
+            }
+        }
+        if(first == nullptr) {
+            return nullptr;
+        }
+        auto end = now + Seconds(JobEstimate_s(*first));
+        auto startAhead = Seconds(config.startAhead_s);
+        for(auto &t : tests) {
+            if(t->state == ScheduledTest::State::ready && t->time - startAhead < end) {
+                return nullptr;
             }
         }
         return first;

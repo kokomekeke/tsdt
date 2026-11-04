@@ -445,6 +445,10 @@ namespace Sagax::SCG::Server {
             std::unique_lock lck(mtx);
             radiosTurnedNotReady = false;
         }
+        ScheduledTest *test = scheduler.Active();
+        for(const std::string &warning : radioMonitor.TakeWarnings()) {
+            PublishLog(SessionLogMessage::Severity::warning, test == nullptr ? std::nullopt : std::optional(test->testId), warning);
+        }
         std::string hotRadios;
         bool ready = radioMonitor.RadiosReady(hotRadios);
         if(ready == radiosReady) {
@@ -455,7 +459,6 @@ namespace Sagax::SCG::Server {
             Common::Logger::Info(lh, "the radios are ready again");
             return;
         }
-        ScheduledTest *test = scheduler.Active();
         std::optional<std::size_t> stoppedPart = playingPart;
         if(stoppedPart.has_value()) {
             StopPipeline();
@@ -487,7 +490,7 @@ namespace Sagax::SCG::Server {
             Common::Logger::Info(lh, "playback started: {}", test->testId);
             UpdatePlayback(*test, now);
         }
-        if(ScheduledTest *test = scheduler.DueForPreparation()) {
+        if(ScheduledTest *test = scheduler.DueForPreparation(now)) {
             StartPreparation(*test);
         }
         scheduler.EraseFinished();

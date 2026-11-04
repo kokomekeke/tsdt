@@ -20,6 +20,7 @@ namespace Sagax::SCG {
         for(auto &radioConfig : config.radios) {
             Radio radio;
             radio.temperature_celsius = 0.0;
+            radio.warm = false;
             radio.hot = false;
             if([[maybe_unused]] auto *usrpConfig = std::get_if<ServerConfig::Radio::UsrpB200>(&radioConfig.variant)) {
                 radio.upperTemperature_celsius = usrpUpperTemperature_celsius;
@@ -48,6 +49,7 @@ namespace Sagax::SCG {
         }
         gainUpdates.clear();
         iNextGainUpdate = 0;
+        warnings.clear();
         running = true;
         task = threadPool.Dispatch(true, [this]() {
             try {
@@ -90,6 +92,11 @@ namespace Sagax::SCG {
             }
         }
         return hotRadios.empty();
+    }
+
+    std::vector<std::string> RadioMonitor::TakeWarnings() {
+        std::unique_lock lck(mtx);
+        return std::exchange(warnings, {});
     }
 
     // a temperature check that is due goes before a gain update that is due
@@ -196,6 +203,16 @@ namespace Sagax::SCG {
                 continue;
             }
             radio.temperature_celsius = temperature_celsius.value();
+            if(!radio.warm && radio.temperature_celsius >= radio.lowerTemperature_celsius) {
+                radio.warm = true;
+                warnings.push_back(std::format(
+                    "radio {} is at {:.1f} C, at or above {:.1f} C, the radios are stopped at {:.1f} C",
+                    id, radio.temperature_celsius, radio.lowerTemperature_celsius, radio.upperTemperature_celsius
+                ));
+            }
+            else if(radio.warm && radio.temperature_celsius < radio.lowerTemperature_celsius) {
+                radio.warm = false;
+            }
             if(!radio.hot && radio.temperature_celsius >= radio.upperTemperature_celsius) {
                 radio.hot = true;
                 Common::Logger::Warn(lh, "radio {} is at {:.1f} C, at or above {:.1f} C", id, radio.temperature_celsius, radio.upperTemperature_celsius);

@@ -93,8 +93,12 @@ sends arrive in its own output. [mqtt-protocol.md](mqtt-protocol.md) has the mes
 ## What happens to a test
 
 The command is answered at once, with a reason on the error topic if it is refused. The
-warnings of the checks only go to the server log. An accepted test is recorded into `recording_directory` as soon as there is room in the
-queue. The server log gets a summary of the test: its start, every transmission with the
+warnings of the checks only go to the server log. The tests are recorded into
+`recording_directory` one at a time, in the order they start, and never while a test plays.
+A recording that would not end before the next playback waits until that playback is over.
+A test is refused when its own recording, or that of a test already accepted, would then
+not end `start_ahead_s` before the start of its test. A test can be set up while another
+one is recorded or plays. The server log gets a summary of the test: its start, every transmission with the
 rids it plays, every gap, and its end. The pipeline of a part starts `start_ahead_s` before
 the part with its output held back until the exact moment, and until the test is
 authorized with TEST_START. A test that is not authorized by its start time fails. The

@@ -9,10 +9,10 @@ namespace Sagax::SCG {
 
     void MockOutputDevice::Start() {
         nSamplesTotal = 0;
-        nSamplesGap = 0;
+        nSamplesDropped = 0;
         nSamplesLogged = 0;
         nBlocksLogged = 0;
-        nSamplesGapLogged = 0;
+        nSamplesDroppedLogged = 0;
         inUnderflow = false;
 
         std::string centerList;
@@ -29,12 +29,12 @@ namespace Sagax::SCG {
     void MockOutputDevice::Stop() {
         Common::Logger::Info(
             "mock radio {} stopped, {} samples sent, {:.3f} s of stream",
-            serial, nSamplesTotal, double(nSamplesTotal) / sampleRate
+            serial, nSamplesTotal - nSamplesDropped, double(nSamplesTotal) / sampleRate
         );
-        if(nSamplesGap > 0) {
+        if(nSamplesDropped > 0) {
             Common::Logger::Warn(
-                "mock radio {} ran dry for {} samples, {:.3f} ms of the stream",
-                serial, nSamplesGap, double(nSamplesGap) / sampleRate * 1.0e3
+                "mock radio {} dropped {} late samples, {:.3f} ms of the stream",
+                serial, nSamplesDropped, double(nSamplesDropped) / sampleRate * 1.0e3
             );
         }
     }
@@ -48,25 +48,23 @@ namespace Sagax::SCG {
             }
         }
 
-        // taken over the whole stream, so the rounding of a sleep does not add up. the
-        // gap is counted in, so an underflow does not move the stream later
-        double elapsed_s = std::chrono::duration<double>(
+        // the position of the sample sent now, negative before the start time. taken over
+        // the whole stream, so the rounding of a sleep does not add up
+        double position = std::chrono::duration<double>(
             std::chrono::steady_clock::now() - streamStart
-        ).count();
-        double level = double(nSamplesTotal + nSamplesGap) - elapsed_s * sampleRate;
+        ).count() * sampleRate;
 
-        if(level < 0.0) {
-            std::size_t nMissing = std::size_t(-level);
-            level = 0.0;
-            nSamplesGap += nMissing;
-            nSamplesGapLogged += nMissing;
+        std::size_t nLate = std::size_t(std::clamp(position - double(nSamplesTotal), 0.0, double(nSamples)));
+        if(nLate > 0) {
+            nSamplesDropped += nLate;
+            nSamplesDroppedLogged += nLate;
             if(!inUnderflow) {
                 inUnderflow = true;
                 Common::Logger::Warn(
-                    "mock radio {} buffer underflow at {:.3f} s, {:.3f} ms of samples missing",
+                    "mock radio {} buffer underflow at {:.3f} s, {:.3f} ms of samples dropped",
                     serial,
                     double(nSamplesTotal) / sampleRate,
-                    double(nMissing) / sampleRate * 1.0e3
+                    double(nLate) / sampleRate * 1.0e3
                 );
             }
         }
@@ -74,17 +72,16 @@ namespace Sagax::SCG {
             inUnderflow = false;
         }
 
-        double room = double(bufferSize) - level;
-        if(double(nSamples) > room) {
+        // the buffer drains from the start time on, the block is taken once it fits
+        double level = std::max(double(nSamplesTotal + nSamples) - std::max(position, 0.0), 0.0);
+        if(level > double(bufferSize)) {
             std::this_thread::sleep_for(
                 std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-                    std::chrono::duration<double>((double(nSamples) - room) / sampleRate)
+                    std::chrono::duration<double>((level - double(bufferSize)) / sampleRate)
                 )
             );
-            // the wait ends the moment the block fits exactly
-            level = double(bufferSize) - double(nSamples);
+            level = double(bufferSize);
         }
-        level += double(nSamples);
 
         nSamplesTotal += nSamples;
         nSamplesLogged += nSamples;
@@ -95,30 +92,30 @@ namespace Sagax::SCG {
                 "mock radio {} at {:.3f} s, {} samples sent, {} blocks in the last second, buffer {:.3f} ms",
                 serial,
                 double(nSamplesTotal) / sampleRate,
-                nSamplesTotal,
+                nSamplesTotal - nSamplesDropped,
                 nBlocksLogged,
-                std::max(level, 0.0) / sampleRate * 1.0e3
+                level / sampleRate * 1.0e3
             );
-            if(nSamplesGapLogged > 0) {
+            if(nSamplesDroppedLogged > 0) {
                 Common::Logger::Warn(
-                    "mock radio {} missed {} samples in the last {:.3f} s, {:.3f} ms of the stream",
+                    "mock radio {} dropped {} late samples in the last {:.3f} s, {:.3f} ms of the stream",
                     serial,
-                    nSamplesGapLogged,
+                    nSamplesDroppedLogged,
                     double(nSamplesLogged) / sampleRate,
-                    double(nSamplesGapLogged) / sampleRate * 1.0e3
+                    double(nSamplesDroppedLogged) / sampleRate * 1.0e3
                 );
             }
             nSamplesLogged = 0;
             nBlocksLogged = 0;
-                nSamplesGapLogged = 0;
+            nSamplesDroppedLogged = 0;
         }
     }
 
     void MockOutputDevice::Flush() {
-        double elapsed_s = std::chrono::duration<double>(
+        double position = std::chrono::duration<double>(
             std::chrono::steady_clock::now() - streamStart
-        ).count();
-        double level = double(nSamplesTotal + nSamplesGap) - elapsed_s * sampleRate;
+        ).count() * sampleRate;
+        double level = double(nSamplesTotal) - position;
         if(level > 0.0) {
             std::this_thread::sleep_for(
                 std::chrono::duration_cast<std::chrono::steady_clock::duration>(

@@ -76,7 +76,7 @@ namespace Sagax::SCG {
         CommandError CheckSetup(const CommandMessage::TestSetup &command, std::chrono::system_clock::time_point &time);
         CommandError Accept(const CommandMessage::TestSetup &command);
         CommandError CheckOverlap(const ScheduledTest &test);
-        CommandError CheckPreparationQueue(const ScheduledTest &test, double work);
+        CommandError CheckPreparationQueue(const ScheduledTest &test);
         CommandError CreateTest(
             const CommandMessage::TestSetup &command,
             std::chrono::system_clock::time_point time,
@@ -107,8 +107,9 @@ namespace Sagax::SCG {
         // queries
 
         ScheduledTest *Active();
-        // the pending test that starts first, when no test is active
-        ScheduledTest *DueForPreparation();
+        // the pending test that starts first, when no test is active and its preparation
+        // would end before the start_ahead of every ready test
+        ScheduledTest *DueForPreparation(std::chrono::system_clock::time_point now);
         // the ready test whose start_ahead has come, when no test is active
         ScheduledTest *DueForPlayback(std::chrono::system_clock::time_point now);
         // the next part of the active test, once its start_ahead has come
