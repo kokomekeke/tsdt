@@ -27,5 +27,6 @@ namespace Sagax::SCG {
     inline constexpr std::uint8_t sessionLogQos = 1;
     inline constexpr std::uint8_t testStatusQos = 2;
     inline constexpr std::uint8_t signalStatusQos = 2;
+    inline constexpr std::uint8_t commandQos = 2;
 
 }

@@ -19,7 +19,10 @@ namespace Sagax::SCG {
 
 
     void UsrpB200Device::Init_() {
-        if(dev == nullptr) {
+        if(devPreinit != nullptr) {
+            dev = devPreinit;
+        }
+        else {
             devOwned.reset();
             SSG::UsrpB200::Error error = SSG::UsrpB200::GetDevice(serial, devOwned);
             Common::Assert(error == SSG::UsrpB200::Error::none, std::format("failed to open the usrp b200 device: {}", SSG::UsrpB200::ToString(error)));
@@ -28,7 +31,7 @@ namespace Sagax::SCG {
         Common::Assert(dev, "usrp b200 device was not initialized");
 
         SSG::UsrpB200::DeviceParams params;
-        params.subdevSpec = "A:A";
+        params.subdevSpec = subdevSpec;
         params.nChannels = 1;
         params.sampleRate = sampleRate;
         params.txFreq = center;
@@ -48,9 +51,7 @@ namespace Sagax::SCG {
     }
 
     void UsrpB200Device::Dispose_() {
-        if(dev == devOwned.get()) {
-            devOwned.reset();
-        }
+        devOwned.reset();
         dev = nullptr;
     }
 

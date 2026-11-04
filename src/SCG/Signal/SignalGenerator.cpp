@@ -107,8 +107,9 @@ namespace Sagax::SCG {
     }
 
     void NoiseGenerator::Generate(std::span<SCGSample> buf) {
-        // the psd is over the band of the output
-        double sigma = std::sqrt(psd * sampleRate / 2.0);
+        // the samples are at the rate span, so the noise fills a band of width span with
+        // the density psd
+        double sigma = std::sqrt(psd * span / 2.0);
         for(auto &s : buf) {
             auto z0 = SCGSampleBase(impl->buf[impl->gen() % impl->buf.size()] * sigma);
             auto z1 = SCGSampleBase(impl->buf[impl->gen() % impl->buf.size()] * sigma);

@@ -70,7 +70,7 @@ namespace Sagax::SCG {
             }
             for(std::size_t i = 0; i < scen.signals.size(); ++i) {
                 auto &v = scen.signals[i];
-                if(idxOut.count(v.name)) {
+                if(idxSig.count(v.name)) {
                     res.errors.push_back(std::format("signal[{}]: name already used: {}", i, v.name.c_str()));
                     doCheckEvents = false;
                     continue;

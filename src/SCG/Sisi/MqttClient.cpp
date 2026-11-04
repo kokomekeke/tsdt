@@ -1,6 +1,7 @@
 #include <atomic>
 #include <algorithm>
 #include <chrono>
+#include <condition_variable>
 #include <cstring>
 #include <deque>
 #include <format>
@@ -94,6 +95,10 @@ namespace Sagax::SCG {
         mosquitto *mosq = nullptr;
         std::thread loopThread;
         std::atomic<bool> running{false};
+        // the wait between two connection attempts ends early when running is cleared under
+        // mtxRun
+        std::mutex mtxRun;
+        std::condition_variable cvRun;
 
         Impl() {
         }
@@ -152,7 +157,7 @@ namespace Sagax::SCG {
             }
 
             for(const auto &topic : config.subscribeTopics) {
-                const int subscribeResult = mosquitto_subscribe(mosq, nullptr, topic.c_str(), 0);
+                const int subscribeResult = mosquitto_subscribe(mosq, nullptr, topic.c_str(), config.subscribeQos);
                 if(subscribeResult != MOSQ_ERR_SUCCESS) {
                     Common::Logger::Error("failed to subscribe to {}: {}", topic, mosquitto_strerror(subscribeResult));
                     mosquitto_disconnect(mosq);
@@ -226,7 +231,12 @@ namespace Sagax::SCG {
                 if(!Connect()) {
                     std::int32_t delay = config.reconnectDelays_ms[std::min(attempt, config.reconnectDelays_ms.size() - 1)];
                     Common::Logger::Warn("mqtt connect failed, retrying in {} ms", delay);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<std::int64_t>(delay)));
+                    {
+                        std::unique_lock lck(mtxRun);
+                        cvRun.wait_for(lck, std::chrono::milliseconds(delay), [this]() {
+                            return !running.load();
+                        });
+                    }
                     ++attempt;
                     continue;
                 }
@@ -268,6 +278,7 @@ namespace Sagax::SCG {
             for(const auto &topic : config_.subscribeTopics) {
                 Common::Assert(!topic.empty(), "MqttClient config subscribeTopics contains an empty topic");
             }
+            Common::Assert(config_.subscribeQos <= 2, "MqttClient config subscribeQos must be 0, 1 or 2");
             Common::Assert(!config_.reconnectDelays_ms.empty(), "MqttClient config reconnectDelays_ms must not be empty");
             for(const auto delay : config_.reconnectDelays_ms) {
                 Common::Assert(delay >= 0, "MqttClient config reconnectDelays_ms must be >= 0");
@@ -317,7 +328,11 @@ namespace Sagax::SCG {
         }
 
         void Cleanup() {
-            running.store(false);
+            {
+                std::unique_lock lck(mtxRun);
+                running.store(false);
+            }
+            cvRun.notify_all();
             if(loopThread.joinable()) {
                 loopThread.join();
             }

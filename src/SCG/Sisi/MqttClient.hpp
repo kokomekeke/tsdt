@@ -26,6 +26,8 @@ namespace Sagax::SCG {
             std::int32_t port;
             std::int32_t keepAlive_s;
             std::vector<std::string> subscribeTopics;
+            // the broker sends a message at the lower of this and the qos it was published at
+            std::uint8_t subscribeQos;
             std::string clientId;
             bool logMessages = false;
             std::vector<std::int32_t> reconnectDelays_ms;

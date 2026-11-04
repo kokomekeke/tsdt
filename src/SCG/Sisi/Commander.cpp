@@ -23,6 +23,7 @@
 #include "Common/Logger.hpp"
 #include "SCG/Sisi/Messages.hpp"
 #include "SCG/Sisi/MqttClient.hpp"
+#include "SCG/Sisi/ServerParameters.hpp"
 #include "SCG/Json/Rid.hpp"
 #include "SCG/Json/ServerConfig.hpp"
 #include "SCG/Utility/SignalHandler.hpp"
@@ -293,6 +294,7 @@ namespace Sagax::SCG::Commander {
                 cfg.subscribeTopics.push_back(topic);
             }
         }
+        cfg.subscribeQos = 2;
         cfg.clientId = "Commander";
         cfg.logMessages = true;
         cfg.reconnectDelays_ms = { 1000, 2000, 5000 };
@@ -412,7 +414,7 @@ namespace Sagax::SCG::Commander {
             MqttClient::Message out;
             out.topic = config.mqtt.commandTopic;
             out.bytes.assign(payload.begin(), payload.end());
-            out.qos = 0;
+            out.qos = commandQos;
             out.retain = false;
             client.Push(std::move(out));
 

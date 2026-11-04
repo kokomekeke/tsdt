@@ -64,7 +64,7 @@ namespace Sagax::SCG {
         }
 
         std::span<Item> PullAll() {
-            return Pull(i, i + cnt);
+            return Pull(cnt);
         }
     };
 }

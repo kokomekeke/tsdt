@@ -171,8 +171,9 @@ namespace Sagax::SCG {
                 // str_to_tx_hdl maps these four names, anything else lands on
                 // skiq_tx_hdl_end and the card is handed a port that does not exist
                 static const std::vector<std::string> knownHandlers = { "A1", "A2", "B1", "B2" };
-                if(sk->handlers.empty()) {
-                    res.errors.push_back(std::format("radios[{}]: handlers must not be empty", i));
+                // the sidekiq device of ssg only configures two channels
+                if(sk->handlers.size() != 2) {
+                    res.errors.push_back(std::format("radios[{}]: a sidekiq needs exactly 2 handlers, it has {}", i, sk->handlers.size()));
                 }
                 std::map<std::string, std::size_t> usedHandlers;
                 for(std::size_t h = 0; h < sk->handlers.size(); ++h) {
@@ -248,7 +249,8 @@ namespace Sagax::SCG {
             }
 
             // a sidekiq transmits through the ports named in the config, so the scenario
-            // has to ask for exactly as many channels as that radio has handlers
+            // has to ask for exactly as many channels as that radio has handlers. a usrp b200
+            // is driven on one channel
             if(radioIds.count(radioSetting.radioId) > 0) {
                 const auto &radio = cfg.radios[radioIds[radioSetting.radioId]];
                 if(auto *sk = std::get_if<ServerConfig::Radio::Sidekiq>(&radio.variant)) {
@@ -256,6 +258,13 @@ namespace Sagax::SCG {
                         res.errors.push_back(std::format(
                             "radioSettings[{}]: radio {} has {} handlers configured, but {} channels are requested",
                             i, radioSetting.radioId.c_str(), sk->handlers.size(), radioSetting.nChannels));
+                    }
+                }
+                else if(std::holds_alternative<ServerConfig::Radio::UsrpB200>(radio.variant)) {
+                    if(radioSetting.nChannels != 1) {
+                        res.errors.push_back(std::format(
+                            "radioSettings[{}]: radio {} is a usrp b200 with 1 channel, but {} channels are requested",
+                            i, radioSetting.radioId.c_str(), radioSetting.nChannels));
                     }
                 }
             }

@@ -3,6 +3,7 @@
 What `scgserver` reads on its command topic and what it publishes. The topics are named
 by the config, see [server-config.md](server-config.md). The test status and the signal
 status are published at QoS 2, the session log at QoS 1, all with the retain flag clear.
+The command topic is subscribed at QoS 2, so a command arrives at the QoS it was sent with.
 
 A json key the server does not know is ignored, so a message may carry more than what is
 listed here.
@@ -95,5 +96,5 @@ in its config. A payload over 256 bytes is replaced with
 `[hidden]` to keep the line readable.
 
 ~~~
-mqtt in [cmd/test] qos 1 retain 0 (37 bytes): {"command": "INT_STOP", "extras": {}}
+mqtt in [cmd/test] qos 2 retain 0 (37 bytes): {"command": "INT_STOP", "extras": {}}
 ~~~

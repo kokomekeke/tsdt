@@ -25,7 +25,10 @@ namespace Sagax::SCG {
         // does nothing after the first call
         SSG::Sidekiq::Error error = SSG::Sidekiq::LibraryInit();
         Common::Assert(error == SSG::Sidekiq::Error::none, std::format("failed to initialize the sidekiq library: {}", SSG::Sidekiq::ToString(error)));
-        if(dev == nullptr) {
+        if(devPreinit != nullptr) {
+            dev = devPreinit;
+        }
+        else {
             devOwned.reset();
             error = SSG::Sidekiq::GetDevice(serial, devOwned);
             Common::Assert(error == SSG::Sidekiq::Error::none, std::format("failed to open the sidekiq device: {}", SSG::Sidekiq::ToString(error)));
@@ -70,9 +73,7 @@ namespace Sagax::SCG {
     }
 
     void SidekiqDevice::Dispose_() {
-        if(dev == devOwned.get()) {
-            devOwned.reset();
-        }
+        devOwned.reset();
         dev = nullptr;
     }
 

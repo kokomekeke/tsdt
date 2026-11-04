@@ -56,6 +56,9 @@ namespace Sagax::SCG {
 
             {
                 std::ifstream file(path / "scenario.json");
+                if(!file.is_open()) {
+                    throw std::runtime_error(std::format("could not open {}", (path / "scenario.json").string()));
+                }
                 std::stringstream buffer;
                 buffer << file.rdbuf();
                 Json::JsonIssues issues;

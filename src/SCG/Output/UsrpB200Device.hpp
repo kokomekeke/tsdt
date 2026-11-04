@@ -19,8 +19,11 @@ namespace Sagax::SCG {
         double center;
         double gain;
 
-        std::unique_ptr<SSG::UsrpB200::Device> devOwned; // null if the device is not owned by this
-        SSG::UsrpB200::Device *dev = nullptr; // the pointer that is actually used, it may point to the same as devOwned or another device
+        // a device opened before the pipeline and owned elsewhere, it is kept across Dispose_.
+        // without it Init_ opens devOwned. dev is the one of the two in use from Init_ to Dispose_
+        SSG::UsrpB200::Device *devPreinit = nullptr;
+        std::unique_ptr<SSG::UsrpB200::Device> devOwned;
+        SSG::UsrpB200::Device *dev = nullptr;
 
         std::unique_ptr<SSG::UsrpB200::TxStream> stream;
 

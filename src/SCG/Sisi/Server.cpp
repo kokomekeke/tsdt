@@ -102,6 +102,7 @@ namespace Sagax::SCG::Server {
         mqttConfig.host = config.mqtt.brokerHost;
         mqttConfig.port = config.mqtt.brokerPort;
         mqttConfig.subscribeTopics = { config.mqtt.commandTopic };
+        mqttConfig.subscribeQos = commandQos;
         mqttConfig.keepAlive_s = 60;
         mqttConfig.clientId = "RSG";
         mqttConfig.logMessages = config.logMqtt;
@@ -249,7 +250,7 @@ namespace Sagax::SCG::Server {
         return scheduler.Cancel(command.testId);
     }
 
-    // the test fails and its directory is kept
+    // the test fails and its directory is removed
     CommandError Server::StopTransmission() {
         ScheduledTest *test = scheduler.Active();
         if(test == nullptr) {

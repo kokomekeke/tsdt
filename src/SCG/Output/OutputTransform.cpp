@@ -57,10 +57,9 @@ namespace Sagax::SCG {
                     auto it = u.devices.find(s->serial);
                     if(it == u.devices.end()) {
                         Common::Assert(!u.usePreinitOnly, "device was not preinitialized");
-                        p->dev = nullptr;
                     }
                     else {
-                        p->dev = it->second.get();
+                        p->devPreinit = it->second.get();
                     }
                 }
                 resources.push_back((Resource*)(p.get()));
@@ -94,10 +93,9 @@ namespace Sagax::SCG {
                     auto it = u.devices.find(s->serial);
                     if(it == u.devices.end()) {
                         Common::Assert(!u.usePreinitOnly, "device was not preinitialized");
-                        p->dev = nullptr;
                     }
                     else {
-                        p->dev = it->second.get();
+                        p->devPreinit = it->second.get();
                     }
                 }
                 resources.push_back((Resource*)(p.get()));
