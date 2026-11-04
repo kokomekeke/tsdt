@@ -45,6 +45,11 @@ def test_a_valid_rid_is_accepted(build):
     assert code == EXIT_OK, output
 
 
+def test_a_rid_with_gain_updates_is_accepted(build):
+    code, output = lint(build, ["rid", CONFIG, (DATA / "rid-gain-updates.json").as_uri()])
+    assert code == EXIT_OK, output
+
+
 # name of the file, the text the report has to carry
 BAD_CONFIGS = [
     ("config-invalid.json", "mqtt.broker_host must not be empty"),
@@ -60,6 +65,12 @@ BAD_RIDS = [
     ("rid-negative-duration.json", "globalSettings.duration_s must be positive"),
     ("rid-channel-out-of-range.json", "interferenceSources[0]: channel id out of range: 7"),
     ("rid-source-without-settings.json", "interferenceSources[0]: radio r1 has no radio_settings entry"),
+    ("rid-gain-update-without-settings.json", "gainUpdates[0]: radio r1 has no radio_settings entry"),
+    ("rid-gain-update-channel-out-of-range.json", "gainUpdates[0]: channel id out of range: 7"),
+    ("rid-gain-update-same-channel-twice.json", "gainUpdates[1]: radio r0 channel 0 already has gain updates"),
+    ("rid-gain-update-zero-step.json", "gainUpdates[0]: step_interval_s must be positive"),
+    ("rid-gain-update-past-end.json", "gainUpdates[0]: values[1]: t 0.75 is outside of [0, globalSettings.duration_s 0.5]"),
+    ("rid-gain-update-time-does-not-advance.json", "gainUpdates[0]: values[2]: time does not advance"),
 ]
 
 UNREADABLE = [

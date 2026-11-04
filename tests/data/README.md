@@ -33,6 +33,13 @@ All of them are written against `config.json`.
 | `rid-channel-out-of-range.json` | parses, an interference source sits on channel 7 of a two channel radio |
 | `rid-second-radio-only.json` | valid. gives settings to `r1` alone, which used to make the channel check read past the end of `radio_settings` |
 | `rid-source-without-settings.json` | parses, a source names `r1`, which the config has and this rid never configured |
+| `rid-gain-updates.json` | valid. ramps the gain of both channels of `r0`, one of them starting after the rid does |
+| `rid-gain-update-without-settings.json` | parses, a gain update names `r1`, which this rid never configured |
+| `rid-gain-update-channel-out-of-range.json` | parses, a gain update sits on channel 7 of a two channel radio |
+| `rid-gain-update-same-channel-twice.json` | parses, two gain updates name channel 0 of `r0` |
+| `rid-gain-update-zero-step.json` | parses, `step_interval_s` of a gain update is zero |
+| `rid-gain-update-past-end.json` | parses, a gain update value is set at 0.75 s of a 0.5 s rid |
+| `rid-gain-update-time-does-not-advance.json` | parses, two values of a gain update are set at the same time |
 | `rid-missing-channels.json` | does not parse, the `channels` key is gone |
 | `not-json.json` | does not parse, it is a line of prose |
 
