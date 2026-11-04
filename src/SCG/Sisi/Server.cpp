@@ -29,6 +29,7 @@
 #include "SCG/Sisi/ServerParameters.hpp"
 #include "SCG/Sisi/TsdTransform.hpp"
 #include "SCG/Utility/TimeFormat.hpp"
+#include "SCG/Utility/Uuid.hpp"
 #include "SCG/Utility/WaitUntil.hpp"
 
 #include "Server.hpp"
@@ -184,17 +185,9 @@ namespace Sagax::SCG::Server {
         return !programRunning;
     }
 
-    void Server::Publish(const std::string &topic, const std::string &payload) {
-        MqttClient::Message message;
-        message.bytes.assign(payload.begin(), payload.end());
-        message.qos = 2;
-        message.retain = false;
-        message.topic = topic;
-        client.Push(std::move(message));
-    }
-
-    void Server::PublishPayload(
+    void Server::Publish(
         const std::string &topic,
+        std::uint8_t qos,
         const std::optional<std::string> &payload,
         const Json::JsonIssues &issues
     ) {
@@ -202,24 +195,34 @@ namespace Sagax::SCG::Server {
             Common::Logger::Error(lh, "could not write a message for {}:\n{}", topic, issues.Format());
             return;
         }
-        Publish(topic, payload.value());
+        MqttClient::Message message;
+        message.bytes.assign(payload.value().begin(), payload.value().end());
+        message.qos = qos;
+        message.retain = false;
+        message.topic = topic;
+        client.Push(std::move(message));
     }
 
-    void Server::PublishError(const std::string &text) {
-        Common::Logger::Error(lh, "{}", text.c_str());
-        ErrorMessage message;
+    void Server::PublishLog(
+        SessionLogMessage::Severity severity,
+        const std::optional<std::string> &testId,
+        const std::string &text
+    ) {
+        if(severity == SessionLogMessage::Severity::error) {
+            Common::Logger::Error(lh, "{}", text.c_str());
+        }
+        else {
+            Common::Logger::Warn(lh, "{}", text.c_str());
+        }
+        SessionLogMessage message;
+        message.eventId = GenerateUuid();
+        message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
+        message.sessionId = testId;
+        message.subsystem = SessionLogMessage::Subsystem::rsg;
+        message.severity = severity;
         message.message = text;
         Json::JsonIssues issues;
-        PublishPayload(config.mqtt.errorLogTopic, SerializeErrorMessage(message, issues), issues);
-    }
-
-    void Server::PublishTestStatus(const std::string &testId, TestStatusMessage::TestStatus status, std::chrono::system_clock::time_point time) {
-        TestStatusMessage message;
-        message.timestamp = FormatIsoTime(time);
-        message.testId = testId;
-        message.testStatus = status;
-        Json::JsonIssues issues;
-        PublishPayload(config.mqtt.testLogTopic, SerializeTestStatusMessage(message, issues), issues);
+        Publish(config.mqtt.errorLogTopic, sessionLogQos, SerializeSessionLogMessage(message, issues), issues);
     }
 
     void Server::PublishSignalStatus() {
@@ -235,7 +238,7 @@ namespace Sagax::SCG::Server {
         message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
         message.type = status;
         Json::JsonIssues issues;
-        PublishPayload(config.mqtt.signalLogTopic, SerializeSignalStatusMessage(message, issues), issues);
+        Publish(config.mqtt.signalLogTopic, signalStatusQos, SerializeSignalStatusMessage(message, issues), issues);
     }
 
     CommandError Server::CancelTest(const CommandMessage::TestCancel &command) {
@@ -298,7 +301,7 @@ namespace Sagax::SCG::Server {
     void Server::FinishPreparation(ScheduledTest &test) {
         std::string error = preparation.get();
         if(!error.empty()) {
-            PublishError(std::format("could not prepare test \"{}\": {}", test.testId, error));
+            PublishLog(SessionLogMessage::Severity::error, test.testId, std::format("could not prepare test \"{}\": {}", test.testId, error));
             scheduler.SetFailed(test);
             return;
         }
@@ -329,14 +332,14 @@ namespace Sagax::SCG::Server {
         auto &part = test.scenario.parts[iPart];
 
         if(std::chrono::system_clock::now() >= part.time) {
-            PublishError(std::format("part {} of test \"{}\" missed its starting time", iPart, test.testId));
+            PublishLog(SessionLogMessage::Severity::error, test.testId, std::format("part {} of test \"{}\" missed its starting time", iPart, test.testId));
             scheduler.SetFailed(test);
             return;
         }
 
         std::string hotRadios;
         if(!radioMonitor.RadiosReady(hotRadios)) {
-            PublishError(std::format("part {} of test \"{}\" is not started, the radios are not ready: {}", iPart, test.testId, hotRadios));
+            PublishLog(SessionLogMessage::Severity::error, test.testId, std::format("part {} of test \"{}\" is not started, the radios are not ready: {}", iPart, test.testId, hotRadios));
             scheduler.SetFailed(test);
             return;
         }
@@ -347,7 +350,7 @@ namespace Sagax::SCG::Server {
             ctx.Init();
         }
         catch(const std::exception &e) {
-            PublishError(std::format("could not initialize resources for part {} of test \"{}\": {}", iPart, test.testId, e.what()));
+            PublishLog(SessionLogMessage::Severity::error, test.testId, std::format("could not initialize resources for part {} of test \"{}\": {}", iPart, test.testId, e.what()));
             ctx.Dispose();
             ctx = SCG::ScenarioPipeline{};
             scheduler.SetFailed(test);
@@ -385,7 +388,7 @@ namespace Sagax::SCG::Server {
             }
         }
         catch(const std::exception &e) {
-            PublishError(std::format("error running the pipeline of part {} of test \"{}\": {}", iPart, test.testId, e.what()));
+            PublishLog(SessionLogMessage::Severity::error, test.testId, std::format("error running the pipeline of part {} of test \"{}\": {}", iPart, test.testId, e.what()));
             failed = true;
         }
         ctx.Dispose();
@@ -445,9 +448,9 @@ namespace Sagax::SCG::Server {
         if(stoppedPart.has_value()) {
             StopPipeline();
         }
-        PublishError(std::format("the radios are stopped, they are too hot: {}", hotRadios));
+        PublishLog(SessionLogMessage::Severity::error, test == nullptr ? std::nullopt : std::optional(test->testId), std::format("the radios are stopped, they are too hot: {}", hotRadios));
         if(stoppedPart.has_value()) {
-            PublishError(std::format("part {} of test \"{}\" is stopped, the radios are not ready", stoppedPart.value(), test->testId));
+            PublishLog(SessionLogMessage::Severity::error, test->testId, std::format("part {} of test \"{}\" is stopped, the radios are not ready", stoppedPart.value(), test->testId));
             scheduler.SetFailed(*test);
         }
     }
@@ -511,21 +514,27 @@ namespace Sagax::SCG::Server {
         std::string payload(msg.bytes.begin(), msg.bytes.end());
         CommandMessage cm;
         CommandError error = ReadCommand(payload, cm);
+        SessionLogMessage::Severity severity = SessionLogMessage::Severity::error;
+        std::optional<std::string> testId;
         if(!error.empty()) {
             error = std::format("received [{}]: bad payload: \"{}\": {}", msg.topic, payload, error);
         }
         else if(std::holds_alternative<CommandMessage::TestSetup>(cm.variant)) {
             auto &v = std::get<CommandMessage::TestSetup>(cm.variant);
             Interpreted(msg.topic, "TEST_SETUP");
+            testId = v.testId;
             error = scheduler.Schedule(v);
         }
         else if(std::holds_alternative<CommandMessage::TestCancel>(cm.variant)) {
             auto &v = std::get<CommandMessage::TestCancel>(cm.variant);
             Interpreted(msg.topic, "TEST_CANCEL");
+            severity = SessionLogMessage::Severity::warning;
+            testId = v.testId;
             error = CancelTest(v);
         }
         else if(std::holds_alternative<CommandMessage::IntStop>(cm.variant)) {
             Interpreted(msg.topic, "INT_STOP");
+            severity = SessionLogMessage::Severity::warning;
             error = StopTransmission();
         }
         else if(std::holds_alternative<CommandMessage::IntStart>(cm.variant)) {
@@ -545,7 +554,7 @@ namespace Sagax::SCG::Server {
         }
 
         if(!error.empty()) {
-            PublishError(error);
+            PublishLog(severity, testId, error);
         }
     }
 
@@ -592,10 +601,15 @@ namespace Sagax::SCG::Server {
 
         scheduler.Configure(config, pipelineConfig);
         scheduler.onStatus = [this](const std::string &testId, TestStatusMessage::TestStatus status, std::chrono::system_clock::time_point time) {
-            PublishTestStatus(testId, status, time);
+            TestStatusMessage message;
+            message.timestamp = FormatIsoTime(time);
+            message.testId = testId;
+            message.testStatus = status;
+            Json::JsonIssues issues;
+            Publish(config.mqtt.testLogTopic, testStatusQos, SerializeTestStatusMessage(message, issues), issues);
         };
-        scheduler.onError = [this](const std::string &text) {
-            PublishError(text);
+        scheduler.onError = [this](const std::string &testId, const std::string &text) {
+            PublishLog(SessionLogMessage::Severity::error, testId, text);
         };
 
         try {

@@ -120,6 +120,7 @@ scgLib = static_library(
         'src/SCG/Utility/Fetch.cpp',
         'src/SCG/Utility/SignalHandler.cpp',
         'src/SCG/Utility/TimeFormat.cpp',
+        'src/SCG/Utility/Uuid.cpp',
         'src/SCG/Utility/WaitUntil.cpp',
     ],
     include_directories: [ 'src/' ],

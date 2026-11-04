@@ -30,8 +30,8 @@ namespace Sagax::SCG {
     bool ParseSignalStatusMessage(const std::string &s, SignalStatusMessage &out, Json::JsonIssues &e);
     std::optional<std::string> SerializeSignalStatusMessage(const SignalStatusMessage &t, Json::JsonIssues &e);
 
-    bool ParseErrorMessage(const std::string &s, ErrorMessage &out, Json::JsonIssues &e);
-    std::optional<std::string> SerializeErrorMessage(const ErrorMessage &t, Json::JsonIssues &e);
+    bool ParseSessionLogMessage(const std::string &s, SessionLogMessage &out, Json::JsonIssues &e);
+    std::optional<std::string> SerializeSessionLogMessage(const SessionLogMessage &t, Json::JsonIssues &e);
 
     bool ParseSavedTest(const std::string &s, SavedTest &out, Json::JsonIssues &e);
     std::optional<std::string> SerializeSavedTest(const SavedTest &t, Json::JsonIssues &e);

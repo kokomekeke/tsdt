@@ -66,11 +66,11 @@ def test_a_long_payload_is_hidden(scgserver, tsd_path):
 
 
 def test_the_topic_and_the_quality_of_service_are_in_the_line(scgserver):
-    """the server publishes at qos 2 and reads the command topic at the qos it was sent"""
+    """the server publishes a session log at qos 1 and reads the command topic at the qos it was sent"""
     mark = scgserver.int_stop()
     scgserver.expect_error(mark)
     assert re.search(
-        r"mqtt out \[" + re.escape(scgserver.error_log_topic) + r"\] qos 2 retain 0 \(\d+ bytes\): ",
+        r"mqtt out \[" + re.escape(scgserver.error_log_topic) + r"\] qos 1 retain 0 \(\d+ bytes\): ",
         scgserver.log,
     ), scgserver.log
 

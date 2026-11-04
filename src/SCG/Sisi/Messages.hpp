@@ -1,4 +1,5 @@
 #pragma once
+#include <optional>
 #include <variant>
 #include <string>
 #include <cstdint>
@@ -75,7 +76,27 @@ namespace Sagax::SCG {
         Description description;
     };
 
-    struct ErrorMessage {
+    // TN5-IRD-LOG, an event that is stored with the session
+    struct SessionLogMessage {
+        enum class Subsystem {
+            vdl,
+            gt,
+            rsg,
+            tms,
+            dc
+        };
+        enum class Severity {
+            error,
+            warning,
+            info,
+            debug,
+            trace
+        };
+        std::string eventId; // uuid v4, reused when the same event is sent again
+        std::string timestamp; // iso 8601, utc
+        std::optional<std::string> sessionId; // equal to the test id, omitted when unknown
+        Subsystem subsystem;
+        Severity severity;
         std::string message;
     };
 

@@ -88,14 +88,18 @@ namespace Sagax::SCG::Server {
         SignalStatusMessage::SignalStatus CurrentSignalStatus();
         void ReleaseRadios();
         bool StopRequested();
-        void Publish(const std::string &topic, const std::string &payload);
-        void PublishPayload(
+        void Publish(
             const std::string &topic,
+            std::uint8_t qos,
             const std::optional<std::string> &payload,
             const Json::JsonIssues &issues
         );
-        void PublishError(const std::string &text);
-        void PublishTestStatus(const std::string &testId, TestStatusMessage::TestStatus status, std::chrono::system_clock::time_point time);
+        // test id is the session id of the log message
+        void PublishLog(
+            SessionLogMessage::Severity severity,
+            const std::optional<std::string> &testId,
+            const std::string &text
+        );
         void PublishSignalStatus();
         CommandError CancelTest(const CommandMessage::TestCancel &command);
         CommandError StopTransmission();

@@ -88,7 +88,7 @@ namespace Sagax::SCG {
 
     public:
         std::function<void(const std::string &testId, TestStatusMessage::TestStatus status, std::chrono::system_clock::time_point time)> onStatus;
-        std::function<void(const std::string &text)> onError;
+        std::function<void(const std::string &testId, const std::string &text)> onError;
 
         // pipelineConfig_ has to outlive the tests, their pipelines point into it
         void Configure(const ServerConfig &config_, const PipelineConfig &pipelineConfig_);

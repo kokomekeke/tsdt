@@ -400,7 +400,7 @@ namespace Sagax::SCG {
 
     // test.json may not be readable, the id is the name of the directory
     void TestScheduler::DropSavedTest(const std::string &testId, const std::string &error) {
-        onError(std::format("could not restore test \"{}\": {}", testId, error));
+        onError(testId, std::format("could not restore test \"{}\": {}", testId, error));
         onStatus(testId, TestStatusMessage::TestStatus::TEST_FAILED, std::chrono::system_clock::now());
     }
 
@@ -491,7 +491,7 @@ namespace Sagax::SCG {
     void TestScheduler::FailMissed(std::chrono::system_clock::time_point now) {
         for(auto &t : tests) {
             if((t->state == ScheduledTest::State::pending || t->state == ScheduledTest::State::ready) && now >= t->time) {
-                onError(std::format("test \"{}\" missed its starting time", t->testId));
+                onError(t->testId, std::format("test \"{}\" missed its starting time", t->testId));
                 SetState(*t, ScheduledTest::State::failed, std::chrono::system_clock::now());
             }
         }

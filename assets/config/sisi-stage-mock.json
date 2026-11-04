@@ -29,6 +29,6 @@
         "command_topic": "cmd/tms",
         "signal_log_topic": "tm/sg",
         "test_log_topic": "tm/sg/test",
-        "error_log_topic": "tm/sg"
+        "error_log_topic": "tm/log"
     }
 }

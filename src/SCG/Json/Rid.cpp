@@ -225,9 +225,34 @@ namespace Sagax::SCG {
             }
         };
 
-        struct ErrorMessageJsonParser : Json::JsonObjectParser<ErrorMessage> {
-            ErrorMessageJsonParser() {
-                AddParam(&ErrorMessage::message, Json::JsonPrimitiveParser<std::string>{}, "message");
+        struct SessionLogMessageJsonParser : Json::JsonObjectParser<SessionLogMessage> {
+            struct SubsystemParser : Json::JsonEnumParser<SessionLogMessage::Subsystem> {
+                SubsystemParser() {
+                    AddEnumerator(SessionLogMessage::Subsystem::vdl, "vdl");
+                    AddEnumerator(SessionLogMessage::Subsystem::gt, "gt");
+                    AddEnumerator(SessionLogMessage::Subsystem::rsg, "rsg");
+                    AddEnumerator(SessionLogMessage::Subsystem::tms, "tms");
+                    AddEnumerator(SessionLogMessage::Subsystem::dc, "dc");
+                }
+            };
+
+            struct SeverityParser : Json::JsonEnumParser<SessionLogMessage::Severity> {
+                SeverityParser() {
+                    AddEnumerator(SessionLogMessage::Severity::error, "error");
+                    AddEnumerator(SessionLogMessage::Severity::warning, "warning");
+                    AddEnumerator(SessionLogMessage::Severity::info, "info");
+                    AddEnumerator(SessionLogMessage::Severity::debug, "debug");
+                    AddEnumerator(SessionLogMessage::Severity::trace, "trace");
+                }
+            };
+
+            SessionLogMessageJsonParser() {
+                AddParam(&SessionLogMessage::eventId, Json::JsonPrimitiveParser<std::string>{}, "event_id");
+                AddParam(&SessionLogMessage::timestamp, Json::JsonPrimitiveParser<std::string>{}, "timestamp");
+                AddParamOpt(&SessionLogMessage::sessionId, Json::JsonPrimitiveParser<std::string>{}, "session_id");
+                AddParam(&SessionLogMessage::subsystem, SubsystemParser{}, "subsystem");
+                AddParam(&SessionLogMessage::severity, SeverityParser{}, "severity");
+                AddParam(&SessionLogMessage::message, Json::JsonPrimitiveParser<std::string>{}, "message");
             }
         };
 
@@ -252,7 +277,7 @@ namespace Sagax::SCG {
         CommandMessageJsonParser commandMessageParser;
         TestStatusMessageJsonParser testStatusMessageParser;
         SignalStatusMessageJsonParser signalStatusMessageParser;
-        ErrorMessageJsonParser errorMessageParser;
+        SessionLogMessageJsonParser sessionLogMessageParser;
         SavedTestJsonParser savedTestParser;
 
     }
@@ -306,12 +331,12 @@ namespace Sagax::SCG {
         return Json::SerializeDocument<SignalStatusMessage>(signalStatusMessageParser, t, false, e);
     }
 
-    bool ParseErrorMessage(const std::string &s, ErrorMessage &out, Json::JsonIssues &e) {
-        return Json::ParseDocument<ErrorMessage>(errorMessageParser, s, out, e);
+    bool ParseSessionLogMessage(const std::string &s, SessionLogMessage &out, Json::JsonIssues &e) {
+        return Json::ParseDocument<SessionLogMessage>(sessionLogMessageParser, s, out, e);
     }
 
-    std::optional<std::string> SerializeErrorMessage(const ErrorMessage &t, Json::JsonIssues &e) {
-        return Json::SerializeDocument<ErrorMessage>(errorMessageParser, t, false, e);
+    std::optional<std::string> SerializeSessionLogMessage(const SessionLogMessage &t, Json::JsonIssues &e) {
+        return Json::SerializeDocument<SessionLogMessage>(sessionLogMessageParser, t, false, e);
     }
 
     bool ParseSavedTest(const std::string &s, SavedTest &out, Json::JsonIssues &e) {

@@ -1,5 +1,6 @@
 #pragma once
 #include <chrono>
+#include <cstdint>
 
 namespace Sagax::SCG {
 
@@ -21,5 +22,10 @@ namespace Sagax::SCG {
     inline constexpr double sidekiqLowerTemperature_celsius = 90.0;
     inline constexpr double usrpUpperTemperature_celsius = 100.0;
     inline constexpr double usrpLowerTemperature_celsius = 90.0;
+
+    // mqtt quality of service of the published messages
+    inline constexpr std::uint8_t sessionLogQos = 1;
+    inline constexpr std::uint8_t testStatusQos = 2;
+    inline constexpr std::uint8_t signalStatusQos = 2;
 
 }
