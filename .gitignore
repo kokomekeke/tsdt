@@ -1,6 +1,7 @@
+venv/
+.venv/
 /build*/
 /vcpkg_installed/
-/tools/mqtt_client_mocker/venv
 __pycache__/
 .pytest_cache/
 *.wav
