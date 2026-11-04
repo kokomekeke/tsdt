@@ -91,7 +91,7 @@ namespace Sagax::SCG {
     // measured at 1.8 times real time at 1.92 msps and 1.1 times at 480 ksps. the cost is per
     // satellite and millisecond, not per sample
     double GnssRecordingJob::Estimate_s() const {
-        return duration_s;
+        return prepareRate * duration_s;
     }
 
     void GnssRecordingJob::Run(std::stop_token stop) {

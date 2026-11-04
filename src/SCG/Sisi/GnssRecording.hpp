@@ -12,6 +12,7 @@ namespace Sagax::SCG {
         SignalVariant::GnssSpoofing spoofing;
         double sampleRate_hz;
         double duration_s;
+        double prepareRate;
         std::string fileName;
         // writes silence instead of asking the engine
         bool mock = false;

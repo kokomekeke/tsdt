@@ -5,6 +5,7 @@
     "status_update_period_s": 10.0,
     "start_ahead_s": 2.0,
     "scenario_fetch_timeout_s": 2.0,
+    "gnss_prepare_rate": 1.0,
     "radios": [
         {
             "id": "r0",

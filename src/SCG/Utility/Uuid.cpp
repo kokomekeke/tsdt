@@ -1,13 +1,11 @@
 #include <cstdint>
 #include <format>
-#include <random>
 #include "Uuid.hpp"
 
 namespace Sagax::SCG {
 
     // 122 random bits. the version nibble is 4 and the top two bits of the variant byte are 10
-    std::string GenerateUuid() {
-        thread_local std::mt19937_64 generator{ std::random_device{}() };
+    std::string GenerateUuid(std::mt19937_64 &generator) {
         std::uint64_t high = generator();
         std::uint64_t low = generator();
         high = (high & 0xffffffffffff0fffull) | 0x0000000000004000ull;

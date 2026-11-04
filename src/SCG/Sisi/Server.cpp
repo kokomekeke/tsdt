@@ -216,7 +216,7 @@ namespace Sagax::SCG::Server {
             Common::Logger::Warn(lh, "{}", text.c_str());
         }
         SessionLogMessage message;
-        message.eventId = GenerateUuid();
+        message.eventId = GenerateUuid(randomDevice);
         message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
         message.sessionId = testId;
         message.subsystem = SessionLogMessage::Subsystem::rsg;
