@@ -20,7 +20,7 @@ namespace Sagax::SCG {
             centerList += std::format("{}{:.6f}", i == 0 ? "" : ", ", centers[i] / 1.0e6);
         }
         Common::Logger::Info(
-            "mock radio {} started, {} channels, {:.6f} Msps, centers {} MHz, buffer {} samples ({:.3f} ms)",
+            "mock radio {} started, {} channels, {:.6f}Msps, centers {}MHz, buffer {} samples ({:.3f}ms)",
             serial, nChannels, sampleRate / 1.0e6, centerList,
             bufferSize, double(bufferSize) / sampleRate * 1.0e3
         );
@@ -28,12 +28,12 @@ namespace Sagax::SCG {
 
     void MockOutputDevice::Stop() {
         Common::Logger::Info(
-            "mock radio {} stopped, {} samples sent, {:.3f} s of stream",
+            "mock radio {} stopped, {} samples sent, {:.3f}s of stream",
             serial, nSamplesTotal - nSamplesDropped, double(nSamplesTotal) / sampleRate
         );
         if(nSamplesDropped > 0) {
             Common::Logger::Warn(
-                "mock radio {} dropped {} late samples, {:.3f} ms of the stream",
+                "mock radio {} dropped {} late samples, {:.3f}ms of the stream",
                 serial, nSamplesDropped, double(nSamplesDropped) / sampleRate * 1.0e3
             );
         }
@@ -61,7 +61,7 @@ namespace Sagax::SCG {
             if(!inUnderflow) {
                 inUnderflow = true;
                 Common::Logger::Warn(
-                    "mock radio {} buffer underflow at {:.3f} s, {:.3f} ms of samples dropped",
+                    "mock radio {} buffer underflow at {:.3f}s, {:.3f}ms of samples dropped",
                     serial,
                     double(nSamplesTotal) / sampleRate,
                     double(nLate) / sampleRate * 1.0e3
@@ -89,7 +89,7 @@ namespace Sagax::SCG {
 
         if(double(nSamplesLogged) >= sampleRate) {
             Common::Logger::Info(
-                "mock radio {} at {:.3f} s, {} samples sent, {} blocks in the last second, buffer {:.3f} ms",
+                "mock radio {} at {:.3f}s, {} samples sent, {} blocks in the last second, buffer {:.3f}ms",
                 serial,
                 double(nSamplesTotal) / sampleRate,
                 nSamplesTotal - nSamplesDropped,
@@ -98,7 +98,7 @@ namespace Sagax::SCG {
             );
             if(nSamplesDroppedLogged > 0) {
                 Common::Logger::Warn(
-                    "mock radio {} dropped {} late samples in the last {:.3f} s, {:.3f} ms of the stream",
+                    "mock radio {} dropped {} late samples in the last {:.3f}s, {:.3f}ms of the stream",
                     serial,
                     nSamplesDroppedLogged,
                     double(nSamplesLogged) / sampleRate,

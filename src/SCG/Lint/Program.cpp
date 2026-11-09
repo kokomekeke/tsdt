@@ -194,7 +194,7 @@ namespace Sagax::SCG::Lint {
             }
 
             Common::Logger::Info(
-                "{} step(s), {} part(s), {} s in all",
+                "{} step(s), {} part(s), {}s in all",
                 sources.tsd.steps.size(),
                 merged.parts.size(),
                 merged.duration_s

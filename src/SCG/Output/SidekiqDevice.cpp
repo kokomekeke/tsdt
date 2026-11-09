@@ -98,10 +98,7 @@ namespace Sagax::SCG {
 
     void SidekiqDevice::Stop() {
         if(stream && doLog) {
-            SSG::Sidekiq::TxStats stats;
-            if(stream->ReadStats(stats) == SSG::Sidekiq::Error::none) {
-                Common::Logger::Info("sidekiq {} at stop, dropped samples: {}, late events: {}, underruns: {}", serial, stats.droppedSamples, stats.lateEvents, stats.underruns);
-            }
+            Common::Logger::Info("sidekiq {} stopped", serial);
         }
         stream.reset();
     }
@@ -109,7 +106,7 @@ namespace Sagax::SCG {
     // the rf timestamp counts samples, a time before the sync point is in the past and
     // goes to timestamp 0, the stream drops those samples as late.
     // the stats are read every statsLogInterval and logged if they differ from the last
-    // logged ones, and once more at Stop
+    // logged ones
     void SidekiqDevice::Take(const std::vector<std::span<const SCGSample>> &channels, std::optional<std::chrono::system_clock::time_point> time) {
         Common::Assert(channels.size() == nChannels, "wrong number of channels");
         std::optional<std::uint64_t> timestamp;

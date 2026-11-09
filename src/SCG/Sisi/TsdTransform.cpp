@@ -442,7 +442,7 @@ namespace Sagax::SCG {
                 double duration_s = source.endTime_s - source.startTime_s;
                 if(!v.trajectory.empty() && v.trajectory.back().t < duration_s) {
                     res.warnings.push_back(std::format(
-                        "interferenceSources[{}]: the trajectory ends at {} s but the source runs for {} s, "
+                        "interferenceSources[{}]: the trajectory ends at {}s but the source runs for {}s, "
                         "the position holds at the last waypoint",
                         i, v.trajectory.back().t, duration_s));
                 }
@@ -547,7 +547,7 @@ namespace Sagax::SCG {
 
             if(step.duration_s < rid.globalSettings.duration_s) {
                 return std::format(
-                    "step[{}]: the step is {} s long and the RID it plays is {} s long",
+                    "step[{}]: the step is {}s long and the RID it plays is {}s long",
                     i, step.duration_s, rid.globalSettings.duration_s
                 );
             }
@@ -573,7 +573,7 @@ namespace Sagax::SCG {
                 if(!difference.empty()) {
                     return std::format(
                         "step[{}] does not configure the radios the way step[{}] does, and the gap "
-                        "between them is {} s, shorter than start_ahead_s {} s: {}",
+                        "between them is {}s, shorter than start_ahead_s {}s: {}",
                         i, previousStep, gap_s, startAhead_s, difference
                     );
                 }

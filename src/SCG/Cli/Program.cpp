@@ -173,7 +173,7 @@ namespace Sagax::SCG::Cli {
             Common::Logger::Error("\nerror running pipeline:\n{}", e.what());
             ok = false;
         }
-        Common::Logger::Info("time: {} ms", time_ms);
+        Common::Logger::Info("time: {}ms", time_ms);
         return ok;
     }
 

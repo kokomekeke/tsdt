@@ -70,16 +70,13 @@ namespace Sagax::SCG {
 
     void UsrpB200Device::Stop() {
         if(stream && doLog) {
-            SSG::UsrpB200::TxStats stats;
-            if(stream->ReadStats(stats) == SSG::UsrpB200::Error::none) {
-                Common::Logger::Info("usrp b200 {} at stop, dropped samples: {}, underflows: {}, late packets: {}, sequence errors: {}", serial, stats.droppedSamples, stats.underflowEvents, stats.lateEvents, stats.sequenceErrorEvents);
-            }
+            Common::Logger::Info("usrp b200 {} stopped", serial);
         }
         stream.reset();
     }
 
     // the stats are read every statsLogInterval and logged if they differ from the last
-    // logged ones, and once more at Stop
+    // logged ones
     void UsrpB200Device::Take(const std::vector<std::span<const SCGSample>> &channels, std::optional<std::chrono::system_clock::time_point> time) {
         Common::Assert(channels.size() == 1, "only 1 channel is allowed");
         std::optional<double> deviceTime;

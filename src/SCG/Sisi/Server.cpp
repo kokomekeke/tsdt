@@ -105,7 +105,7 @@ namespace Sagax::SCG::Server {
         auto steady = std::chrono::steady_clock::now();
         auto jump = (system - now) - std::chrono::duration_cast<std::chrono::system_clock::duration>(steady - nowSteady);
         if(jump > clockJumpLimit || jump < -clockJumpLimit) {
-            Common::Logger::Warn(lh, "the system clock jumped by {:.3f} s", std::chrono::duration<double>(jump).count());
+            Common::Logger::Warn(lh, "the system clock jumped by {:.3f}s", std::chrono::duration<double>(jump).count());
         }
         now = system;
         nowSteady = steady;

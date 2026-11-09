@@ -56,8 +56,9 @@ namespace Sagax::SCG {
             return std::string(bytes.begin(), bytes.end());
         }
 
-        void LogMessage(const char *direction, const MqttClient::Message &message) {
+        void LogMessage(const Common::Logger::Handle &lh, const char *direction, const MqttClient::Message &message) {
             Common::Logger::Trace(
+                lh,
                 "mqtt {} [{}] qos {} retain {} ({} bytes): {}",
                 direction,
                 message.topic,
@@ -86,6 +87,7 @@ namespace Sagax::SCG {
     // }
 
     struct MqttClient::Impl {
+        Common::Logger::Handle lh = Common::Logger::Handle("MqttClient");
         bool configValid = false;
         MqttClient::Configuration config;
         MessageQueue messagesIn;
@@ -129,13 +131,13 @@ namespace Sagax::SCG {
             }
 
             if(config.logMessages) {
-                LogMessage("in", message);
+                LogMessage(lh, "in", message);
             }
 
             {
                 std::unique_lock lck(mtxIn);
                 while(messagesIn.Count() >= config.maxQueueSize) {
-                    Common::Logger::Warn("input queue overflow");
+                    Common::Logger::Warn(lh, "input queue overflow");
                     messagesIn.Drop();
                 }
                 messagesIn.Push(std::move(message));
@@ -149,22 +151,22 @@ namespace Sagax::SCG {
         bool Connect() {
             const int connectResult = mosquitto_connect(mosq, config.host.c_str(), static_cast<int>(config.port), static_cast<int>(config.keepAlive_s));
             if(connectResult != MOSQ_ERR_SUCCESS) {
-                Common::Logger::Error("failed to connect to {}:{}: {}", config.host, config.port, mosquitto_strerror(connectResult));
+                Common::Logger::Error(lh, "failed to connect to {}:{}: {}", config.host, config.port, mosquitto_strerror(connectResult));
                 return false;
             }
             else {
-                Common::Logger::Info("connected to {}:{}", config.host, config.port);
+                Common::Logger::Info(lh, "connected to {}:{}", config.host, config.port);
             }
 
             for(const auto &topic : config.subscribeTopics) {
                 const int subscribeResult = mosquitto_subscribe(mosq, nullptr, topic.c_str(), config.subscribeQos);
                 if(subscribeResult != MOSQ_ERR_SUCCESS) {
-                    Common::Logger::Error("failed to subscribe to {}: {}", topic, mosquitto_strerror(subscribeResult));
+                    Common::Logger::Error(lh, "failed to subscribe to {}: {}", topic, mosquitto_strerror(subscribeResult));
                     mosquitto_disconnect(mosq);
                     return false;
                 }
                 else {
-                    Common::Logger::Info("subscribed to [{}]", topic.c_str());
+                    Common::Logger::Info(lh, "subscribed to [{}]", topic.c_str());
                 }
             }
 
@@ -193,12 +195,12 @@ namespace Sagax::SCG {
                 );
 
                 if(publishResult != MOSQ_ERR_SUCCESS) {
-                    Common::Logger::Error("failed to publish to {}: {}", message.topic, mosquitto_strerror(publishResult));
+                    Common::Logger::Error(lh, "failed to publish to {}: {}", message.topic, mosquitto_strerror(publishResult));
                     continue;
                 }
 
                 if(config.logMessages) {
-                    LogMessage("out", message);
+                    LogMessage(lh, "out", message);
                 }
 
                 if(config.onUpdate) {
@@ -215,7 +217,7 @@ namespace Sagax::SCG {
         void Push(MqttClient::Message message) {
             std::unique_lock lck(mtxOut);
             while(messagesOut.Count() >= config.maxQueueSize) {
-                Common::Logger::Warn("output queue overflow");
+                Common::Logger::Warn(lh, "output queue overflow");
                 messagesOut.Drop();
             }
             messagesOut.Push(std::move(message));
@@ -230,7 +232,7 @@ namespace Sagax::SCG {
 
                 if(!Connect()) {
                     std::int32_t delay = config.reconnectDelays_ms[std::min(attempt, config.reconnectDelays_ms.size() - 1)];
-                    Common::Logger::Warn("mqtt connect failed, retrying in {} ms", delay);
+                    Common::Logger::Warn(lh, "mqtt connect failed, retrying in {}ms", delay);
                     {
                         std::unique_lock lck(mtxRun);
                         cvRun.wait_for(lck, std::chrono::milliseconds(delay), [this]() {
@@ -253,11 +255,11 @@ namespace Sagax::SCG {
                         continue;
                     }
                     else if(loopResult == MOSQ_ERR_NO_CONN) {
-                        Common::Logger::Warn("mqtt disconnected: {}", mosquitto_strerror(loopResult));
+                        Common::Logger::Warn(lh, "mqtt disconnected: {}", mosquitto_strerror(loopResult));
                         break;
                     }
                     else {
-                        Common::Logger::Warn("mosquitto loop error: {}", mosquitto_strerror(loopResult));
+                        Common::Logger::Warn(lh, "mosquitto loop error: {}", mosquitto_strerror(loopResult));
                         break;
                     }
                 }
@@ -298,7 +300,7 @@ namespace Sagax::SCG {
             const char *clientId = config.clientId.empty() ? nullptr : config.clientId.c_str();
             mosq = mosquitto_new(clientId, true, this);
             if(mosq == nullptr) {
-                Common::Logger::Error("failed to create the mosquitto client");
+                Common::Logger::Error(lh, "failed to create the mosquitto client");
                 Cleanup();
                 return;
             }
@@ -312,7 +314,7 @@ namespace Sagax::SCG {
                     RunLoop();
                 }
                 catch(const std::exception &e) {
-                    Common::Logger::Error("mqtt loop stopped: {}", e.what());
+                    Common::Logger::Error(lh, "mqtt loop stopped: {}", e.what());
                 }
                 running.store(false);
             });

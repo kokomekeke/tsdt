@@ -207,7 +207,7 @@ namespace Sagax::SCG {
                     std::min(test.end, t->end) - std::max(begin, otherBegin)
                 ).count();
                 return std::format(
-                    "test \"{}\" overlaps test \"{}\" by {:.1f} s",
+                    "test \"{}\" overlaps test \"{}\" by {:.1f}s",
                     test.testId, t->testId, overlap_s
                 );
             }
@@ -264,13 +264,13 @@ namespace Sagax::SCG {
                 double late_s = std::chrono::duration<double>(free - (p.time - startAhead)).count();
                 if(&p == &test) {
                     return std::format(
-                        "test \"{}\" cannot be prepared in time, its preparation would end {:.1f} s after "
+                        "test \"{}\" cannot be prepared in time, its preparation would end {:.1f}s after "
                         "its playback starts",
                         test.testId, late_s
                     );
                 }
                 return std::format(
-                    "test \"{}\" would delay the preparation of test \"{}\", which would end {:.1f} s after "
+                    "test \"{}\" would delay the preparation of test \"{}\", which would end {:.1f}s after "
                     "its playback starts",
                     test.testId, p.testId, late_s
                 );

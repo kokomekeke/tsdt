@@ -109,7 +109,7 @@ def test_tests_play_in_turn_around_a_refusal_a_cancel_and_a_missing_start(server
     instance.cancel("d")
     instance.setup(url, test_id="d", seconds_ahead=21)
 
-    assert wait_until(lambda: statuses(instance, "d")[-1:] == ["TEST_FAILED"], timeout=40.0), timeline(instance)
+    assert wait_until(lambda: statuses(instance, "d").count("TEST_INIT") == 2 and statuses(instance, "d")[-1:] == ["TEST_FAILED"], timeout=40.0), timeline(instance)
 
     assert statuses(instance, "a") == PLAYED, timeline(instance)
     assert statuses(instance, "b") == PLAYED, timeline(instance)

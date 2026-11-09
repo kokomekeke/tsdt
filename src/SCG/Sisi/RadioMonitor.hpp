@@ -4,6 +4,7 @@
 #include <future>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 #include "Common/Logger.hpp"
@@ -22,7 +23,8 @@ namespace Sagax::SCG {
     // been read below its lower temperature. a radio read at or above its lower temperature
     // after a read below it gets a warning, taken with TakeWarnings. a failed read keeps the
     // state of the radio
-    // the temperatures read are logged about every radioTemperatureLogInterval
+    // the temperatures read are logged about every radioTemperatureLogInterval, the ones that
+    // changed by radioTemperatureLogChange_celsius since they were logged
     // a radio without a device (mock_radios) only logs its updates and is never hot
     // mtx guards the radios and the updates and is held while a device is called, so once
     // SetGainUpdates has returned no update of the list before it is being set
@@ -41,6 +43,7 @@ namespace Sagax::SCG {
             bool warm; // at or above the lower temperature
             bool hot;
             double hotTemperature_celsius; // the read that made the radio hot
+            std::optional<double> loggedTemperature_celsius;
         };
 
         Common::Logger::Handle lh = Common::Logger::Handle("RadioMonitor");

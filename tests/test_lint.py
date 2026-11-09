@@ -177,7 +177,7 @@ def test_a_valid_tsd_is_accepted(build, tmp_path):
     tsd = write_tsd(tmp_path / "tsd.json", [(1.0, rid.as_uri())])
     code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
     assert code == EXIT_OK, output
-    assert "1 step(s), 1 part(s), 1 s in all" in output, output
+    assert "1 step(s), 1 part(s), 1s in all" in output, output
 
 
 def test_the_steps_are_laid_end_to_end(build, tmp_path):
@@ -189,7 +189,7 @@ def test_the_steps_are_laid_end_to_end(build, tmp_path):
     )
     code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
     assert code == EXIT_OK, output
-    assert "3 step(s), 1 part(s), 3 s in all" in output, output
+    assert "3 step(s), 1 part(s), 3s in all" in output, output
 
 
 def test_a_step_without_an_interference_only_adds_time(build, tmp_path):
@@ -197,7 +197,7 @@ def test_a_step_without_an_interference_only_adds_time(build, tmp_path):
     tsd = write_tsd(tmp_path / "tsd.json", [(1.0, rid.as_uri()), (2.0, None)])
     code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
     assert code == EXIT_OK, output
-    assert "2 step(s), 1 part(s), 3 s in all" in output, output
+    assert "2 step(s), 1 part(s), 3s in all" in output, output
 
 
 def test_a_step_longer_than_its_rid_is_accepted(build, tmp_path):
@@ -206,7 +206,7 @@ def test_a_step_longer_than_its_rid_is_accepted(build, tmp_path):
     tsd = write_tsd(tmp_path / "tsd.json", [(4.0, rid.as_uri())])
     code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
     assert code == EXIT_OK, output
-    assert "4 s in all" in output, output
+    assert "4s in all" in output, output
 
 
 def test_a_step_shorter_than_its_rid_is_reported(build, tmp_path):
@@ -215,7 +215,7 @@ def test_a_step_shorter_than_its_rid_is_reported(build, tmp_path):
     code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
     assert code == EXIT_INVALID, output
     assert "step[0]" in output, output
-    assert "the step is 1 s long and the RID it plays is 2 s long" in output, output
+    assert "the step is 1s long and the RID it plays is 2s long" in output, output
 
 
 def test_steps_that_configure_the_radios_differently_are_reported(build, tmp_path):
@@ -226,7 +226,7 @@ def test_steps_that_configure_the_radios_differently_are_reported(build, tmp_pat
     code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
     assert code == EXIT_INVALID, output
     assert "step[1] does not configure the radios the way step[0] does" in output, output
-    assert "the gap between them is 0 s, shorter than start_ahead_s 2 s" in output, output
+    assert "the gap between them is 0s, shorter than start_ahead_s 2s" in output, output
     assert "bandwidth_hz" in output, output
 
 
@@ -240,7 +240,7 @@ def test_steps_that_configure_the_radios_differently_play_apart_after_a_gap(buil
     )
     code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
     assert code == EXIT_OK, output
-    assert "3 step(s), 2 part(s), 4 s in all" in output, output
+    assert "3 step(s), 2 part(s), 4s in all" in output, output
 
 
 def test_the_gap_starts_at_the_end_of_the_rid(build, tmp_path):
@@ -250,7 +250,7 @@ def test_the_gap_starts_at_the_end_of_the_rid(build, tmp_path):
     tsd = write_tsd(tmp_path / "tsd.json", [(3.0, first.as_uri()), (1.0, second.as_uri())])
     code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
     assert code == EXIT_OK, output
-    assert "2 step(s), 2 part(s), 4 s in all" in output, output
+    assert "2 step(s), 2 part(s), 4s in all" in output, output
 
 
 def test_a_gap_shorter_than_start_ahead_merges_the_rids(build, tmp_path):
@@ -258,7 +258,7 @@ def test_a_gap_shorter_than_start_ahead_merges_the_rids(build, tmp_path):
     tsd = write_tsd(tmp_path / "tsd.json", [(1.0, rid.as_uri()), (1.5, None), (1.0, rid.as_uri())])
     code, output = lint(build, ["tsd", CONFIG, tsd.as_uri()])
     assert code == EXIT_OK, output
-    assert "3 step(s), 1 part(s), 3.5 s in all" in output, output
+    assert "3 step(s), 1 part(s), 3.5s in all" in output, output
 
 
 def test_steps_naming_different_radios_are_reported(build, tmp_path):

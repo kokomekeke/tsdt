@@ -11,7 +11,7 @@ import time
 from helpers.rid import make_rid
 from helpers.tsd import write_tsd
 
-GAIN_LINE = re.compile(r"radio (\w+) ch(\d+): no device, gain (\S+) dB, (\S+) ms late")
+GAIN_LINE = re.compile(r"radio (\w+) ch(\d+): no device, gain (\S+)dB, (\S+)ms late")
 
 
 def write_rid_with_gain(path, duration_s, gains_db, step_interval_s, values):
@@ -98,7 +98,7 @@ def test_a_stop_drops_the_updates_that_are_left(server, tmp_path):
     rid = write_rid_with_gain(tmp_path / "long.json", 20.0, [10.0, 10.0], 1.0, [(0.0, 10.0), (20.0, 30.0)])
     tsd = write_tsd(tmp_path / "long-tsd.json", [(20.0, rid.as_uri())])
     instance = play(server, tsd, "stopped")
-    assert instance.wait_for_log("radio r0 ch0: no device, gain 11 dB", timeout=10.0), instance.log
+    assert instance.wait_for_log("radio r0 ch0: no device, gain 11dB", timeout=10.0), instance.log
 
     instance.int_stop()
     assert instance.wait_for_log("playback stopped: stopped"), instance.log

@@ -12,8 +12,10 @@ namespace Sagax::SCG {
     // the radio monitor reads the temperatures this often
     inline constexpr std::chrono::milliseconds radioMonitorTick{3000};
     // the radio monitor logs the temperatures at the first read at or after each multiple of
-    // this interval
+    // this interval, each radio only if it is the first read of the radio or the temperature
+    // is at least this far from the last one logged for it
     inline constexpr std::chrono::milliseconds radioTemperatureLogInterval{10000};
+    inline constexpr double radioTemperatureLogChange_celsius = 3.0;
 
     // the radio outputs check their stream stats this often and log them if they changed
     inline constexpr std::chrono::milliseconds radioLogInterval{5000};
