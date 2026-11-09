@@ -22,6 +22,7 @@ namespace Sagax::SCG {
             radio.temperature_celsius = 0.0;
             radio.warm = false;
             radio.hot = false;
+            radio.hotTemperature_celsius = 0.0;
             if([[maybe_unused]] auto *usrpConfig = std::get_if<ServerConfig::Radio::UsrpB200>(&radioConfig.variant)) {
                 radio.upperTemperature_celsius = usrpUpperTemperature_celsius;
                 radio.lowerTemperature_celsius = usrpLowerTemperature_celsius;
@@ -88,7 +89,7 @@ namespace Sagax::SCG {
         hotRadios.clear();
         for(auto &[id, radio] : radios) {
             if(radio.hot) {
-                hotRadios += std::format("{}{} at {:.1f} C", hotRadios.empty() ? "" : ", ", id, radio.temperature_celsius);
+                hotRadios += std::format("{}{} at {:.1f} C", hotRadios.empty() ? "" : ", ", id, radio.hotTemperature_celsius);
             }
         }
         return hotRadios.empty();
@@ -103,12 +104,17 @@ namespace Sagax::SCG {
     void RadioMonitor::Run() {
         std::unique_lock lck(mtx);
         auto nextCheck = std::chrono::steady_clock::now();
+        auto nextLog = nextCheck;
         while(running) {
             auto now = std::chrono::system_clock::now();
             auto nowSteady = std::chrono::steady_clock::now();
             if(nowSteady >= nextCheck) {
                 nextCheck = nowSteady + radioMonitorTick;
-                if(CheckTemperatures()) {
+                bool log = nowSteady >= nextLog;
+                if(log) {
+                    nextLog += radioTemperatureLogInterval;
+                }
+                if(CheckTemperatures(log)) {
                     lck.unlock();
                     onNotReady();
                     lck.lock();
@@ -169,11 +175,12 @@ namespace Sagax::SCG {
     }
 
     // returns true when the radios turned not ready
-    bool RadioMonitor::CheckTemperatures() {
+    bool RadioMonitor::CheckTemperatures(bool log) {
         auto isHot = [](const auto &entry) {
             return entry.second.hot;
         };
         bool wasReady = std::none_of(radios.begin(), radios.end(), isHot);
+        std::string logged;
         for(auto &[id, radio] : radios) {
             std::optional<double> temperature_celsius;
 #ifdef HAVE_USRP
@@ -204,6 +211,7 @@ namespace Sagax::SCG {
                 continue;
             }
             radio.temperature_celsius = temperature_celsius.value();
+            logged += std::format("{}{} at {:.1f} C", logged.empty() ? "" : ", ", id, radio.temperature_celsius);
             if(!radio.warm && radio.temperature_celsius >= radio.lowerTemperature_celsius) {
                 radio.warm = true;
                 warnings.push_back(std::format(
@@ -216,12 +224,16 @@ namespace Sagax::SCG {
             }
             if(!radio.hot && radio.temperature_celsius >= radio.upperTemperature_celsius) {
                 radio.hot = true;
+                radio.hotTemperature_celsius = radio.temperature_celsius;
                 Common::Logger::Warn(lh, "radio {} is at {:.1f} C, at or above {:.1f} C", id, radio.temperature_celsius, radio.upperTemperature_celsius);
             }
             else if(radio.hot && radio.temperature_celsius < radio.lowerTemperature_celsius) {
                 radio.hot = false;
                 Common::Logger::Info(lh, "radio {} is at {:.1f} C, below {:.1f} C", id, radio.temperature_celsius, radio.lowerTemperature_celsius);
             }
+        }
+        if(log && !logged.empty()) {
+            Common::Logger::Info(lh, "temperatures: {}", logged);
         }
         return wasReady && std::any_of(radios.begin(), radios.end(), isHot);
     }
