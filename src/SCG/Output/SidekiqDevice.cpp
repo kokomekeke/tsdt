@@ -20,7 +20,6 @@
 
 namespace Sagax::SCG {
 
-
     void SidekiqDevice::Init_() {
         // does nothing after the first call
         SSG::Sidekiq::Error error = SSG::Sidekiq::LibraryInit();
@@ -62,6 +61,9 @@ namespace Sagax::SCG {
         Common::Assert(error == SSG::Sidekiq::Error::none, std::format("failed to configure the sidekiq device: {}", SSG::Sidekiq::ToString(error)));
         Common::Assert(std::abs(dev->params.sampleRate - sampleRate) < 1.0, "could not set samplerate");
 
+        if(!doLog) {
+            return;
+        }
         for(std::size_t i = 0; i < nChannels; ++i) {
             if(std::abs(dev->params.txParams[i].gain - gains[i]) >= 1.0) {
                 Common::Logger::Warn("could not set gain. Desired: {}, actual: {}", gains[i], dev->params.txParams[i].gain);
@@ -90,13 +92,15 @@ namespace Sagax::SCG {
         auto after = std::chrono::system_clock::now();
         Common::Assert(error == SSG::Sidekiq::Error::none, std::format("failed to read the sidekiq timestamp: {}", SSG::Sidekiq::ToString(error)));
         syncTime = before + (after - before) / 2;
+        loggedStats = { 0, 0, 0 };
+        nextStatsCheck = std::chrono::steady_clock::now() + statsLogInterval;
     }
 
     void SidekiqDevice::Stop() {
-        if(stream) {
+        if(stream && doLog) {
             SSG::Sidekiq::TxStats stats;
             if(stream->ReadStats(stats) == SSG::Sidekiq::Error::none) {
-                Common::Logger::Info("sidekiq dropped samples: {}, late events: {}, underruns: {}", stats.droppedSamples, stats.lateEvents, stats.underruns);
+                Common::Logger::Info("sidekiq {} at stop, dropped samples: {}, late events: {}, underruns: {}", serial, stats.droppedSamples, stats.lateEvents, stats.underruns);
             }
         }
         stream.reset();
@@ -104,7 +108,8 @@ namespace Sagax::SCG {
 
     // the rf timestamp counts samples, a time before the sync point is in the past and
     // goes to timestamp 0, the stream drops those samples as late.
-    // late samples are counted by the stream and reported at Stop
+    // the stats are read every statsLogInterval and logged if they differ from the last
+    // logged ones, and once more at Stop
     void SidekiqDevice::Take(const std::vector<std::span<const SCGSample>> &channels, std::optional<std::chrono::system_clock::time_point> time) {
         Common::Assert(channels.size() == nChannels, "wrong number of channels");
         std::optional<std::uint64_t> timestamp;
@@ -114,14 +119,30 @@ namespace Sagax::SCG {
             timestamp = std::uint64_t(std::max(t, std::int64_t(0)));
         }
         SSG::Sidekiq::Error error = stream->Burst(channels[0].size(), channels, timestamp);
+        if(!doLog) {
+            return;
+        }
         if(error != SSG::Sidekiq::Error::none && error != SSG::Sidekiq::Error::late) {
             Common::Logger::Warn("sidekiq burst failed: {}", SSG::Sidekiq::ToString(error));
+        }
+        auto now = std::chrono::steady_clock::now();
+        if(now < nextStatsCheck) {
+            return;
+        }
+        nextStatsCheck = now + statsLogInterval;
+        SSG::Sidekiq::TxStats stats;
+        if(stream->ReadStats(stats) != SSG::Sidekiq::Error::none) {
+            return;
+        }
+        if(stats.droppedSamples != loggedStats.droppedSamples || stats.lateEvents != loggedStats.lateEvents || stats.underruns != loggedStats.underruns) {
+            Common::Logger::Info("sidekiq {} dropped samples: {}, late events: {}, underruns: {}", serial, stats.droppedSamples, stats.lateEvents, stats.underruns);
+            loggedStats = stats;
         }
     }
 
     void SidekiqDevice::Flush() {
         SSG::Sidekiq::Error error = stream->Flush();
-        if(error != SSG::Sidekiq::Error::none) {
+        if(error != SSG::Sidekiq::Error::none && doLog) {
             Common::Logger::Warn("sidekiq flush failed: {}", SSG::Sidekiq::ToString(error));
         }
     }

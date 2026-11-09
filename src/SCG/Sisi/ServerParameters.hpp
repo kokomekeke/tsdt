@@ -15,6 +15,9 @@ namespace Sagax::SCG {
     // this interval
     inline constexpr std::chrono::milliseconds radioTemperatureLogInterval{10000};
 
+    // the radio outputs check their stream stats this often and log them if they changed
+    inline constexpr std::chrono::milliseconds radioLogInterval{5000};
+
     // a difference this large between how far the system clock and the steady clock moved
     // is logged as a jump of the system clock
     inline constexpr std::chrono::milliseconds clockJumpLimit{1000};

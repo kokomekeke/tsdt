@@ -50,6 +50,11 @@ namespace Sagax::SCG {
         // every radio output is built as a MockOutputDevice instead of the real device,
         // the preinitialized devices are not looked up
         bool mockRadios = false;
+
+        // the radio outputs log their warnings, and their stream stats every radioLogInterval
+        // if they changed
+        bool radioDoLog;
+        std::chrono::milliseconds radioLogInterval;
     };
 
 }

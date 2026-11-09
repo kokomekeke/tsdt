@@ -2,6 +2,7 @@
 #ifdef HAVE_SIDEKIQ
 
 #include <vector>
+#include <chrono>
 #include <memory>
 #include <complex>
 #include <string>
@@ -21,6 +22,10 @@ namespace Sagax::SCG {
         std::vector<double> centers;
         std::vector<double> gains;
 
+        // logs the warnings, and the stream stats every statsLogInterval if they changed
+        bool doLog;
+        std::chrono::milliseconds statsLogInterval;
+
         // a device opened before the pipeline and owned elsewhere, it is kept across Dispose_.
         // without it Init_ opens devOwned. dev is the one of the two in use from Init_ to Dispose_
         SSG::Sidekiq::Device *devPreinit = nullptr;
@@ -32,6 +37,9 @@ namespace Sagax::SCG {
         // the rf timestamp of the card and the system time it was read at
         std::uint64_t syncTimestamp;
         std::chrono::system_clock::time_point syncTime;
+
+        SSG::Sidekiq::TxStats loggedStats;
+        std::chrono::steady_clock::time_point nextStatsCheck;
 
         void Init_() override;
         void Dispose_() override;

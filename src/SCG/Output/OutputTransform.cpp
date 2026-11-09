@@ -52,6 +52,8 @@ namespace Sagax::SCG {
                 p->sampleRate = s->sampleRate;
                 p->center = s->center;
                 p->gain = s->gain;
+                p->doLog = config.radioDoLog;
+                p->statsLogInterval = config.radioLogInterval;
                 {
                     auto &u = config.preinit.usrp;
                     auto it = u.devices.find(s->serial);
@@ -88,6 +90,8 @@ namespace Sagax::SCG {
                 p->centers = s->centers;
                 p->gains = s->gains;
                 p->handlers = s->handlers;
+                p->doLog = config.radioDoLog;
+                p->statsLogInterval = config.radioLogInterval;
                 {
                     auto &u = config.preinit.sidekiq;
                     auto it = u.devices.find(s->serial);

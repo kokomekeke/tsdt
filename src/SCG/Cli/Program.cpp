@@ -79,6 +79,8 @@ namespace Sagax::SCG::Cli {
     }
 
     void Program::Configure() {
+        pipelineConfig.radioDoLog = true;
+        pipelineConfig.radioLogInterval = std::chrono::milliseconds(5000);
         #ifdef HAVE_USRP
             pipelineConfig.preinit.usrp.usePreinitOnly = false;
         #endif

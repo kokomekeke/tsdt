@@ -2,6 +2,7 @@
 #ifdef HAVE_USRP
 
 #include <vector>
+#include <chrono>
 #include <memory>
 #include <complex>
 #include <string>
@@ -19,6 +20,10 @@ namespace Sagax::SCG {
         double center;
         double gain;
 
+        // logs the warnings, and the stream stats every statsLogInterval if they changed
+        bool doLog;
+        std::chrono::milliseconds statsLogInterval;
+
         // a device opened before the pipeline and owned elsewhere, it is kept across Dispose_.
         // without it Init_ opens devOwned. dev is the one of the two in use from Init_ to Dispose_
         SSG::UsrpB200::Device *devPreinit = nullptr;
@@ -29,6 +34,9 @@ namespace Sagax::SCG {
 
         // the system time the device time 0 was set at
         std::chrono::system_clock::time_point deviceTimeZero;
+
+        SSG::UsrpB200::TxStats loggedStats;
+        std::chrono::steady_clock::time_point nextStatsCheck;
 
         void Init_() override;
         void Dispose_() override;

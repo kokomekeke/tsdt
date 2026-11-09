@@ -51,6 +51,8 @@ namespace Sagax::SCG::Server {
     void Server::Configure() {
         pipelineConfig = SCG::PipelineConfig{};
         pipelineConfig.mockRadios = config.mockRadios;
+        pipelineConfig.radioDoLog = true;
+        pipelineConfig.radioLogInterval = SCG::radioLogInterval;
 #ifdef HAVE_USRP
         pipelineConfig.preinit.usrp.usePreinitOnly = true;
         if(!config.mockRadios) {
