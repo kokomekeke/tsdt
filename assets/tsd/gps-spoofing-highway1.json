@@ -1,0 +1,13 @@
+
+{
+  "name": "GPS Spoofing — Highway Position Offset",
+  "description": "Single-step GPS L1 spoofing test with a 500 m NE position offset.",
+  "steps": [
+    {
+      "summary": "GPS L1 spoofing — 300 seconds",
+      "duration_seconds": 300,
+      "driver_instructions": "Maintain steady speed and monitor receiver position, integrity flags and GT divergence throughout the test.",
+      "interference": "file:///home/sagax/sgx/scg/assets/rid/gps_spoofer_l1.json"
+    }
+  ]
+}
