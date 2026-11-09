@@ -15,14 +15,14 @@
       "duration_seconds": 180,
       "driver_instructions": "The RSG activates the GPS spoofer targeting PRNs 1, 3, 6, 11, 17, 22 at −10 dBm. A **500 m NE position offset** is introduced gradually.\n\nMaintain 90 km/h. The receiver's displayed position will begin to diverge from the true vehicle position. Do not adjust speed or lane.",
       "image": "assets/step-spoofing.svg",
-      "interference": "rid/gps_spoofer_l1.json"
+      "interference": "file:///home/sagax/sgx/scg/assets/rid/gps_spoofer_l1.json"
     },
     {
       "summary": "Full offset sustained",
       "duration_seconds": 120,
       "driver_instructions": "The spoofer continues transmitting with the full 500 m offset active. **Maintain 90 km/h** and continue driving straight.\n\nNote any receiver integrity flags (NMEA `GBS` or `GRS` sentences). The GT track and VDL track divergence should be clearly visible in Grafana.",
       "image": "assets/step-spoofing.svg",
-      "interference": "rid/gps_spoofer_l1.json"
+      "interference": "file:///home/sagax/sgx/scg/assets/rid/gps_spoofer_l1.json"
     },
     {
       "summary": "Spoofer deactivated — recovery monitoring",
