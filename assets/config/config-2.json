@@ -1,0 +1,28 @@
+{
+    "recording_directory": "recordings",
+    "mock_radios": true,
+    "mock_gnss": true,
+    "status_update_period_s": 10.0,
+    "start_ahead_s": 2.0,
+    "scenario_fetch_timeout_s": 2.0,
+    "gnss_prepare_rate": 1.0,
+    "gnss_ephemeris_file": "assets/rinex/BRDC00IGS_R_20211700000_01D_MN.rnx",
+    "prerecord_gnss": true,
+    "radios": [
+        {
+            "id": "r0",
+            "type": "UsrpB200",
+            "parameters": {
+                "serial": "8002051"
+            }
+        }
+    ],
+    "mqtt": {
+        "broker_host": "127.0.0.1",
+        "broker_port": 1883,
+        "command_topic": "cmd/tms",
+        "signal_log_topic": "tm/sg",
+        "test_log_topic": "tm/sg/test",
+        "error_log_topic": "tm/log"
+    }
+}

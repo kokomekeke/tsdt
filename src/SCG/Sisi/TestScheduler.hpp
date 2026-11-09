@@ -66,6 +66,7 @@ namespace Sagax::SCG {
         ServerConfig config;
         const PipelineConfig *pipelineConfig = nullptr;
         TestStorage storage;
+        std::chrono::system_clock::time_point now;
         // pointers to the tests stay valid while the list changes
         std::vector<std::unique_ptr<ScheduledTest>> tests;
 
@@ -96,10 +97,14 @@ namespace Sagax::SCG {
         // pipelineConfig_ has to outlive the tests, their pipelines point into it
         void Configure(const ServerConfig &config_, const PipelineConfig &pipelineConfig_);
 
+        // the time of every query, check and published status. the system clock can jump, so
+        // it may be earlier than the one set before
+        void SetNow(std::chrono::system_clock::time_point now_);
+
         // a refused setup is published as failed, unless its test id is already scheduled
         CommandError Schedule(const CommandMessage::TestSetup &command);
         // until the time of the test
-        CommandError Authorize(const std::string &testId, std::chrono::system_clock::time_point now);
+        CommandError Authorize(const std::string &testId);
         // the caller stops the preparation or the playback of the test first
         CommandError Cancel(const std::string &testId);
         void Restore();
@@ -109,16 +114,16 @@ namespace Sagax::SCG {
         ScheduledTest *Active();
         // the pending test that starts first, when no test is active and its preparation
         // would end before the start_ahead of every ready test
-        ScheduledTest *DueForPreparation(std::chrono::system_clock::time_point now);
+        ScheduledTest *DueForPreparation();
         // the ready test whose start_ahead has come, when no test is active
-        ScheduledTest *DueForPlayback(std::chrono::system_clock::time_point now);
+        ScheduledTest *DueForPlayback();
         // the next part of the active test, once its start_ahead has come
-        bool PartDue(const ScheduledTest &test, std::chrono::system_clock::time_point now);
+        bool PartDue(const ScheduledTest &test);
         // every part has started and the end of the active test has come
-        bool PlaybackOver(const ScheduledTest &test, std::chrono::system_clock::time_point now);
+        bool PlaybackOver(const ScheduledTest &test);
         // the earliest time after now at which a query above changes its answer or
         // FailMissed fails a test, by the clock alone
-        std::optional<std::chrono::system_clock::time_point> NextTime(std::chrono::system_clock::time_point now);
+        std::optional<std::chrono::system_clock::time_point> NextTime();
 
         // setters
         // each one asserts the state it comes from, which is the one before it in State
@@ -126,7 +131,7 @@ namespace Sagax::SCG {
         // SetFailed works from any state
 
         // the pending and ready tests whose time has come are failed
-        void FailMissed(std::chrono::system_clock::time_point now);
+        void FailMissed();
         void SetPreparing(ScheduledTest &test);
         void SetReady(ScheduledTest &test);
         void SetStarting(ScheduledTest &test);

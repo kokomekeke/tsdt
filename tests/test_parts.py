@@ -57,7 +57,7 @@ def test_the_parts_play_one_after_the_other(server, tmp_path):
     instance = server(start_ahead_s=START_AHEAD_S)
     mark = instance.setup(tsd.as_uri(), test_id="parts", seconds_ahead=5)
     instance.test_start("parts")
-    instance.expect_no_error(mark, timeout=2.0)
+    instance.expect_no_error(mark)
     assert instance.wait_for_log("playback finished: parts", timeout=30.0), instance.log
 
     log = instance.log
@@ -104,7 +104,7 @@ def test_a_summary_is_logged_on_setup(server, tmp_path):
     first, second, tsd = two_parts(tmp_path)
     instance = server(start_ahead_s=START_AHEAD_S)
     mark = instance.setup(tsd.as_uri(), test_id="summed", seconds_ahead=600)
-    instance.expect_no_error(mark, timeout=2.0)
+    instance.expect_no_error(mark)
     assert instance.wait_for_log("test scheduled: summed"), instance.log
 
     log = instance.log

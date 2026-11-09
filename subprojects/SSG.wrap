@@ -2,5 +2,5 @@
 ; url = git@bitbucket.org:sgx/ssg.git
 ; http is needed for CI
 url = http://10.1.1.50:3000/SAGAX/ssg.git
-revision = bda2a7d76b474aeed4c7e689f39434d4654bdf4b
+revision = 8dfe952c71e98719b7aae2a81e5e04f32913e02a
 depth = 1

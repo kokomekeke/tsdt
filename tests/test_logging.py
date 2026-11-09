@@ -27,7 +27,8 @@ def test_an_incoming_message_is_logged(scgserver):
 
 def test_an_outgoing_message_is_logged(scgserver):
     mark = scgserver.int_stop()
-    scgserver.expect_error(mark)
+    # the client logs a message after it handed it on, the barrier waits for that line
+    assert len(scgserver.barrier(mark)) == 1
     assert "mqtt out [" in scgserver.log, scgserver.log
 
 
@@ -59,7 +60,7 @@ def test_a_long_payload_is_hidden(scgserver, tsd_path):
     assert len(payload) > 256, len(payload)
 
     mark = scgserver.send(payload)
-    scgserver.expect_no_error(mark, timeout=2.0)
+    scgserver.expect_no_error(mark)
     assert scgserver.wait_for_log("test scheduled: padded")
     assert HIDDEN.search(scgserver.log), scgserver.log
     assert filler not in scgserver.log, scgserver.log
@@ -68,7 +69,7 @@ def test_a_long_payload_is_hidden(scgserver, tsd_path):
 def test_the_topic_and_the_quality_of_service_are_in_the_line(scgserver):
     """the server publishes a session log at qos 1 and reads the command topic at the qos it was sent"""
     mark = scgserver.int_stop()
-    scgserver.expect_error(mark)
+    assert len(scgserver.barrier(mark)) == 1
     assert re.search(
         r"mqtt out \[" + re.escape(scgserver.error_log_topic) + r"\] qos 1 retain 0 \(\d+ bytes\): ",
         scgserver.log,
@@ -80,7 +81,7 @@ def test_log_mqtt_false_turns_the_lines_off(server):
         config["log_mqtt"] = False
     instance = server(config_changes=changes)
     mark = instance.int_stop()
-    instance.expect_error(mark)
+    assert len(instance.barrier(mark)) == 1
     assert "mqtt in [" not in instance.log, instance.log
     assert "mqtt out [" not in instance.log, instance.log
 
@@ -88,6 +89,6 @@ def test_log_mqtt_false_turns_the_lines_off(server):
 def test_the_command_is_logged_by_name_without_its_payload(scgserver, tsd_path):
     """what replaced the per command lines that used to print the fields"""
     mark = scgserver.setup(tsd_path.as_uri(), test_id="named", seconds_ahead=3600)
-    scgserver.expect_no_error(mark, timeout=2.0)
+    scgserver.expect_no_error(mark)
     assert scgserver.wait_for_log("as TEST_SETUP"), scgserver.log
     assert "scenario_url=" not in scgserver.log, scgserver.log

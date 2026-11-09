@@ -102,11 +102,12 @@ namespace Sagax::SCG {
     // a temperature check that is due goes before a gain update that is due
     void RadioMonitor::Run() {
         std::unique_lock lck(mtx);
-        auto nextCheck = std::chrono::system_clock::now();
+        auto nextCheck = std::chrono::steady_clock::now();
         while(running) {
             auto now = std::chrono::system_clock::now();
-            if(now >= nextCheck) {
-                nextCheck = now + radioMonitorTick;
+            auto nowSteady = std::chrono::steady_clock::now();
+            if(nowSteady >= nextCheck) {
+                nextCheck = nowSteady + radioMonitorTick;
                 if(CheckTemperatures()) {
                     lck.unlock();
                     onNotReady();
@@ -121,7 +122,7 @@ namespace Sagax::SCG {
                     ++iNextGainUpdate;
                     continue;
                 }
-                if(time < nextCheck) {
+                if(time - now < nextCheck - nowSteady) {
                     WaitUntil(cv, lck, time, radioMonitorPrecision);
                     continue;
                 }

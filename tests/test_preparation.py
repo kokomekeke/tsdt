@@ -33,7 +33,7 @@ def test_a_spoofer_is_recorded_into_the_directory_of_its_test(server, tmp_path):
     tsd = wrap_rid(rid, duration_s=DURATION_S)
     sched = server(config_changes=with_ephemeris)
     mark = sched.setup(tsd.as_uri(), test_id="spoofed", seconds_ahead=600)
-    sched.expect_no_error(mark, timeout=2.0)
+    sched.expect_no_error(mark)
     assert sched.wait_for_log("preparation finished: spoofed", timeout=30.0), sched.log
 
     directory = tmp_path / "recordings" / "spoofed"
@@ -70,7 +70,7 @@ def test_a_cancel_removes_the_directory(server, tmp_path):
     assert directory.is_dir()
 
     mark = sched.cancel("dropped")
-    sched.expect_no_error(mark, timeout=2.0)
+    sched.expect_no_error(mark)
     assert sched.wait_for_log("test cancelled: dropped")
     assert not directory.exists()
 
@@ -91,7 +91,7 @@ def test_a_spoofed_test_runs_through_every_status(server, tmp_path, config_chang
     sched = server(start_ahead_s=2.0, config_changes=config_changes)
     mark = sched.setup(tsd.as_uri(), test_id="played", seconds_ahead=6)
     sched.test_start("played")
-    sched.expect_no_error(mark, timeout=2.0)
+    sched.expect_no_error(mark)
     assert sched.wait_for_log("playback finished: played", timeout=30.0), sched.log
 
     def statuses():
@@ -101,7 +101,7 @@ def test_a_spoofed_test_runs_through_every_status(server, tmp_path, config_chang
         messages = [json.loads(p) for _, _, p in sched.broker.since(mark, sched.error_log_topic)]
         return [m["type"] for m in messages if "type" in m]
 
-    assert wait_until(lambda: statuses()[-1]["test_status"] == "TEST_COMPLETED"), statuses()
+    assert wait_until(lambda: [s["test_status"] for s in statuses()][-1:] == ["TEST_COMPLETED"]), statuses()
     assert [s["test_status"] for s in statuses()] == [
         "TEST_INIT",
         "TEST_PREPARE",
@@ -111,7 +111,7 @@ def test_a_spoofed_test_runs_through_every_status(server, tmp_path, config_chang
     ], statuses()
     assert all(s["test_id"] == "played" for s in statuses()), statuses()
 
-    assert wait_until(lambda: signals()[-1] == "none"), signals()
+    assert wait_until(lambda: signals()[-1:] == ["none"]), signals()
     assert "spoofing" in signals(), signals()
     assert wait_until(lambda: not (tmp_path / "recordings" / "played").exists())
 

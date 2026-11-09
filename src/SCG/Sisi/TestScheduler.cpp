@@ -11,8 +11,8 @@ namespace Sagax::SCG {
 
     namespace {
 
-        CommandError CheckInFuture(const std::string &s, std::chrono::system_clock::time_point t) {
-            if(t <= std::chrono::system_clock::now()) {
+        CommandError CheckInFuture(const std::string &s, std::chrono::system_clock::time_point t, std::chrono::system_clock::time_point now) {
+            if(t <= now) {
                 return std::format("starting time is in the past: \"{}\"", s);
             }
             return {};
@@ -154,6 +154,10 @@ namespace Sagax::SCG {
         storage.Configure(config.recordingDir);
     }
 
+    void TestScheduler::SetNow(std::chrono::system_clock::time_point now_) {
+        now = now_;
+    }
+
     void TestScheduler::PublishStatus(const ScheduledTest &test, std::chrono::system_clock::time_point time) {
         onStatus(test.testId, ReportedStatus(test.state), time);
     }
@@ -218,7 +222,7 @@ namespace Sagax::SCG {
     // preparation is counted whole
     CommandError TestScheduler::CheckPreparationQueue(const ScheduledTest &test) {
         auto startAhead = Seconds(config.startAhead_s);
-        auto free = std::chrono::system_clock::now();
+        auto free = now;
 
         std::vector<const ScheduledTest *> queue{ &test };
         for(auto &t : tests) {
@@ -277,7 +281,7 @@ namespace Sagax::SCG {
 
     CommandError TestScheduler::CheckSetup(const CommandMessage::TestSetup &command, std::chrono::system_clock::time_point &time) {
         SCG_CHECK(ParseStartTime(command.startTime, time));
-        SCG_CHECK(CheckInFuture(command.startTime, time));
+        SCG_CHECK(CheckInFuture(command.startTime, time, now));
         SCG_CHECK(CheckTestId(command.testId));
         return {};
     }
@@ -324,7 +328,7 @@ namespace Sagax::SCG {
         }
         CommandError error = Accept(command);
         if(!error.empty()) {
-            onStatus(command.testId, TestStatusMessage::TestStatus::TEST_FAILED, std::chrono::system_clock::now());
+            onStatus(command.testId, TestStatusMessage::TestStatus::TEST_FAILED, now);
         }
         return error;
     }
@@ -342,7 +346,7 @@ namespace Sagax::SCG {
         SCG_CHECK(storage.SaveSources(test->testId, sources));
         SaveState(*test);
 
-        PublishStatus(*test, std::chrono::system_clock::now());
+        PublishStatus(*test, now);
         LogSummary(lh, *test, sources.tsd);
         tests.push_back(std::move(test));
         Common::Logger::Info(lh, "test scheduled: {}", command.testId);
@@ -357,7 +361,7 @@ namespace Sagax::SCG {
         if(it == tests.end()) {
             return std::format("unknown test id: \"{}\"", testId);
         }
-        SetState(**it, ScheduledTest::State::failed, std::chrono::system_clock::now());
+        SetState(**it, ScheduledTest::State::failed, now);
         storage.Remove(testId);
         tests.erase(it);
         Common::Logger::Info(lh, "test cancelled: {}", testId);
@@ -365,7 +369,7 @@ namespace Sagax::SCG {
         return {};
     }
 
-    CommandError TestScheduler::Authorize(const std::string &testId, std::chrono::system_clock::time_point now) {
+    CommandError TestScheduler::Authorize(const std::string &testId) {
         auto it = std::find_if(tests.begin(), tests.end(), [&](const std::unique_ptr<ScheduledTest> &t) {
             return t->testId == testId;
         });
@@ -390,7 +394,6 @@ namespace Sagax::SCG {
             std::chrono::system_clock::time_point time;
         };
         std::vector<Found> found;
-        auto now = std::chrono::system_clock::now();
         for(const std::string &testId : storage.SavedTestIds()) {
             Found f;
             CommandError error = storage.LoadState(testId, f.saved);
@@ -454,7 +457,7 @@ namespace Sagax::SCG {
         test->authorized = saved.authorized;
 
         SaveState(*test);
-        PublishStatus(*test, std::chrono::system_clock::now());
+        PublishStatus(*test, now);
         Common::Logger::Info(lh, "test restored: {}", test->testId);
         tests.push_back(std::move(test));
         LogTests();
@@ -464,7 +467,7 @@ namespace Sagax::SCG {
     // test.json may not be readable, the id is the name of the directory
     void TestScheduler::DropSavedTest(const std::string &testId, const std::string &error) {
         onError(testId, std::format("could not restore test \"{}\": {}", testId, error));
-        onStatus(testId, TestStatusMessage::TestStatus::TEST_FAILED, std::chrono::system_clock::now());
+        onStatus(testId, TestStatusMessage::TestStatus::TEST_FAILED, now);
         storage.Remove(testId);
     }
 
@@ -477,7 +480,7 @@ namespace Sagax::SCG {
         return nullptr;
     }
 
-    ScheduledTest *TestScheduler::DueForPreparation(std::chrono::system_clock::time_point now) {
+    ScheduledTest *TestScheduler::DueForPreparation() {
         if(Active() != nullptr) {
             return nullptr;
         }
@@ -500,7 +503,7 @@ namespace Sagax::SCG {
         return first;
     }
 
-    ScheduledTest *TestScheduler::DueForPlayback(std::chrono::system_clock::time_point now) {
+    ScheduledTest *TestScheduler::DueForPlayback() {
         if(Active() != nullptr) {
             return nullptr;
         }
@@ -513,17 +516,17 @@ namespace Sagax::SCG {
         return nullptr;
     }
 
-    bool TestScheduler::PartDue(const ScheduledTest &test, std::chrono::system_clock::time_point now) {
+    bool TestScheduler::PartDue(const ScheduledTest &test) {
         return test.nextPart < test.scenario.parts.size()
             && now >= test.scenario.parts[test.nextPart].time - Seconds(config.startAhead_s);
     }
 
-    bool TestScheduler::PlaybackOver(const ScheduledTest &test, std::chrono::system_clock::time_point now) {
+    bool TestScheduler::PlaybackOver(const ScheduledTest &test) {
         return test.nextPart == test.scenario.parts.size() && now >= test.end;
     }
 
     // the times in the past are left out, the queries already answer for them
-    std::optional<std::chrono::system_clock::time_point> TestScheduler::NextTime(std::chrono::system_clock::time_point now) {
+    std::optional<std::chrono::system_clock::time_point> TestScheduler::NextTime() {
         auto startAhead = Seconds(config.startAhead_s);
         std::optional<std::chrono::system_clock::time_point> next;
         auto consider = [&](std::chrono::system_clock::time_point time) {
@@ -556,29 +559,29 @@ namespace Sagax::SCG {
         return next;
     }
 
-    void TestScheduler::FailMissed(std::chrono::system_clock::time_point now) {
+    void TestScheduler::FailMissed() {
         for(auto &t : tests) {
             if((t->state == ScheduledTest::State::pending || t->state == ScheduledTest::State::ready) && now >= t->time) {
                 onError(t->testId, std::format("test \"{}\" missed its starting time", t->testId));
-                SetState(*t, ScheduledTest::State::failed, std::chrono::system_clock::now());
+                SetState(*t, ScheduledTest::State::failed, now);
             }
         }
     }
 
     void TestScheduler::SetPreparing(ScheduledTest &test) {
         Common::Assert(test.state == ScheduledTest::State::pending, "only a pending test is prepared");
-        SetState(test, ScheduledTest::State::preparing, std::chrono::system_clock::now());
+        SetState(test, ScheduledTest::State::preparing, now);
     }
 
     void TestScheduler::SetReady(ScheduledTest &test) {
         Common::Assert(test.state == ScheduledTest::State::preparing, "only a preparing test becomes ready");
-        SetState(test, ScheduledTest::State::ready, std::chrono::system_clock::now());
+        SetState(test, ScheduledTest::State::ready, now);
     }
 
     void TestScheduler::SetStarting(ScheduledTest &test) {
         Common::Assert(test.state == ScheduledTest::State::ready, "only a ready test starts");
         test.nextPart = 0;
-        SetState(test, ScheduledTest::State::starting, std::chrono::system_clock::now());
+        SetState(test, ScheduledTest::State::starting, now);
     }
 
     void TestScheduler::SetPlaying(ScheduledTest &test) {
@@ -597,7 +600,7 @@ namespace Sagax::SCG {
     }
 
     void TestScheduler::SetFailed(ScheduledTest &test) {
-        SetState(test, ScheduledTest::State::failed, std::chrono::system_clock::now());
+        SetState(test, ScheduledTest::State::failed, now);
     }
 
     void TestScheduler::EraseFinished() {

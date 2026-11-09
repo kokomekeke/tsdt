@@ -6,6 +6,7 @@ import time
 import pytest
 
 from helpers.server import setup_command, utc_string
+from helpers.tsd import write_tsd
 
 
 def statuses(instance, mark, test_id):
@@ -112,8 +113,8 @@ def test_a_test_id_that_is_not_a_directory_name_is_reported(scgserver, tsd_path,
 def test_a_duplicate_test_id_is_reported(scgserver, tsd_path):
     url = tsd_path.as_uri()
     mark = scgserver.setup(url, test_id="twice", seconds_ahead=3600)
-    scgserver.expect_no_error(mark, timeout=2.0)
-    assert scgserver.wait_for_log("test scheduled: twice")
+    scgserver.expect_no_error(mark)
+    assert wait_until(lambda: statuses(scgserver, mark, "twice")[-1:] == ["TEST_READY"]), statuses(scgserver, mark, "twice")
 
     mark = scgserver.setup(url, test_id="twice", seconds_ahead=7200)
     message, _ = scgserver.expect_error(mark)
@@ -134,6 +135,55 @@ def test_a_setup_whose_tsd_cannot_be_read_is_reported_as_failed(scgserver, tmp_p
     assert wait_until(lambda: statuses(scgserver, mark, "unread") == ["TEST_FAILED"]), statuses(scgserver, mark, "unread")
 
 
+def test_a_setup_whose_tsd_is_not_a_tsd_is_reported_as_failed(scgserver, tmp_path):
+    other = tmp_path / "other.json"
+    other.write_text('{ "hello": 1 }', encoding="utf-8")
+    mark = scgserver.setup(other.as_uri(), test_id="nottsd")
+    scgserver.expect_error(mark)
+    assert wait_until(lambda: statuses(scgserver, mark, "nottsd") == ["TEST_FAILED"]), statuses(scgserver, mark, "nottsd")
+
+
+@pytest.mark.parametrize("name, steps", [
+    ("nosteps", []),
+    ("negative", [(-1.0, None)]),
+])
+def test_a_setup_whose_tsd_is_invalid_is_reported_as_failed(scgserver, tmp_path, name, steps):
+    tsd = write_tsd(tmp_path / "invalid-tsd.json", steps)
+    mark = scgserver.setup(tsd.as_uri(), test_id=name)
+    scgserver.expect_error(mark)
+    assert wait_until(lambda: statuses(scgserver, mark, name) == ["TEST_FAILED"]), statuses(scgserver, mark, name)
+
+
+def test_a_setup_whose_step_is_shorter_than_its_rid_is_reported_as_failed(scgserver, tmp_path, rid_path):
+    tsd = write_tsd(tmp_path / "short-tsd.json", [(0.1, rid_path.as_uri())])
+    mark = scgserver.setup(tsd.as_uri(), test_id="short")
+    scgserver.expect_error(mark)
+    assert wait_until(lambda: statuses(scgserver, mark, "short") == ["TEST_FAILED"]), statuses(scgserver, mark, "short")
+
+
+@pytest.mark.parametrize("name", [
+    "not-json.json",
+    "rid-missing-channels.json",
+    "rid-unknown-radio.json",
+    "rid-negative-duration.json",
+    "rid-channel-out-of-range.json",
+    "rid-source-without-settings.json",
+    "rid-gain-update-without-settings.json",
+    "rid-gain-update-channel-out-of-range.json",
+    "rid-gain-update-same-channel-twice.json",
+    "rid-gain-update-zero-step.json",
+    "rid-gain-update-past-end.json",
+    "rid-gain-update-time-does-not-advance.json",
+])
+def test_a_setup_whose_rid_is_invalid_is_reported_as_failed(scgserver, repo, tmp_path, name):
+    """the step is longer than any of the rids, so only the rid itself is wrong"""
+    rid = repo / "tests" / "data" / name
+    tsd = write_tsd(tmp_path / "tsd.json", [(5.0, rid.as_uri())])
+    mark = scgserver.setup(tsd.as_uri(), test_id="badrid")
+    scgserver.expect_error(mark)
+    assert wait_until(lambda: statuses(scgserver, mark, "badrid") == ["TEST_FAILED"]), statuses(scgserver, mark, "badrid")
+
+
 def test_starting_an_unknown_test_is_reported(scgserver):
     mark = scgserver.test_start("nosuchtest")
     message, _ = scgserver.expect_error(mark)
@@ -142,11 +192,11 @@ def test_starting_an_unknown_test_is_reported(scgserver):
 
 def test_a_scheduled_test_can_be_started(scgserver, tsd_path):
     mark = scgserver.setup(tsd_path.as_uri(), test_id="authorized", seconds_ahead=3600)
-    scgserver.expect_no_error(mark, timeout=2.0)
+    scgserver.expect_no_error(mark)
     assert scgserver.wait_for_log("test scheduled: authorized")
 
     mark = scgserver.test_start("authorized")
-    scgserver.expect_no_error(mark, timeout=2.0)
+    scgserver.expect_no_error(mark)
     assert scgserver.wait_for_log("test authorized: authorized")
 
 
@@ -158,7 +208,7 @@ IGNORED = ["INT_START", "TEST_UPDATE", "TEST_END"]
 @pytest.mark.parametrize("name", IGNORED)
 def test_a_command_that_does_nothing_yet_is_accepted(scgserver, name):
     mark = scgserver.bare(name)
-    scgserver.expect_no_error(mark, timeout=2.0)
+    scgserver.expect_no_error(mark)
 
 
 @pytest.mark.parametrize("name", IGNORED)
@@ -175,11 +225,11 @@ def test_cancelling_an_unknown_test_is_reported(scgserver):
 
 def test_a_scheduled_test_can_be_cancelled(scgserver, tsd_path):
     mark = scgserver.setup(tsd_path.as_uri(), test_id="cancelme", seconds_ahead=3600)
-    scgserver.expect_no_error(mark, timeout=2.0)
+    scgserver.expect_no_error(mark)
     assert scgserver.wait_for_log("test scheduled: cancelme")
 
     mark = scgserver.cancel("cancelme")
-    scgserver.expect_no_error(mark, timeout=2.0)
+    scgserver.expect_no_error(mark)
     assert scgserver.wait_for_log("test cancelled: cancelme")
 
 
@@ -191,5 +241,5 @@ def test_a_cancelled_test_id_can_be_used_again(scgserver, tsd_path):
     assert scgserver.wait_for_log("test cancelled: again")
 
     mark = scgserver.setup(url, test_id="again", seconds_ahead=3600)
-    scgserver.expect_no_error(mark, timeout=2.0)
+    scgserver.expect_no_error(mark)
     assert scgserver.log.count("test scheduled: again") == 2

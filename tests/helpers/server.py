@@ -101,6 +101,12 @@ class ScgServer:
         )
         if not self.wait_for_log("subscribed to", timeout):
             raise RuntimeError(f"scgserver did not subscribe:\n{self.log}")
+        # the client logs the subscription when it queues it, the broker sees it later
+        deadline = time.monotonic() + timeout
+        while not self.broker.is_subscribed(self.command_topic):
+            if time.monotonic() > deadline:
+                raise RuntimeError(f"the broker never saw the subscription of scgserver:\n{self.log}")
+            time.sleep(0.01)
         return self
 
     def stop(self):
@@ -160,6 +166,32 @@ class ScgServer:
         assert answer is not None, f"no error came back in {timeout} s\n{self.log}"
         return answer
 
-    def expect_no_error(self, mark, timeout=2.0):
-        answer = self.broker.wait_for_error(mark, self.error_log_topic, timeout)
-        assert answer is None, f"unexpected error: {answer[0]}"
+    def barrier(self, mark, timeout=6.0):
+        """Every error since the mark that came before the answer to a cancel sent now.
+
+        The server handles commands in order and publishes on one connection, so the
+        answer to an earlier command, and anything it logged or published while handling
+        it, is out before the answer to this cancel.
+        """
+        test_id = f"barrier-{next(_counter)}"
+        answer = f'unknown test id: "{test_id}"'
+        self.cancel(test_id)
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            messages = []
+            for _, _, payload in self.broker.since(mark, self.error_log_topic):
+                try:
+                    body = json.loads(payload)
+                except ValueError:
+                    continue
+                if isinstance(body, dict) and "message" in body:
+                    messages.append(body["message"])
+            for i, message in enumerate(messages):
+                if answer in message:
+                    return messages[:i]
+            time.sleep(0.02)
+        raise AssertionError(f"the barrier was not answered in {timeout} s\n{self.log}")
+
+    def expect_no_error(self, mark, timeout=6.0):
+        errors = self.barrier(mark, timeout)
+        assert errors == [], f"unexpected errors: {errors}"

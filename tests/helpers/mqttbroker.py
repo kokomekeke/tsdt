@@ -193,6 +193,11 @@ class Broker:
         with self.lock:
             return sum(1 for c in self.clients if c.filters)
 
+    def is_subscribed(self, topic):
+        """A message published on the topic now reaches a client."""
+        with self.lock:
+            return any(topic_matches(f, topic) for c in self.clients for f in c.filters)
+
     def mark(self):
         return time.monotonic()
 

@@ -16,11 +16,13 @@ only for a test; the files that exist for the test suite are under `tests/data`.
 | config | what it is |
 |---|---|
 | `config-1.json` | mocked radios, for the `test-rid-1` to `test-rid-3` rids |
+| `config-2.json` | one mocked usrp with one channel and a mocked gnss engine, for `gps_spoofer_l1` |
 | `sisi-stage-mock.json` | the stage machine with its radios and gnss mocked, broker on this machine |
 | `sisi-stage-live.json` | the same radios driven for real, broker on 10.1.1.81 |
 | `sisi-neurontest-mock.json` | `sisi-stage-mock.json` with the broker on 10.1.2.44 and gnss not mocked |
 | `sisi-neurontest-live.json` | the same file as `sisi-stage-live.json` |
 | `sisi-stage-hadipari.json` | the stage radios and the gnss engine driven for real, the ephemeris from `rinex` at its path on the stage machine |
+| `sisi-stage-hadipari-mock.json` | `sisi-stage-hadipari.json` with its radios and gnss mocked, the ephemeris from `rinex` relative to the repository |
 
 A rid is only meaningful next to a config, because it names radios by the ids the config
 gives them. Which rid goes with which config is not written down anywhere else:
@@ -29,8 +31,9 @@ gives them. Which rid goes with which config is not written down anywhere else:
 |---|---|
 | `test-rid-1` to `test-rid-3` | `config-1.json` |
 | `test-rid-sisi-stage-1` to `test-rid-sisi-stage-4` | `sisi-stage-*`, `sisi-neurontest-*` |
-| `test-rid-sisi-hadipari` | `sisi-stage-hadipari.json` |
-| `gps_spoofer_l1` | none yet, it came from the harness and no config here accepts it |
+| `test-rid-sisi-hadipari`, `test-rid-sisi-hadipari-jatszos` | `sisi-stage-hadipari*` |
+| `gps-l1-spoofing`, `l1-spoofing-jamming` | `sisi-stage-hadipari*` |
+| `gps_spoofer_l1` | `config-2.json` |
 
 A live config names sidekiq cards, so `scglint` only accepts it from a build with sidekiq
 support.

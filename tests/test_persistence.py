@@ -327,9 +327,12 @@ def test_a_test_in_the_wrong_directory_is_dropped(server, broker, tmp_path, rid_
 
 
 def test_the_state_is_saved_on_every_change(server, tmp_path):
-    """the status and the authorization in test.json follow the test until it is over"""
-    rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=DURATION_S)
-    tsd = wrap_rid(rid, duration_s=DURATION_S)
+    """the status and the authorization in test.json follow the test until it is over
+
+    the test plays for a few seconds, so the file is read several times while it is running
+    """
+    rid = write_gnss_rid(tmp_path / "gnss.json", duration_s=3.0)
+    tsd = wrap_rid(rid, duration_s=3.0)
     sched = server(start_ahead_s=2.0, config_changes=with_ephemeris)
     sched.setup(tsd.as_uri(), test_id="followed", seconds_ahead=6)
     assert sched.wait_for_log("preparation finished: followed", timeout=30.0), sched.log
@@ -345,7 +348,8 @@ def test_the_state_is_saved_on_every_change(server, tmp_path):
     def status_changed():
         try:
             running.append(saved(tmp_path, "followed")["status"])
-        except FileNotFoundError:
+        except (OSError, ValueError):
+            # the server writes the file in place, a read can meet it half written
             pass
         return "TEST_RUNNING" in running
 

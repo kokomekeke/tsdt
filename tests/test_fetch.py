@@ -77,7 +77,7 @@ def test_over_mqtt_served(scgserver, http_mock, tsd_path, name, options, asked, 
     mark = scgserver.setup(mock.url(asked), test_id=name)
 
     if expected is None:
-        scgserver.expect_no_error(mark, timeout=2.0)
+        scgserver.expect_no_error(mark)
         assert scgserver.wait_for_log(f"test scheduled: {name}")
         return
 
@@ -92,7 +92,7 @@ def test_over_mqtt_local(scgserver, tsd_path, name, kind, expected):
     mark = scgserver.setup(local_url(kind, tsd_path), test_id=name)
 
     if expected is None:
-        scgserver.expect_no_error(mark, timeout=2.0)
+        scgserver.expect_no_error(mark)
         assert scgserver.wait_for_log(f"test scheduled: {name}")
         return
 
@@ -227,7 +227,7 @@ def test_a_url_two_steps_name_is_read_once(scgserver, http_mock, rid_path, tmp_p
     url = mock.url("rid.json")
     tsd = write_tsd(tmp_path / "twice-tsd.json", [(0.5, url), (0.5, url)])
     mark = scgserver.setup(tsd.as_uri(), test_id="readonce")
-    scgserver.expect_no_error(mark, timeout=2.0)
+    scgserver.expect_no_error(mark)
     assert scgserver.wait_for_log("test scheduled: readonce")
     assert scgserver.log.count("reading the RID of step") == 1, scgserver.log
 

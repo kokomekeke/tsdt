@@ -74,6 +74,9 @@ namespace Sagax::SCG::Server {
         RadioMonitor radioMonitor;
 
         // only the main loop touches these
+        // now and nowSteady are read together by UpdateNow
+        std::chrono::system_clock::time_point now;
+        std::chrono::steady_clock::time_point nowSteady;
         bool radiosReady = true;
         std::optional<std::size_t> playingPart;
         std::set<std::int32_t> activeEventIds;
@@ -83,6 +86,7 @@ namespace Sagax::SCG::Server {
         std::mt19937_64 randomDevice{ std::random_device{}() };
 
         void Configure();
+        void UpdateNow();
         void ConfigureMqtt();
         void QueueSignalEvent(std::int32_t eventId, bool active, std::chrono::system_clock::time_point time);
         void ApplySignalEvents();
@@ -112,7 +116,7 @@ namespace Sagax::SCG::Server {
         void StartPart(ScheduledTest &test);
         void StopPipeline();
         bool FinishPart(ScheduledTest &test);
-        void UpdatePlayback(ScheduledTest &test, std::chrono::system_clock::time_point now);
+        void UpdatePlayback(ScheduledTest &test);
         void UpdateRadios();
         void UpdateSchedule();
         void Wait();

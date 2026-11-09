@@ -97,6 +97,19 @@ namespace Sagax::SCG::Server {
         };
     }
 
+    // the scheduler follows the system clock also when it jumps
+    void Server::UpdateNow() {
+        auto system = std::chrono::system_clock::now();
+        auto steady = std::chrono::steady_clock::now();
+        auto jump = (system - now) - std::chrono::duration_cast<std::chrono::system_clock::duration>(steady - nowSteady);
+        if(jump > clockJumpLimit || jump < -clockJumpLimit) {
+            Common::Logger::Warn(lh, "the system clock jumped by {:.3f} s", std::chrono::duration<double>(jump).count());
+        }
+        now = system;
+        nowSteady = steady;
+        scheduler.SetNow(now);
+    }
+
     void Server::ConfigureMqtt() {
         MqttClient::Configuration mqttConfig;
         mqttConfig.host = config.mqtt.brokerHost;
@@ -124,7 +137,6 @@ namespace Sagax::SCG::Server {
 
     // a source can have more than one event, the active ones are tracked by event id
     void Server::ApplySignalEvents() {
-        auto now = std::chrono::system_clock::now();
         std::unique_lock lck(mtx);
         while(!signalEvents.empty() && signalEvents.begin()->first <= now) {
             const SignalEvent &event = signalEvents.begin()->second;
@@ -217,7 +229,7 @@ namespace Sagax::SCG::Server {
         }
         SessionLogMessage message;
         message.eventId = GenerateUuid(randomDevice);
-        message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
+        message.timestamp = FormatIsoTime(now);
         message.sessionId = testId;
         message.subsystem = SessionLogMessage::Subsystem::rsg;
         message.severity = severity;
@@ -228,15 +240,14 @@ namespace Sagax::SCG::Server {
 
     void Server::PublishSignalStatus() {
         auto status = CurrentSignalStatus();
-        auto now = std::chrono::steady_clock::now();
-        if(lastSignalStatus == status && now < nextSignalStatus) {
+        if(lastSignalStatus == status && nowSteady < nextSignalStatus) {
             return;
         }
         lastSignalStatus = status;
-        nextSignalStatus = now + statusPeriod;
+        nextSignalStatus = nowSteady + statusPeriod;
 
         SignalStatusMessage message;
-        message.timestamp = FormatIsoTime(std::chrono::system_clock::now());
+        message.timestamp = FormatIsoTime(now);
         message.type = status;
         Json::JsonIssues issues;
         Publish(config.mqtt.signalLogTopic, signalStatusQos, SerializeSignalStatusMessage(message, issues), issues);
@@ -332,7 +343,7 @@ namespace Sagax::SCG::Server {
         scheduler.SetPartStarted(test);
         auto &part = test.scenario.parts[iPart];
 
-        if(std::chrono::system_clock::now() >= part.time) {
+        if(now >= part.time) {
             PublishLog(SessionLogMessage::Severity::error, test.testId, std::format("part {} of test \"{}\" missed its starting time", iPart, test.testId));
             scheduler.SetFailed(test);
             return;
@@ -409,7 +420,7 @@ namespace Sagax::SCG::Server {
     }
 
     // the test is playing from its time until its end, also between parts
-    void Server::UpdatePlayback(ScheduledTest &test, std::chrono::system_clock::time_point now) {
+    void Server::UpdatePlayback(ScheduledTest &test) {
         if(playingPart.has_value() && ctx.GetState() != Pipeline3::PipelineEngine::RunState::running) {
             if(!FinishPart(test)) {
                 return;
@@ -429,10 +440,10 @@ namespace Sagax::SCG::Server {
         if(playingPart.has_value()) {
             return;
         }
-        if(scheduler.PartDue(test, now)) {
+        if(scheduler.PartDue(test)) {
             StartPart(test);
         }
-        else if(scheduler.PlaybackOver(test, now)) {
+        else if(scheduler.PlaybackOver(test)) {
             scheduler.SetDone(test);
             Common::Logger::Info(lh, "playback finished: {}", test.testId);
         }
@@ -471,8 +482,7 @@ namespace Sagax::SCG::Server {
     }
 
     void Server::UpdateSchedule() {
-        auto now = std::chrono::system_clock::now();
-        scheduler.FailMissed(now);
+        scheduler.FailMissed();
 
         if(ScheduledTest *test = scheduler.Active()) {
             if(test->state == ScheduledTest::State::preparing) {
@@ -481,16 +491,16 @@ namespace Sagax::SCG::Server {
                 }
             }
             else {
-                UpdatePlayback(*test, now);
+                UpdatePlayback(*test);
             }
         }
 
-        if(ScheduledTest *test = scheduler.DueForPlayback(now)) {
+        if(ScheduledTest *test = scheduler.DueForPlayback()) {
             scheduler.SetStarting(*test);
             Common::Logger::Info(lh, "playback started: {}", test->testId);
-            UpdatePlayback(*test, now);
+            UpdatePlayback(*test);
         }
-        if(ScheduledTest *test = scheduler.DueForPreparation(now)) {
+        if(ScheduledTest *test = scheduler.DueForPreparation()) {
             StartPreparation(*test);
         }
         scheduler.EraseFinished();
@@ -499,13 +509,14 @@ namespace Sagax::SCG::Server {
     // waits for the next tick. a scheduler time or a signal event before the tick is waited
     // for accurately. the mqtt client, the event callbacks, the preparation and the signal
     // handler notify cv
+    // now is from before the last pass of the main loop, a time that has passed since ends the
+    // wait at once
     void Server::Wait() {
         std::unique_lock lck(mtx);
         if(!programRunning || radiosTurnedNotReady) {
             return;
         }
-        auto now = std::chrono::system_clock::now();
-        std::optional<std::chrono::system_clock::time_point> next = scheduler.NextTime(now);
+        std::optional<std::chrono::system_clock::time_point> next = scheduler.NextTime();
         if(!signalEvents.empty() && (!next.has_value() || signalEvents.begin()->first < next.value())) {
             next = signalEvents.begin()->first;
         }
@@ -513,7 +524,7 @@ namespace Sagax::SCG::Server {
             WaitUntil(cv, lck, next.value(), schedulePrecision);
         }
         else {
-            cv.wait_until(lck, now + scheduleTick);
+            cv.wait_for(lck, scheduleTick);
         }
     }
 
@@ -559,7 +570,7 @@ namespace Sagax::SCG::Server {
             auto &v = std::get<CommandMessage::TestStart>(cm.variant);
             Interpreted(msg.topic, "TEST_START");
             testId = v.testId;
-            error = scheduler.Authorize(v.testId, std::chrono::system_clock::now());
+            error = scheduler.Authorize(v.testId);
             ScheduledTest *active = scheduler.Active();
             if(error.empty() && active != nullptr && active->testId == v.testId && playingPart.has_value()) {
                 ctx.Authorize();
@@ -583,6 +594,7 @@ namespace Sagax::SCG::Server {
     void Server::HandleCommands() {
         MqttClient::Message msg;
         while(client.Pop(msg)) {
+            UpdateNow();
             try {
                 HandleCommand(msg);
             }
@@ -646,6 +658,10 @@ namespace Sagax::SCG::Server {
     }
 
     void Server::Run() {
+        MqttClient::LibraryInit();
+        Common::Defer cleanupMqttLibrary([](){
+            MqttClient::LibraryCleanup();
+        });
         Common::Defer disposeClient([this](){
             client.Stop();
         });
@@ -671,6 +687,9 @@ namespace Sagax::SCG::Server {
             return;
         }
 
+        now = std::chrono::system_clock::now();
+        nowSteady = std::chrono::steady_clock::now();
+        scheduler.SetNow(now);
         scheduler.Restore();
 
         Common::Logger::Info(lh, "server running.. ctrl+c to stop");
@@ -678,15 +697,17 @@ namespace Sagax::SCG::Server {
         statusPeriod = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
             std::chrono::duration<double>(config.statusUpdatePeriod_s)
         );
-        nextSignalStatus = std::chrono::steady_clock::now();
+        nextSignalStatus = nowSteady;
         while(true) {
             Wait();
             if(StopRequested()) {
                 break;
             }
 
+            UpdateNow();
             UpdateRadios();
             HandleCommands();
+            UpdateNow();
             UpdateSchedule();
             ApplySignalEvents();
             PublishSignalStatus();
